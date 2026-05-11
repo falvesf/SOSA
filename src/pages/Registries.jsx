@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select } from '../components/ui';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Edit2, X } from 'lucide-react';
 
 export default function Registries() {
   const [activeTab, setActiveTab] = useState('schools'); // schools, series, subjects, teachers
@@ -32,6 +32,7 @@ function SchoolsCrud() {
   const [schools, setSchools] = useState([]);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [editingId, setEditingId] = useState(null);
 
   const fetchSchools = async () => {
     const { data } = await supabase.from('schools').select('*').order('name');
@@ -40,13 +41,33 @@ function SchoolsCrud() {
 
   useEffect(() => { fetchSchools(); }, []);
 
-  const handleAdd = async (e) => {
+  const handleAddOrEdit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !code.trim()) return;
-    await supabase.from('schools').insert([{ code, name }]);
+    
+    if (editingId) {
+      await supabase.from('schools').update({ code, name }).eq('id', editingId);
+      setEditingId(null);
+    } else {
+      await supabase.from('schools').insert([{ code, name }]);
+    }
+    
     setCode('');
     setName('');
     fetchSchools();
+  };
+
+  const startEdit = (s) => {
+    setEditingId(s.id);
+    setCode(s.code);
+    setName(s.name);
+    window.scrollTo(0, 0);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setCode('');
+    setName('');
   };
 
   const handleDelete = async (id) => {
@@ -59,16 +80,21 @@ function SchoolsCrud() {
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Unidades Escolares</h2>
-      <form onSubmit={handleAdd} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
+      <form onSubmit={handleAddOrEdit} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
         <div style={{ flex: 1 }}><Input placeholder="Código da Unidade (ex: 001)" value={code} onChange={e => setCode(e.target.value)} required /></div>
         <div style={{ flex: 2 }}><Input placeholder="Nome da Unidade" value={name} onChange={e => setName(e.target.value)} required /></div>
-        <Button type="submit" variant="primary"><Plus size={18} /> Adicionar</Button>
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary">
+            {editingId ? <><Edit2 size={18} /> Salvar</> : <><Plus size={18} /> Adicionar</>}
+          </Button>
+          {editingId && <Button type="button" variant="secondary" onClick={cancelEdit}><X size={18} /></Button>}
+        </div>
       </form>
 
       <div className="table-container">
         <table className="table">
           <thead>
-            <tr><th>Código</th><th>Nome da Unidade</th><th style={{ width: '80px' }}>Ações</th></tr>
+            <tr><th>Código</th><th>Nome da Unidade</th><th style={{ width: '100px' }}>Ações</th></tr>
           </thead>
           <tbody>
             {schools.map(s => (
@@ -76,9 +102,14 @@ function SchoolsCrud() {
                 <td>{s.code}</td>
                 <td>{s.name}</td>
                 <td>
-                  <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEdit(s)}>
+                      <Edit2 size={16} />
+                    </Button>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -97,10 +128,12 @@ function SeriesCrud() {
   
   // Segment form
   const [segmentName, setSegmentName] = useState('');
+  const [editingSegment, setEditingSegment] = useState(null);
   
   // Series form
   const [seriesName, setSeriesName] = useState('');
   const [segmentId, setSegmentId] = useState('');
+  const [editingSeries, setEditingSeries] = useState(null);
 
   const fetchData = async () => {
     const { data: segData } = await supabase.from('segments').select('*').order('name');
@@ -112,21 +145,46 @@ function SeriesCrud() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleAddSegment = async (e) => {
+  const handleAddOrEditSegment = async (e) => {
     e.preventDefault();
     if (!segmentName.trim()) return;
-    await supabase.from('segments').insert([{ name: segmentName }]);
+    
+    if (editingSegment) {
+      await supabase.from('segments').update({ name: segmentName }).eq('id', editingSegment);
+      setEditingSegment(null);
+    } else {
+      await supabase.from('segments').insert([{ name: segmentName }]);
+    }
     setSegmentName('');
     fetchData();
   };
 
-  const handleAddSeries = async (e) => {
+  const handleAddOrEditSeries = async (e) => {
     e.preventDefault();
     if (!seriesName.trim() || !segmentId) return;
-    await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId }]);
+    
+    if (editingSeries) {
+      await supabase.from('series').update({ name: seriesName, segment_id: segmentId }).eq('id', editingSeries);
+      setEditingSeries(null);
+    } else {
+      await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId }]);
+    }
     setSeriesName('');
     setSegmentId('');
     fetchData();
+  };
+
+  const startEditSegment = (s) => {
+    setEditingSegment(s.id);
+    setSegmentName(s.name);
+  };
+
+  const startEditSeries = (s) => {
+    setEditingSeries(s.id);
+    setSeriesName(s.name);
+    setSegmentId(s.segment_id);
+    // Scroll smoothly to top form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeleteSegment = async (id) => {
@@ -151,24 +209,32 @@ function SeriesCrud() {
         <h2 className="h3" style={{ marginBottom: 'var(--space-2)' }}>Gerenciar Turmas (Segmentos)</h2>
         <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-4)' }}>Crie categorias para agrupar suas séries (ex: Fundamental I, Educação Infantil).</p>
         
-        <form onSubmit={handleAddSegment} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-4)' }}>
+        <form onSubmit={handleAddOrEditSegment} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-4)' }}>
           <div style={{ flex: 1 }}><Input placeholder="Nome da nova turma/segmento..." value={segmentName} onChange={e => setSegmentName(e.target.value)} required /></div>
-          <Button type="submit" variant="primary">Adicionar Turma</Button>
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary">{editingSegment ? 'Salvar' : 'Adicionar Turma'}</Button>
+            {editingSegment && <Button type="button" variant="secondary" onClick={() => {setEditingSegment(null); setSegmentName('');}}><X size={18} /></Button>}
+          </div>
         </form>
 
         <div className="table-container">
           <table className="table text-sm">
             <thead>
-              <tr><th>Nome da Turma</th><th style={{ width: '80px' }}>Ações</th></tr>
+              <tr><th>Nome da Turma</th><th style={{ width: '100px' }}>Ações</th></tr>
             </thead>
             <tbody>
               {segments.map(s => (
                 <tr key={s.id}>
                   <td>{s.name}</td>
                   <td>
-                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSegment(s.id)}>
-                      <Trash2 size={16} />
-                    </Button>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEditSegment(s)}>
+                        <Edit2 size={16} />
+                      </Button>
+                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSegment(s.id)}>
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -180,9 +246,9 @@ function SeriesCrud() {
 
       {/* Cadastro de Séries */}
       <div style={{ padding: 'var(--space-4)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-        <h2 className="h3" style={{ marginBottom: 'var(--space-4)' }}>Adicionar Nova Série</h2>
+        <h2 className="h3" style={{ marginBottom: 'var(--space-4)' }}>{editingSeries ? 'Editar Série' : 'Adicionar Nova Série'}</h2>
         
-        <form onSubmit={handleAddSeries} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
+        <form onSubmit={handleAddOrEditSeries} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
           <div style={{ flex: 1 }}>
             <Input placeholder="Nome da Série (ex: 1º Ano A)" value={seriesName} onChange={e => setSeriesName(e.target.value)} required />
           </div>
@@ -194,7 +260,10 @@ function SeriesCrud() {
               required
             />
           </div>
-          <Button type="submit" variant="primary">Adicionar Série</Button>
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary">{editingSeries ? 'Salvar' : 'Adicionar Série'}</Button>
+            {editingSeries && <Button type="button" variant="secondary" onClick={() => {setEditingSeries(null); setSeriesName(''); setSegmentId('');}}><X size={18} /></Button>}
+          </div>
         </form>
 
         {/* Listagem Agrupada */}
@@ -213,10 +282,15 @@ function SeriesCrud() {
                     {segSeries.map(s => (
                       <tr key={s.id}>
                         <td style={{ borderTop: 'none' }}>{s.name}</td>
-                        <td style={{ width: '80px', borderTop: 'none', textAlign: 'right' }}>
-                          <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSeries(s.id)}>
-                            <Trash2 size={16} />
-                          </Button>
+                        <td style={{ width: '100px', borderTop: 'none', textAlign: 'right' }}>
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEditSeries(s)}>
+                              <Edit2 size={16} />
+                            </Button>
+                            <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSeries(s.id)}>
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -238,11 +312,12 @@ function SubjectsCrud() {
   const [segments, setSegments] = useState([]);
   const [name, setName] = useState('');
   const [selectedSegments, setSelectedSegments] = useState([]);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchData = async () => {
     const { data: subData } = await supabase.from('subjects').select(`
       *,
-      segment_subjects ( segments ( name ) )
+      segment_subjects ( segment_id, segments ( name ) )
     `).order('name');
     if (subData) setSubjects(subData);
 
@@ -252,21 +327,41 @@ function SubjectsCrud() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleAdd = async (e) => {
+  const handleAddOrEdit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
     
-    const { data: newSubject, error } = await supabase.from('subjects').insert([{ name }]).select().single();
-    if (error) return console.error(error);
+    let subjectId = editingId;
+    
+    if (editingId) {
+      // Update subject name
+      await supabase.from('subjects').update({ name }).eq('id', editingId);
+      // Delete old mappings
+      await supabase.from('segment_subjects').delete().eq('subject_id', editingId);
+    } else {
+      // Insert new subject
+      const { data: newSubject, error } = await supabase.from('subjects').insert([{ name }]).select().single();
+      if (error) return console.error(error);
+      subjectId = newSubject.id;
+    }
 
-    if (newSubject && selectedSegments.length > 0) {
-      const mappings = selectedSegments.map(sid => ({ subject_id: newSubject.id, segment_id: sid }));
+    // Insert mappings
+    if (subjectId && selectedSegments.length > 0) {
+      const mappings = selectedSegments.map(sid => ({ subject_id: subjectId, segment_id: sid }));
       await supabase.from('segment_subjects').insert(mappings);
     }
     
     setName('');
     setSelectedSegments([]);
+    setEditingId(null);
     fetchData();
+  };
+
+  const startEdit = (s) => {
+    setEditingId(s.id);
+    setName(s.name);
+    setSelectedSegments(s.segment_subjects.map(ss => ss.segment_id));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
@@ -281,10 +376,13 @@ function SubjectsCrud() {
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Disciplinas</h2>
-      <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
+      <form onSubmit={handleAddOrEdit} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
         <div className="flex gap-4">
           <div style={{ flex: 1 }}><Input placeholder="Nome da Disciplina (ex: Matemática)" value={name} onChange={e => setName(e.target.value)} required /></div>
-          <Button type="submit" variant="primary"><Plus size={18} /> Adicionar</Button>
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary">{editingId ? <><Edit2 size={18}/> Salvar</> : <><Plus size={18}/> Adicionar</>}</Button>
+            {editingId && <Button type="button" variant="secondary" onClick={() => {setEditingId(null); setName(''); setSelectedSegments([]);}}><X size={18} /></Button>}
+          </div>
         </div>
         <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Atrelar às Turmas (Segmentos):</p>
@@ -302,7 +400,7 @@ function SubjectsCrud() {
       <div className="table-container">
         <table className="table">
           <thead>
-            <tr><th>Disciplina</th><th>Turmas Atreladas</th><th style={{ width: '80px' }}>Ações</th></tr>
+            <tr><th>Disciplina</th><th>Turmas Atreladas</th><th style={{ width: '100px' }}>Ações</th></tr>
           </thead>
           <tbody>
             {subjects.map(s => (
@@ -312,9 +410,14 @@ function SubjectsCrud() {
                   {s.segment_subjects?.map(ss => ss.segments?.name).join(', ') || '-'}
                 </td>
                 <td>
-                  <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEdit(s)}>
+                      <Edit2 size={16} />
+                    </Button>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -337,12 +440,13 @@ function TeachersCrud() {
   const [teacherType, setTeacherType] = useState('regente');
   const [selectedSeries, setSelectedSeries] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchData = async () => {
     const { data: tData } = await supabase.from('teachers').select(`
       *,
-      teacher_series ( series (name, segments(name)) ),
-      teacher_subjects ( subjects (name) )
+      teacher_series ( series_id, series (name, segments(name)) ),
+      teacher_subjects ( subject_id, subjects (name) )
     `).order('name');
     if (tData) setTeachers(tData);
 
@@ -355,21 +459,31 @@ function TeachersCrud() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleAdd = async (e) => {
+  const handleAddOrEdit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
     
-    const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email, teacher_type: teacherType }]).select().single();
-    if (error) return console.error(error);
+    let teacherId = editingId;
 
-    if (newTeacher) {
+    if (editingId) {
+      await supabase.from('teachers').update({ name, email, teacher_type: teacherType }).eq('id', editingId);
+      // Delete old mappings
+      await supabase.from('teacher_series').delete().eq('teacher_id', editingId);
+      await supabase.from('teacher_subjects').delete().eq('teacher_id', editingId);
+    } else {
+      const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email, teacher_type: teacherType }]).select().single();
+      if (error) return console.error(error);
+      teacherId = newTeacher.id;
+    }
+
+    if (teacherId) {
       if (selectedSeries.length > 0) {
-        const seriesMappings = selectedSeries.map(sid => ({ teacher_id: newTeacher.id, series_id: sid }));
+        const seriesMappings = selectedSeries.map(sid => ({ teacher_id: teacherId, series_id: sid }));
         await supabase.from('teacher_series').insert(seriesMappings);
       }
       
       if (teacherType === 'especialista' && selectedSubjects.length > 0) {
-        const subjectMappings = selectedSubjects.map(sid => ({ teacher_id: newTeacher.id, subject_id: sid }));
+        const subjectMappings = selectedSubjects.map(sid => ({ teacher_id: teacherId, subject_id: sid }));
         await supabase.from('teacher_subjects').insert(subjectMappings);
       }
     }
@@ -379,7 +493,18 @@ function TeachersCrud() {
     setTeacherType('regente');
     setSelectedSeries([]);
     setSelectedSubjects([]);
+    setEditingId(null);
     fetchData();
+  };
+
+  const startEdit = (t) => {
+    setEditingId(t.id);
+    setName(t.name);
+    setEmail(t.email || '');
+    setTeacherType(t.teacher_type || 'regente');
+    setSelectedSeries(t.teacher_series?.map(ts => ts.series_id) || []);
+    setSelectedSubjects(t.teacher_subjects?.map(ts => ts.subject_id) || []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
@@ -395,7 +520,7 @@ function TeachersCrud() {
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Professores</h2>
-      <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
+      <form onSubmit={handleAddOrEdit} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
         
         <div className="flex gap-4 items-center">
           <div style={{ flex: 1 }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required /></div>
@@ -444,15 +569,16 @@ function TeachersCrud() {
           </div>
         )}
 
-        <div>
-          <Button type="submit" variant="primary"><Plus size={18} /> Adicionar Professor</Button>
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary">{editingId ? <><Edit2 size={18} /> Salvar Alterações</> : <><Plus size={18} /> Adicionar Professor</>}</Button>
+          {editingId && <Button type="button" variant="secondary" onClick={() => {setEditingId(null); setName(''); setEmail(''); setTeacherType('regente'); setSelectedSeries([]); setSelectedSubjects([]);}}><X size={18} /> Cancelar</Button>}
         </div>
       </form>
 
       <div className="table-container">
         <table className="table">
           <thead>
-            <tr><th>Nome</th><th>Tipo</th><th>Disciplinas</th><th>Séries</th><th style={{ width: '80px' }}>Ações</th></tr>
+            <tr><th>Nome</th><th>Tipo</th><th>Disciplinas</th><th>Séries</th><th style={{ width: '100px' }}>Ações</th></tr>
           </thead>
           <tbody>
             {teachers.map(t => (
@@ -466,9 +592,14 @@ function TeachersCrud() {
                   {t.teacher_series?.map(ts => ts.series?.name).join(', ') || '-'}
                 </td>
                 <td>
-                  <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(t.id)}>
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEdit(t)}>
+                      <Edit2 size={16} />
+                    </Button>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(t.id)}>
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
