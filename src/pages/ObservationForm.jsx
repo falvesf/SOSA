@@ -35,6 +35,8 @@ const ScoreSelector = ({ value, onChange, label }) => (
 );
 
 export default function ObservationForm() {
+  const [schools, setSchools] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -42,10 +44,10 @@ export default function ObservationForm() {
 
   // Form State
   const [formData, setFormData] = useState({
-    school_unit: '',
+    school_id: '',
     visit_date: new Date().toISOString().split('T')[0],
     teacher_id: '',
-    subject: '',
+    subject_id: '',
     class_id: '',
     visit_type: '',
     visit_type_other: '',
@@ -63,12 +65,22 @@ export default function ObservationForm() {
 
   useEffect(() => {
     async function loadData() {
-      const [{ data: tData }, { data: cData }] = await Promise.all([
-        supabase.from('teachers').select('id, name').order('name'),
-        supabase.from('classes').select('id, name, series(name)').order('name')
+      const [
+        { data: tData }, 
+        { data: cData },
+        { data: schData },
+        { data: subData }
+      ] = await Promise.all([
+        supabase.from('teachers').select('*, teacher_classes(class_id), teacher_subjects(subject_id)').order('name'),
+        supabase.from('classes').select('id, name, series(name)').order('name'),
+        supabase.from('schools').select('id, name, code').order('name'),
+        supabase.from('subjects').select('id, name').order('name')
       ]);
+      
       if (tData) setTeachers(tData);
       if (cData) setClasses(cData);
+      if (schData) setSchools(schData);
+      if (subData) setSubjects(subData);
     }
     loadData();
   }, []);
@@ -115,6 +127,22 @@ export default function ObservationForm() {
     }
   };
 
+  // Dynamic Filtering based on selected Teacher
+  const selectedTeacher = teachers.find(t => t.id === formData.teacher_id);
+  let availableClasses = classes;
+  let availableSubjects = subjects;
+
+  if (selectedTeacher) {
+    if (selectedTeacher.teacher_type === 'especialista' && selectedTeacher.teacher_classes?.length > 0) {
+      const allowedClassIds = selectedTeacher.teacher_classes.map(tc => tc.class_id);
+      availableClasses = classes.filter(c => allowedClassIds.includes(c.id));
+    }
+    if (selectedTeacher.teacher_type === 'regente' && selectedTeacher.teacher_subjects?.length > 0) {
+      const allowedSubjectIds = selectedTeacher.teacher_subjects.map(ts => ts.subject_id);
+      availableSubjects = subjects.filter(s => allowedSubjectIds.includes(s.id));
+    }
+  }
+
   if (success) {
     return (
       <div className="container flex flex-col items-center justify-center animate-fade-in" style={{ height: '80vh' }}>
@@ -137,12 +165,55 @@ export default function ObservationForm() {
         <Card style={{ marginBottom: 'var(--space-6)' }}>
           <h2 className="h2" style={{ marginBottom: 'var(--space-4)', color: 'var(--primary)' }}>1. Identificação</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Unidade Escolar" name="school_unit" value={formData.school_unit} onChange={handleChange} required />
+            <Select 
+              label="Unidade Escolar" 
+              name="school_id" 
+              value={formData.school_id} 
+              onChange={handleChange} 
+              options={schools.map(s => ({value: s.id, label: `${s.code} - ${s.name}`}))} 
+              required 
+            />
             <Input label="Data da Visita" type="date" name="visit_date" value={formData.visit_date} onChange={handleChange} required />
-            <Select label="Professor(a)" name="teacher_id" value={formData.teacher_id} onChange={handleChange} options={teachers.map(t => ({value: t.id, label: t.name}))} required />
-            <Input label="Disciplina" name="subject" value={formData.subject} onChange={handleChange} required />
-            <Select label="Ano/Série - Turma" name="class_id" value={formData.class_id} onChange={handleChange} options={classes.map(c => ({value: c.id, label: `${c.series?.name} - ${c.name}`}))} required />
-            <Select label="Tipo de Visita" name="visit_type" value={formData.visit_type} onChange={handleChange} options={[{value:'Formativa',label:'Formativa'},{value:'Acompanhamento',label:'Acompanhamento'},{value:'Devolutiva',label:'Devolutiva'},{value:'Outro',label:'Outro'}]} required />
+            
+            <Select 
+              label="Professor(a)" 
+              name="teacher_id" 
+              value={formData.teacher_id} 
+              onChange={(e) => {
+                handleChange(e);
+                // Reset dependent fields
+                setFormData(prev => ({ ...prev, class_id: '', subject_id: '' }));
+              }} 
+              options={teachers.map(t => ({value: t.id, label: t.name}))} 
+              required 
+            />
+            
+            <Select 
+              label="Disciplina" 
+              name="subject_id" 
+              value={formData.subject_id} 
+              onChange={handleChange} 
+              options={availableSubjects.map(s => ({value: s.id, label: s.name}))} 
+              required 
+            />
+            
+            <Select 
+              label="Ano/Série - Turma" 
+              name="class_id" 
+              value={formData.class_id} 
+              onChange={handleChange} 
+              options={availableClasses.map(c => ({value: c.id, label: `${c.series?.name} - ${c.name}`}))} 
+              required 
+            />
+            
+            <Select 
+              label="Tipo de Visita" 
+              name="visit_type" 
+              value={formData.visit_type} 
+              onChange={handleChange} 
+              options={[{value:'Formativa',label:'Formativa'},{value:'Acompanhamento',label:'Acompanhamento'},{value:'Devolutiva',label:'Devolutiva'},{value:'Outro',label:'Outro'}]} 
+              required 
+            />
           </div>
 
           <div style={{ marginTop: 'var(--space-4)' }}>
