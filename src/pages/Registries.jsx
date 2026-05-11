@@ -560,8 +560,11 @@ function TeachersCrud() {
     e.preventDefault();
     if (!name.trim()) return;
     
-    const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email, teacher_type: teacherType }]).select().single();
-    if (error) return console.error(error);
+    const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email: email || null, teacher_type: teacherType }]).select().single();
+    if (error) {
+      alert(`Erro ao adicionar professor: ${error.message}`);
+      return console.error(error);
+    }
 
     if (newTeacher) {
       if (selectedSeries.length > 0) {
@@ -587,11 +590,16 @@ function TeachersCrud() {
     e.preventDefault();
     if (!editingItem.name.trim()) return;
     
-    await supabase.from('teachers').update({ 
+    const { error } = await supabase.from('teachers').update({ 
       name: editingItem.name, 
-      email: editingItem.email, 
+      email: editingItem.email || null, 
       teacher_type: editingItem.teacher_type 
     }).eq('id', editingItem.id);
+
+    if (error) {
+      alert(`Erro ao atualizar professor: ${error.message}`);
+      return console.error(error);
+    }
 
     // Rebuild series mappings
     await supabase.from('teacher_series').delete().eq('teacher_id', editingItem.id);
