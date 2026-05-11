@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, Modal } from '../components/ui';
-import { Trash2, Plus, Edit2 } from 'lucide-react';
+import { Trash2, Plus, Edit2, X, Book } from 'lucide-react';
 
 export default function Registries() {
   const [activeTab, setActiveTab] = useState('schools'); // schools, series, subjects, teachers
@@ -321,8 +321,10 @@ function SeriesCrud() {
 function SubjectsCrud() {
   const [subjects, setSubjects] = useState([]);
   const [segments, setSegments] = useState([]);
+  
+  // Quick Add Form
   const [name, setName] = useState('');
-  const [selectedSegments, setSelectedSegments] = useState([]);
+  const [segmentId, setSegmentId] = useState('');
   
   const [editingItem, setEditingItem] = useState(null);
 
@@ -339,20 +341,30 @@ function SubjectsCrud() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleAdd = async (e) => {
+  const handleQuickAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !segmentId) return;
     
-    const { data: newSubject, error } = await supabase.from('subjects').insert([{ name }]).select().single();
-    if (error) return console.error(error);
+    // Check if subject exists (case-insensitive)
+    const { data: existing } = await supabase.from('subjects').select('*').ilike('name', name.trim()).maybeSingle();
+    
+    let subjectId;
+    if (existing) {
+      subjectId = existing.id;
+    } else {
+      const { data: newSubject, error } = await supabase.from('subjects').insert([{ name: name.trim() }]).select().single();
+      if (error) return console.error(error);
+      subjectId = newSubject.id;
+    }
 
-    if (newSubject && selectedSegments.length > 0) {
-      const mappings = selectedSegments.map(sid => ({ subject_id: newSubject.id, segment_id: sid }));
-      await supabase.from('segment_subjects').insert(mappings);
+    // Insert mapping
+    const { data: existingMap } = await supabase.from('segment_subjects').select('*').eq('segment_id', segmentId).eq('subject_id', subjectId).maybeSingle();
+    
+    if (!existingMap) {
+      await supabase.from('segment_subjects').insert([{ subject_id: subjectId, segment_id: segmentId }]);
     }
     
     setName('');
-    setSelectedSegments([]);
     fetchData();
   };
 
@@ -376,19 +388,19 @@ function SubjectsCrud() {
     fetchData();
   };
 
-  const handleDelete = async (id) => {
-    if(confirm('Tem certeza?')) {
-      await supabase.from('subjects').delete().eq('id', id);
+  const handleRemoveMapping = async (subjectId, segId) => {
+    if(confirm('Remover esta disciplina desta turma?')) {
+      await supabase.from('segment_subjects').delete().eq('subject_id', subjectId).eq('segment_id', segId);
       fetchData();
     }
   };
 
-  const toggleSegment = (id) => setSelectedSegments(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  const toggleEditSegment = (id) => {
-    setEditingItem(prev => {
-      const sel = prev.selectedSegments;
-      return { ...prev, selectedSegments: sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id] };
-    });
+  const handleDeleteFullSubject = async (id) => {
+    if(confirm('Atenção: Isso excluirá a disciplina de TODAS as turmas e professores! Tem certeza?')) {
+      await supabase.from('subjects').delete().eq('id', id);
+      setEditingItem(null);
+      fetchData();
+    }
   };
 
   const startEdit = (s) => {
@@ -399,54 +411,87 @@ function SubjectsCrud() {
     });
   };
 
+  const toggleEditSegment = (id) => {
+    setEditingItem(prev => {
+      const sel = prev.selectedSegments;
+      return { ...prev, selectedSegments: sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id] };
+    });
+  };
+
+  // Find orphaned subjects (no segments attached)
+  const orphanedSubjects = subjects.filter(sub => !sub.segment_subjects || sub.segment_subjects.length === 0);
+
   return (
     <div>
-      <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Disciplinas</h2>
-      <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
-        <div className="flex gap-4">
-          <div style={{ flex: 1 }}><Input placeholder="Nome da Disciplina (ex: Matemática)" value={name} onChange={e => setName(e.target.value)} required /></div>
-          <Button type="submit" variant="primary"><Plus size={18}/> Adicionar</Button>
-        </div>
-        <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-          <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Atrelar às Turmas (Segmentos):</p>
-          <div className="flex flex-wrap gap-3">
-            {segments.map(s => (
-              <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={selectedSegments.includes(s.id)} onChange={() => toggleSegment(s.id)} />
-                {s.name}
-              </label>
-            ))}
+      {/* Top Form matching the image */}
+      <div style={{ padding: 'var(--space-4)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', marginBottom: 'var(--space-6)' }}>
+        <h3 className="h3 flex items-center gap-2" style={{ marginBottom: 'var(--space-4)' }}><Plus size={18} /> Adicionar Disciplina Local</h3>
+        <form onSubmit={handleQuickAdd} className="flex gap-4 items-end flex-wrap">
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <Select 
+              label="Turma"
+              value={segmentId} 
+              onChange={e => setSegmentId(e.target.value)} 
+              options={segments.map(s => ({ value: s.id, label: s.name }))}
+              required
+            />
           </div>
-        </div>
-      </form>
+          <div style={{ flex: 2, minWidth: '200px' }}>
+            <Input label="Nome da disciplina" placeholder="Ex: Robótica" value={name} onChange={e => setName(e.target.value)} required />
+          </div>
+          <Button type="submit" variant="primary" style={{ height: '42px', marginBottom: '1px' }}>+ Adicionar</Button>
+        </form>
+      </div>
 
-      <div className="table-container">
-        <table className="table">
-          <thead>
-            <tr><th>Disciplina</th><th>Turmas Atreladas</th><th style={{ width: '100px' }}>Ações</th></tr>
-          </thead>
-          <tbody>
-            {subjects.map(s => (
-              <tr key={s.id}>
-                <td>{s.name}</td>
-                <td className="text-xs text-muted">
-                  {s.segment_subjects?.map(ss => ss.segments?.name).join(', ') || '-'}
-                </td>
-                <td>
-                  <div className="flex gap-2 justify-end">
-                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEdit(s)}>
-                      <Edit2 size={16} />
-                    </Button>
-                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
-                      <Trash2 size={16} />
-                    </Button>
+      {/* Grouped View matching the image */}
+      <div className="flex flex-col gap-4">
+        {segments.map(seg => {
+          const segSubjects = subjects.filter(sub => sub.segment_subjects.some(ss => ss.segment_id === seg.id));
+          
+          return (
+            <div key={seg.id} style={{ padding: 'var(--space-4)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2" style={{ marginBottom: 'var(--space-4)' }}>
+                <Book size={18} className="text-muted" />
+                <h4 className="font-semibold text-primary">{seg.name}</h4>
+                {segSubjects.length === 0 && <span className="text-xs text-muted" style={{ padding: '2px 8px', border: '1px solid var(--border)', borderRadius: '12px' }}>Sem disciplinas configuradas</span>}
+              </div>
+              
+              <div className="flex flex-wrap gap-2">
+                {segSubjects.map(sub => (
+                  <div key={sub.id} className="flex items-center" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '4px 12px', fontSize: '0.85rem', color: '#475569', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                    <span style={{ cursor: 'pointer', marginRight: '8px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => startEdit(sub)} title="Editar Disciplina">
+                      {sub.name}
+                    </span>
+                    <button type="button" onClick={() => handleRemoveMapping(sub.id, seg.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#94a3b8', borderRadius: '50%' }} title="Remover desta Turma">
+                      <X size={14} />
+                    </button>
                   </div>
-                </td>
-              </tr>
-            ))}
-            {subjects.length === 0 && <tr><td colSpan="3" className="text-center text-muted">Nenhuma disciplina cadastrada.</td></tr>}
-          </tbody>
-        </table>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Orphaned Subjects */}
+        {orphanedSubjects.length > 0 && (
+          <div style={{ padding: 'var(--space-4)', backgroundColor: 'var(--background-alt)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', opacity: 0.8 }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 'var(--space-4)' }}>
+              <h4 className="font-semibold text-muted">Disciplinas Desativadas (Sem Turma)</h4>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {orphanedSubjects.map(sub => (
+                <div key={sub.id} className="flex items-center" style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '16px', padding: '4px 12px', fontSize: '0.85rem', color: '#64748b' }}>
+                  <span style={{ cursor: 'pointer', marginRight: '8px' }} onClick={() => startEdit(sub)} title="Editar Disciplina">
+                    {sub.name}
+                  </span>
+                  <button type="button" onClick={() => handleDeleteFullSubject(sub.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#ef4444' }} title="Excluir Permanentemente">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <Modal isOpen={!!editingItem} onClose={() => setEditingItem(null)} title="Editar Disciplina">
@@ -456,7 +501,7 @@ function SubjectsCrud() {
             
             <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Turmas (Segmentos):</p>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
                 {segments.map(s => (
                   <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
                     <input type="checkbox" checked={editingItem.selectedSegments.includes(s.id)} onChange={() => toggleEditSegment(s.id)} />
@@ -466,9 +511,12 @@ function SubjectsCrud() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2" style={{ marginTop: 'var(--space-4)' }}>
-              <Button type="button" variant="secondary" onClick={() => setEditingItem(null)}>Cancelar</Button>
-              <Button type="submit" variant="primary">Salvar Alterações</Button>
+            <div className="flex justify-between items-center" style={{ marginTop: 'var(--space-4)' }}>
+              <Button type="button" variant="danger" onClick={() => handleDeleteFullSubject(editingItem.id)} title="Excluir Permanentemente de todo o sistema">Excluir Tudo</Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={() => setEditingItem(null)}>Cancelar</Button>
+                <Button type="submit" variant="primary">Salvar Alterações</Button>
+              </div>
             </div>
           </form>
         )}
