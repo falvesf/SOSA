@@ -8,13 +8,14 @@ export default function Registries() {
 
   return (
     <div className="container" style={{ padding: 'var(--space-6) 0' }}>
-      <h1 className="h1" style={{ marginBottom: 'var(--space-6)' }}>Cadastros</h1>
-      
-      <div className="flex gap-2" style={{ marginBottom: 'var(--space-6)', flexWrap: 'wrap', position: 'sticky', top: 0, backgroundColor: 'var(--background)', zIndex: 10, padding: 'var(--space-4) 0', borderBottom: '1px solid var(--border)' }}>
-        <Button variant={activeTab === 'schools' ? 'primary' : 'secondary'} onClick={() => setActiveTab('schools')}>Unidades Escolares</Button>
-        <Button variant={activeTab === 'series' ? 'primary' : 'secondary'} onClick={() => setActiveTab('series')}>Turmas e Séries</Button>
-        <Button variant={activeTab === 'subjects' ? 'primary' : 'secondary'} onClick={() => setActiveTab('subjects')}>Disciplinas</Button>
-        <Button variant={activeTab === 'teachers' ? 'primary' : 'secondary'} onClick={() => setActiveTab('teachers')}>Professores</Button>
+      <div style={{ position: 'sticky', top: 0, backgroundColor: 'var(--background)', zIndex: 10, paddingTop: 'var(--space-6)', paddingBottom: 'var(--space-4)', margin: 'calc(-1 * var(--space-6)) 0 var(--space-6) 0', borderBottom: '1px solid var(--border)' }}>
+        <h1 className="h1" style={{ marginBottom: 'var(--space-4)' }}>Cadastros</h1>
+        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+          <Button variant={activeTab === 'schools' ? 'primary' : 'secondary'} onClick={() => setActiveTab('schools')}>Unidades Escolares</Button>
+          <Button variant={activeTab === 'series' ? 'primary' : 'secondary'} onClick={() => setActiveTab('series')}>Turmas e Séries</Button>
+          <Button variant={activeTab === 'subjects' ? 'primary' : 'secondary'} onClick={() => setActiveTab('subjects')}>Disciplinas</Button>
+          <Button variant={activeTab === 'teachers' ? 'primary' : 'secondary'} onClick={() => setActiveTab('teachers')}>Professores</Button>
+        </div>
       </div>
 
       <Card className="animate-fade-in">
