@@ -74,7 +74,7 @@ export default function ObservationForm() {
         supabase.from('teachers').select('*, teacher_series(series_id), teacher_subjects(subject_id)').order('name'),
         supabase.from('series').select('id, name, segment_id, segments(name)').order('name'),
         supabase.from('schools').select('id, name, code').order('name'),
-        supabase.from('subjects').select('id, name').order('name')
+        supabase.from('subjects').select('id, name, segment_subjects(segment_id)').order('name')
       ]);
       
       if (tData) setTeachers(tData);
@@ -144,10 +144,24 @@ export default function ObservationForm() {
       availableSeries = seriesList.filter(s => allowedSeriesIds.includes(s.id));
     }
     
-    // Apenas Especialista tem Disciplinas atreladas (se for regente, pode deixar todas disponíveis ou nenhuma, vamos deixar todas)
-    if (selectedTeacher.teacher_type === 'especialista' && selectedTeacher.teacher_subjects?.length > 0) {
-      const allowedSubjectIds = selectedTeacher.teacher_subjects.map(ts => ts.subject_id);
-      availableSubjects = subjects.filter(s => allowedSubjectIds.includes(s.id));
+    if (selectedTeacher.teacher_type === 'especialista') {
+      // Especialista tem Disciplinas atreladas explicitamente
+      if (selectedTeacher.teacher_subjects?.length > 0) {
+        const allowedSubjectIds = selectedTeacher.teacher_subjects.map(ts => ts.subject_id);
+        availableSubjects = subjects.filter(s => allowedSubjectIds.includes(s.id));
+      } else {
+        availableSubjects = [];
+      }
+    } else {
+      // Regente: filtra disciplinas baseadas nos segmentos das séries que ele atua
+      const allowedSegments = Array.from(new Set(selectedTeacher.teacher_series.map(ts => {
+        const seriesObj = seriesList.find(s => s.id === ts.series_id);
+        return seriesObj ? seriesObj.segment_id : null;
+      }).filter(Boolean)));
+      
+      availableSubjects = subjects.filter(sub => 
+        sub.segment_subjects && sub.segment_subjects.some(ss => allowedSegments.includes(ss.segment_id))
+      );
     }
   }
 
