@@ -261,14 +261,26 @@ export default function ObservationForm() {
               required 
             />
             
-            <Select 
-              label="Tipo de Visita" 
-              name="visit_type" 
-              value={formData.visit_type} 
-              onChange={handleChange} 
-              options={[{value:'Formativa',label:'Formativa'},{value:'Acompanhamento',label:'Acompanhamento'},{value:'Devolutiva',label:'Devolutiva'},{value:'Outro',label:'Outro'}]} 
-              required 
-            />
+            <div>
+              <Select 
+                label="Tipo de Visita" 
+                name="visit_type" 
+                value={formData.visit_type} 
+                onChange={handleChange} 
+                options={[{value:'Formativa',label:'Formativa'},{value:'Acompanhamento',label:'Acompanhamento'},{value:'Devolutiva',label:'Devolutiva'},{value:'Outro',label:'Outro'}]} 
+                required 
+                style={{ marginBottom: formData.visit_type === 'Outro' ? 'var(--space-2)' : 0 }}
+              />
+              {formData.visit_type === 'Outro' && (
+                <Input 
+                  placeholder="Especifique o tipo de visita..." 
+                  name="visit_type_other" 
+                  value={formData.visit_type_other || ''} 
+                  onChange={handleChange} 
+                  required 
+                />
+              )}
+            </div>
           </div>
 
           <div style={{ marginTop: 'var(--space-4)' }}>
