@@ -11,7 +11,7 @@ const Dashboard = () => <div className="p-8"><h1>Dashboard</h1><p>Bem-vindo ao S
 
 function Layout({ children, onLogout }) {
   return (
-    <div className="flex" style={{ minHeight: '100vh' }}>
+    <div className="flex" style={{ height: '100vh', overflow: 'hidden' }}>
       {/* Sidebar */}
       <aside style={{ width: '250px', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--border)' }}>
