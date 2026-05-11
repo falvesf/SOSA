@@ -657,12 +657,12 @@ function TeachersCrud() {
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Professores</h2>
       <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
-        <div className="flex gap-4 items-center">
-          <div style={{ flex: 1 }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required /></div>
-          <div style={{ flex: 1 }}><Input type="email" placeholder="E-mail (opcional)" value={email} onChange={e => setEmail(e.target.value)} /></div>
+        <div className="flex gap-4 items-center flex-wrap">
+          <div style={{ flex: '1 1 200px' }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required /></div>
+          <div style={{ flex: '1 1 200px' }}><Input type="email" placeholder="E-mail (opcional)" value={email} onChange={e => setEmail(e.target.value)} /></div>
         </div>
 
-        <div className="flex gap-6 items-center" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+        <div className="flex gap-6 items-center flex-wrap" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <span className="text-sm font-medium">Tipo do Professor:</span>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
             <input type="radio" name="teacherType" value="regente" checked={teacherType === 'regente'} onChange={(e) => { setTeacherType(e.target.value); setSelectedSubjects([]); }} />
@@ -685,7 +685,7 @@ function TeachersCrud() {
                   <p className="text-xs font-semibold text-muted" style={{ marginBottom: 'var(--space-2)' }}>{seg.name}</p>
                   <div className="flex flex-wrap gap-2">
                     {segSeries.map(s => (
-                      <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                      <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
                         <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} style={{ margin: 0 }} />
                         <span style={{ color: selectedSeries.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSeries.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                       </label>
@@ -704,7 +704,7 @@ function TeachersCrud() {
             <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-3)' }}>Disciplinas Atreladas (Especialidade):</p>
             <div className="flex flex-wrap gap-2" style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               {subjects.map(s => (
-                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
                   <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ margin: 0 }} />
                   <span style={{ color: selectedSubjects.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSubjects.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                 </label>
@@ -755,12 +755,12 @@ function TeachersCrud() {
       <Modal isOpen={!!editingItem} onClose={() => setEditingItem(null)} title="Editar Professor">
         {editingItem && (
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-            <div className="flex gap-4">
-              <div style={{ flex: 1 }}><Input label="Nome" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required /></div>
-              <div style={{ flex: 1 }}><Input label="E-mail" type="email" value={editingItem.email} onChange={e => setEditingItem({...editingItem, email: e.target.value})} /></div>
+            <div className="flex gap-4 flex-wrap">
+              <div style={{ flex: '1 1 200px' }}><Input label="Nome" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required /></div>
+              <div style={{ flex: '1 1 200px' }}><Input label="E-mail" type="email" value={editingItem.email} onChange={e => setEditingItem({...editingItem, email: e.target.value})} /></div>
             </div>
 
-            <div className="flex gap-6 items-center" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+            <div className="flex gap-6 items-center flex-wrap" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <span className="text-sm font-medium">Tipo:</span>
               <label className="flex items-center gap-2 cursor-pointer text-sm">
                 <input type="radio" value="regente" checked={editingItem.teacher_type === 'regente'} onChange={(e) => setEditingItem({...editingItem, teacher_type: e.target.value})} /> Regente
@@ -780,7 +780,7 @@ function TeachersCrud() {
                       <p className="text-xs font-semibold text-muted" style={{ marginBottom: 'var(--space-2)' }}>{seg.name}</p>
                       <div className="flex flex-wrap gap-2">
                         {segSeries.map(s => (
-                          <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                          <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
                             <input type="checkbox" checked={editingItem.selectedSeries.includes(s.id)} onChange={() => toggleEditSeries(s.id)} style={{ margin: 0 }} />
                             <span style={{ color: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: editingItem.selectedSeries.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                           </label>
@@ -797,7 +797,7 @@ function TeachersCrud() {
                 <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-3)' }}>Disciplinas Atreladas:</p>
                 <div className="flex flex-wrap gap-2" style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                   {subjects.map(s => (
-                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
                       <input type="checkbox" checked={editingItem.selectedSubjects.includes(s.id)} onChange={() => toggleEditSubject(s.id)} style={{ margin: 0 }} />
                       <span style={{ color: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: editingItem.selectedSubjects.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                     </label>
