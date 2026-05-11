@@ -15,7 +15,7 @@ function Layout({ children, onLogout }) {
       {/* Sidebar */}
       <aside style={{ width: '250px', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--border)' }}>
-          <h2 className="h3" style={{ color: 'var(--primary)' }}>SACE eClass</h2>
+          <h2 className="h3" style={{ color: 'var(--primary)' }}>SOSA</h2>
           <span className="text-xs text-muted">Observação em Sala</span>
         </div>
         <nav style={{ padding: 'var(--space-4)', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
