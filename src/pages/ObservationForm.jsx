@@ -38,7 +38,7 @@ export default function ObservationForm() {
   const [schools, setSchools] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
-  const [classes, setClasses] = useState([]);
+  const [seriesList, setSeriesList] = useState([]); // renamed from classes
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -48,7 +48,7 @@ export default function ObservationForm() {
     visit_date: new Date().toISOString().split('T')[0],
     teacher_id: '',
     subject_id: '',
-    class_id: '',
+    series_id: '', // renamed from class_id
     visit_type: '',
     visit_type_other: '',
     visit_objectives: [],
@@ -67,18 +67,18 @@ export default function ObservationForm() {
     async function loadData() {
       const [
         { data: tData }, 
-        { data: cData },
+        { data: sData },
         { data: schData },
         { data: subData }
       ] = await Promise.all([
-        supabase.from('teachers').select('*, teacher_classes(class_id), teacher_subjects(subject_id)').order('name'),
-        supabase.from('classes').select('id, name, series(name)').order('name'),
+        supabase.from('teachers').select('*, teacher_series(series_id), teacher_subjects(subject_id)').order('name'),
+        supabase.from('series').select('id, name, segment_id, segments(name)').order('name'),
         supabase.from('schools').select('id, name, code').order('name'),
         supabase.from('subjects').select('id, name').order('name')
       ]);
       
       if (tData) setTeachers(tData);
-      if (cData) setClasses(cData);
+      if (sData) setSeriesList(sData);
       if (schData) setSchools(schData);
       if (subData) setSubjects(subData);
     }
@@ -112,7 +112,12 @@ export default function ObservationForm() {
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const payload = { ...formData, user_id: user?.id };
+      
+      // Auto-fill segment_id based on selected series
+      const selectedSeriesObj = seriesList.find(s => s.id === formData.series_id);
+      const segment_id = selectedSeriesObj ? selectedSeriesObj.segment_id : null;
+
+      const payload = { ...formData, segment_id, user_id: user?.id };
       
       const { error } = await supabase.from('observations').insert([payload]);
       
@@ -129,15 +134,18 @@ export default function ObservationForm() {
 
   // Dynamic Filtering based on selected Teacher
   const selectedTeacher = teachers.find(t => t.id === formData.teacher_id);
-  let availableClasses = classes;
+  let availableSeries = seriesList;
   let availableSubjects = subjects;
 
   if (selectedTeacher) {
-    if (selectedTeacher.teacher_type === 'especialista' && selectedTeacher.teacher_classes?.length > 0) {
-      const allowedClassIds = selectedTeacher.teacher_classes.map(tc => tc.class_id);
-      availableClasses = classes.filter(c => allowedClassIds.includes(c.id));
+    // Regente e Especialista ambos tem Séries atreladas
+    if (selectedTeacher.teacher_series?.length > 0) {
+      const allowedSeriesIds = selectedTeacher.teacher_series.map(ts => ts.series_id);
+      availableSeries = seriesList.filter(s => allowedSeriesIds.includes(s.id));
     }
-    if (selectedTeacher.teacher_type === 'regente' && selectedTeacher.teacher_subjects?.length > 0) {
+    
+    // Apenas Especialista tem Disciplinas atreladas (se for regente, pode deixar todas disponíveis ou nenhuma, vamos deixar todas)
+    if (selectedTeacher.teacher_type === 'especialista' && selectedTeacher.teacher_subjects?.length > 0) {
       const allowedSubjectIds = selectedTeacher.teacher_subjects.map(ts => ts.subject_id);
       availableSubjects = subjects.filter(s => allowedSubjectIds.includes(s.id));
     }
@@ -182,7 +190,7 @@ export default function ObservationForm() {
               onChange={(e) => {
                 handleChange(e);
                 // Reset dependent fields
-                setFormData(prev => ({ ...prev, class_id: '', subject_id: '' }));
+                setFormData(prev => ({ ...prev, series_id: '', subject_id: '' }));
               }} 
               options={teachers.map(t => ({value: t.id, label: t.name}))} 
               required 
@@ -198,11 +206,11 @@ export default function ObservationForm() {
             />
             
             <Select 
-              label="Ano/Série - Turma" 
-              name="class_id" 
-              value={formData.class_id} 
+              label="Turma / Série Observada" 
+              name="series_id" 
+              value={formData.series_id} 
               onChange={handleChange} 
-              options={availableClasses.map(c => ({value: c.id, label: `${c.series?.name} - ${c.name}`}))} 
+              options={availableSeries.map(s => ({value: s.id, label: `${s.segments?.name} - ${s.name}`}))} 
               required 
             />
             

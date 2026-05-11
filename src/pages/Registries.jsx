@@ -4,7 +4,7 @@ import { Card, Button, Input, Select } from '../components/ui';
 import { Trash2, Plus } from 'lucide-react';
 
 export default function Registries() {
-  const [activeTab, setActiveTab] = useState('schools'); // schools, subjects, teachers, series, classes
+  const [activeTab, setActiveTab] = useState('schools'); // schools, series, subjects, teachers
 
   return (
     <div className="container" style={{ padding: 'var(--space-6) 0' }}>
@@ -12,8 +12,7 @@ export default function Registries() {
       
       <div className="flex gap-2" style={{ marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
         <Button variant={activeTab === 'schools' ? 'primary' : 'secondary'} onClick={() => setActiveTab('schools')}>Unidades Escolares</Button>
-        <Button variant={activeTab === 'series' ? 'primary' : 'secondary'} onClick={() => setActiveTab('series')}>Séries</Button>
-        <Button variant={activeTab === 'classes' ? 'primary' : 'secondary'} onClick={() => setActiveTab('classes')}>Turmas</Button>
+        <Button variant={activeTab === 'series' ? 'primary' : 'secondary'} onClick={() => setActiveTab('series')}>Turmas e Séries</Button>
         <Button variant={activeTab === 'subjects' ? 'primary' : 'secondary'} onClick={() => setActiveTab('subjects')}>Disciplinas</Button>
         <Button variant={activeTab === 'teachers' ? 'primary' : 'secondary'} onClick={() => setActiveTab('teachers')}>Professores</Button>
       </div>
@@ -21,7 +20,6 @@ export default function Registries() {
       <Card className="animate-fade-in">
         {activeTab === 'schools' && <SchoolsCrud />}
         {activeTab === 'series' && <SeriesCrud />}
-        {activeTab === 'classes' && <ClassesCrud />}
         {activeTab === 'subjects' && <SubjectsCrud />}
         {activeTab === 'teachers' && <TeachersCrud />}
       </Card>
@@ -92,24 +90,164 @@ function SchoolsCrud() {
   );
 }
 
+// Segments and Series Component
+function SeriesCrud() {
+  const [segments, setSegments] = useState([]);
+  const [series, setSeries] = useState([]);
+  
+  // Segment form
+  const [segmentName, setSegmentName] = useState('');
+  
+  // Series form
+  const [seriesName, setSeriesName] = useState('');
+  const [segmentId, setSegmentId] = useState('');
+
+  const fetchData = async () => {
+    const { data: segData } = await supabase.from('segments').select('*').order('name');
+    if (segData) setSegments(segData);
+    
+    const { data: serData } = await supabase.from('series').select('*, segments(name)').order('name');
+    if (serData) setSeries(serData);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleAddSegment = async (e) => {
+    e.preventDefault();
+    if (!segmentName.trim()) return;
+    await supabase.from('segments').insert([{ name: segmentName }]);
+    setSegmentName('');
+    fetchData();
+  };
+
+  const handleAddSeries = async (e) => {
+    e.preventDefault();
+    if (!seriesName.trim() || !segmentId) return;
+    await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId }]);
+    setSeriesName('');
+    setSegmentId('');
+    fetchData();
+  };
+
+  const handleDeleteSegment = async (id) => {
+    if(confirm('Atenção: Excluir a Turma (Segmento) excluirá TODAS as Séries atreladas a ela! Tem certeza?')) {
+      await supabase.from('segments').delete().eq('id', id);
+      fetchData();
+    }
+  };
+
+  const handleDeleteSeries = async (id) => {
+    if(confirm('Tem certeza que deseja excluir esta série?')) {
+      await supabase.from('series').delete().eq('id', id);
+      fetchData();
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      
+      {/* Cadastro de Turmas / Segmentos */}
+      <div style={{ padding: 'var(--space-4)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+        <h2 className="h3" style={{ marginBottom: 'var(--space-2)' }}>Gerenciar Turmas (Segmentos)</h2>
+        <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-4)' }}>Crie categorias para agrupar suas séries (ex: Fundamental I, Educação Infantil).</p>
+        
+        <form onSubmit={handleAddSegment} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-4)' }}>
+          <div style={{ flex: 1 }}><Input placeholder="Nome da nova turma/segmento..." value={segmentName} onChange={e => setSegmentName(e.target.value)} required /></div>
+          <Button type="submit" variant="primary">Adicionar Turma</Button>
+        </form>
+
+        <div className="table-container">
+          <table className="table text-sm">
+            <thead>
+              <tr><th>Nome da Turma</th><th style={{ width: '80px' }}>Ações</th></tr>
+            </thead>
+            <tbody>
+              {segments.map(s => (
+                <tr key={s.id}>
+                  <td>{s.name}</td>
+                  <td>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSegment(s.id)}>
+                      <Trash2 size={16} />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {segments.length === 0 && <tr><td colSpan="2" className="text-center text-muted">Nenhuma turma cadastrada.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Cadastro de Séries */}
+      <div style={{ padding: 'var(--space-4)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+        <h2 className="h3" style={{ marginBottom: 'var(--space-4)' }}>Adicionar Nova Série</h2>
+        
+        <form onSubmit={handleAddSeries} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
+          <div style={{ flex: 1 }}>
+            <Input placeholder="Nome da Série (ex: 1º Ano A)" value={seriesName} onChange={e => setSeriesName(e.target.value)} required />
+          </div>
+          <div style={{ flex: 1 }}>
+            <Select 
+              value={segmentId} 
+              onChange={e => setSegmentId(e.target.value)} 
+              options={segments.map(s => ({ value: s.id, label: s.name }))}
+              required
+            />
+          </div>
+          <Button type="submit" variant="primary">Adicionar Série</Button>
+        </form>
+
+        {/* Listagem Agrupada */}
+        <div className="flex flex-col gap-4">
+          {segments.map(seg => {
+            const segSeries = series.filter(s => s.segment_id === seg.id);
+            if (segSeries.length === 0) return null;
+            return (
+              <div key={seg.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <div style={{ padding: 'var(--space-3)', backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 className="font-semibold" style={{ color: 'var(--primary)' }}>{seg.name}</h4>
+                  <span className="text-xs text-muted" style={{ padding: '2px 8px', backgroundColor: 'var(--border)', borderRadius: '12px' }}>{segSeries.length} Séries</span>
+                </div>
+                <table className="table text-sm" style={{ margin: 0, borderTop: 'none' }}>
+                  <tbody>
+                    {segSeries.map(s => (
+                      <tr key={s.id}>
+                        <td style={{ borderTop: 'none' }}>{s.name}</td>
+                        <td style={{ width: '80px', borderTop: 'none', textAlign: 'right' }}>
+                          <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSeries(s.id)}>
+                            <Trash2 size={16} />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 // Subjects Component
 function SubjectsCrud() {
   const [subjects, setSubjects] = useState([]);
-  const [classes, setClasses] = useState([]);
+  const [segments, setSegments] = useState([]);
   const [name, setName] = useState('');
-  const [selectedClasses, setSelectedClasses] = useState([]);
+  const [selectedSegments, setSelectedSegments] = useState([]);
 
   const fetchData = async () => {
     const { data: subData } = await supabase.from('subjects').select(`
       *,
-      class_subjects (
-        classes ( name, series (name) )
-      )
+      segment_subjects ( segments ( name ) )
     `).order('name');
     if (subData) setSubjects(subData);
 
-    const { data: clsData } = await supabase.from('classes').select('*, series(name)').order('name');
-    if (clsData) setClasses(clsData);
+    const { data: segData } = await supabase.from('segments').select('*').order('name');
+    if (segData) setSegments(segData);
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -118,18 +256,16 @@ function SubjectsCrud() {
     e.preventDefault();
     if (!name.trim()) return;
     
-    // Insert subject
     const { data: newSubject, error } = await supabase.from('subjects').insert([{ name }]).select().single();
     if (error) return console.error(error);
 
-    // Insert class mappings
-    if (newSubject && selectedClasses.length > 0) {
-      const mappings = selectedClasses.map(cid => ({ subject_id: newSubject.id, class_id: cid }));
-      await supabase.from('class_subjects').insert(mappings);
+    if (newSubject && selectedSegments.length > 0) {
+      const mappings = selectedSegments.map(sid => ({ subject_id: newSubject.id, segment_id: sid }));
+      await supabase.from('segment_subjects').insert(mappings);
     }
     
     setName('');
-    setSelectedClasses([]);
+    setSelectedSegments([]);
     fetchData();
   };
 
@@ -140,9 +276,7 @@ function SubjectsCrud() {
     }
   };
 
-  const toggleClass = (id) => {
-    setSelectedClasses(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  const toggleSegment = (id) => setSelectedSegments(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   return (
     <div>
@@ -153,12 +287,12 @@ function SubjectsCrud() {
           <Button type="submit" variant="primary"><Plus size={18} /> Adicionar</Button>
         </div>
         <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-          <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Atrelar à Turmas:</p>
+          <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Atrelar às Turmas (Segmentos):</p>
           <div className="flex flex-wrap gap-3">
-            {classes.map(c => (
-              <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={selectedClasses.includes(c.id)} onChange={() => toggleClass(c.id)} />
-                {c.series?.name} - {c.name}
+            {segments.map(s => (
+              <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={selectedSegments.includes(s.id)} onChange={() => toggleSegment(s.id)} />
+                {s.name}
               </label>
             ))}
           </div>
@@ -175,7 +309,7 @@ function SubjectsCrud() {
               <tr key={s.id}>
                 <td>{s.name}</td>
                 <td className="text-xs text-muted">
-                  {s.class_subjects?.map(cs => `${cs.classes?.series?.name} ${cs.classes?.name}`).join(', ') || '-'}
+                  {s.segment_subjects?.map(ss => ss.segments?.name).join(', ') || '-'}
                 </td>
                 <td>
                   <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
@@ -195,28 +329,28 @@ function SubjectsCrud() {
 // Teachers Component
 function TeachersCrud() {
   const [teachers, setTeachers] = useState([]);
-  const [classes, setClasses] = useState([]);
+  const [series, setSeries] = useState([]);
   const [subjects, setSubjects] = useState([]);
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [teacherType, setTeacherType] = useState('regente');
-  const [selectedClasses, setSelectedClasses] = useState([]);
+  const [selectedSeries, setSelectedSeries] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
 
   const fetchData = async () => {
     const { data: tData } = await supabase.from('teachers').select(`
       *,
-      teacher_classes ( classes (name, series(name)) ),
+      teacher_series ( series (name, segments(name)) ),
       teacher_subjects ( subjects (name) )
     `).order('name');
     if (tData) setTeachers(tData);
 
-    const { data: cData } = await supabase.from('classes').select('*, series(name)').order('name');
-    if (cData) setClasses(cData);
+    const { data: serData } = await supabase.from('series').select('*, segments(name)').order('name');
+    if (serData) setSeries(serData);
 
-    const { data: sData } = await supabase.from('subjects').select('*').order('name');
-    if (sData) setSubjects(sData);
+    const { data: subData } = await supabase.from('subjects').select('*').order('name');
+    if (subData) setSubjects(subData);
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -225,24 +359,25 @@ function TeachersCrud() {
     e.preventDefault();
     if (!name.trim()) return;
     
-    // Insert teacher
     const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email, teacher_type: teacherType }]).select().single();
     if (error) return console.error(error);
 
     if (newTeacher) {
-      if (teacherType === 'especialista' && selectedClasses.length > 0) {
-        const mappings = selectedClasses.map(cid => ({ teacher_id: newTeacher.id, class_id: cid }));
-        await supabase.from('teacher_classes').insert(mappings);
-      } else if (teacherType === 'regente' && selectedSubjects.length > 0) {
-        const mappings = selectedSubjects.map(sid => ({ teacher_id: newTeacher.id, subject_id: sid }));
-        await supabase.from('teacher_subjects').insert(mappings);
+      if (selectedSeries.length > 0) {
+        const seriesMappings = selectedSeries.map(sid => ({ teacher_id: newTeacher.id, series_id: sid }));
+        await supabase.from('teacher_series').insert(seriesMappings);
+      }
+      
+      if (teacherType === 'especialista' && selectedSubjects.length > 0) {
+        const subjectMappings = selectedSubjects.map(sid => ({ teacher_id: newTeacher.id, subject_id: sid }));
+        await supabase.from('teacher_subjects').insert(subjectMappings);
       }
     }
 
     setName('');
     setEmail('');
     setTeacherType('regente');
-    setSelectedClasses([]);
+    setSelectedSeries([]);
     setSelectedSubjects([]);
     fetchData();
   };
@@ -254,7 +389,7 @@ function TeachersCrud() {
     }
   };
 
-  const toggleClass = (id) => setSelectedClasses(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleSeries = (id) => setSelectedSeries(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const toggleSubject = (id) => setSelectedSubjects(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   return (
@@ -270,18 +405,33 @@ function TeachersCrud() {
         <div className="flex gap-6 items-center" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <span className="text-sm font-medium">Tipo do Professor:</span>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="radio" name="teacherType" value="regente" checked={teacherType === 'regente'} onChange={(e) => { setTeacherType(e.target.value); setSelectedClasses([]); }} />
+            <input type="radio" name="teacherType" value="regente" checked={teacherType === 'regente'} onChange={(e) => { setTeacherType(e.target.value); setSelectedSubjects([]); }} />
             Regente
           </label>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="radio" name="teacherType" value="especialista" checked={teacherType === 'especialista'} onChange={(e) => { setTeacherType(e.target.value); setSelectedSubjects([]); }} />
+            <input type="radio" name="teacherType" value="especialista" checked={teacherType === 'especialista'} onChange={(e) => setTeacherType(e.target.value)} />
             Especialista
           </label>
         </div>
 
-        {teacherType === 'regente' && (
+        {/* Both Regente and Especialista get Series */}
+        <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+          <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-2)' }}>Séries Atreladas (Salas de Aula):</p>
+          <div className="flex flex-wrap gap-3">
+            {series.map(s => (
+              <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} />
+                {s.segments?.name} - {s.name}
+              </label>
+            ))}
+            {series.length === 0 && <span className="text-xs text-muted">Cadastre séries primeiro.</span>}
+          </div>
+        </div>
+
+        {/* Only Especialista gets Subjects */}
+        {teacherType === 'especialista' && (
           <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-            <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-2)' }}>Disciplinas Atreladas (Regente):</p>
+            <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-2)' }}>Disciplinas Atreladas (Especialidade):</p>
             <div className="flex flex-wrap gap-3">
               {subjects.map(s => (
                 <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -294,21 +444,6 @@ function TeachersCrud() {
           </div>
         )}
 
-        {teacherType === 'especialista' && (
-          <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-            <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-2)' }}>Turmas Atreladas (Especialista):</p>
-            <div className="flex flex-wrap gap-3">
-              {classes.map(c => (
-                <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={selectedClasses.includes(c.id)} onChange={() => toggleClass(c.id)} />
-                  {c.series?.name} - {c.name}
-                </label>
-              ))}
-              {classes.length === 0 && <span className="text-xs text-muted">Cadastre turmas primeiro.</span>}
-            </div>
-          </div>
-        )}
-
         <div>
           <Button type="submit" variant="primary"><Plus size={18} /> Adicionar Professor</Button>
         </div>
@@ -317,7 +452,7 @@ function TeachersCrud() {
       <div className="table-container">
         <table className="table">
           <thead>
-            <tr><th>Nome</th><th>Tipo</th><th>Atribuições</th><th style={{ width: '80px' }}>Ações</th></tr>
+            <tr><th>Nome</th><th>Tipo</th><th>Disciplinas</th><th>Séries</th><th style={{ width: '80px' }}>Ações</th></tr>
           </thead>
           <tbody>
             {teachers.map(t => (
@@ -325,9 +460,10 @@ function TeachersCrud() {
                 <td>{t.name}<br/><span className="text-xs text-muted">{t.email}</span></td>
                 <td style={{ textTransform: 'capitalize' }}>{t.teacher_type || 'N/A'}</td>
                 <td className="text-xs text-muted">
-                  {t.teacher_type === 'regente' 
-                    ? t.teacher_subjects?.map(ts => ts.subjects?.name).join(', ') 
-                    : t.teacher_classes?.map(tc => `${tc.classes?.series?.name} ${tc.classes?.name}`).join(', ')}
+                  {t.teacher_subjects?.map(ts => ts.subjects?.name).join(', ') || '-'}
+                </td>
+                <td className="text-xs text-muted">
+                  {t.teacher_series?.map(ts => ts.series?.name).join(', ') || '-'}
                 </td>
                 <td>
                   <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(t.id)}>
@@ -336,156 +472,7 @@ function TeachersCrud() {
                 </td>
               </tr>
             ))}
-            {teachers.length === 0 && <tr><td colSpan="4" className="text-center text-muted">Nenhum professor cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// Series Component (Unchanged)
-function SeriesCrud() {
-  const [series, setSeries] = useState([]);
-  const [name, setName] = useState('');
-
-  const fetchSeries = async () => {
-    const { data } = await supabase.from('series').select('*').order('name');
-    if (data) setSeries(data);
-  };
-
-  useEffect(() => { fetchSeries(); }, []);
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    await supabase.from('series').insert([{ name }]);
-    setName('');
-    fetchSeries();
-  };
-
-  const handleDelete = async (id) => {
-    if(confirm('Tem certeza? Remover uma série pode remover as turmas atreladas!')) {
-      await supabase.from('series').delete().eq('id', id);
-      fetchSeries();
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Séries</h2>
-      <form onSubmit={handleAdd} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ flex: 1 }}><Input placeholder="Nome da Série (ex: 3º Ano)" value={name} onChange={e => setName(e.target.value)} required /></div>
-        <Button type="submit" variant="primary"><Plus size={18} /> Adicionar</Button>
-      </form>
-
-      <div className="table-container">
-        <table className="table">
-          <thead>
-            <tr><th>Nome da Série</th><th style={{ width: '80px' }}>Ações</th></tr>
-          </thead>
-          <tbody>
-            {series.map(s => (
-              <tr key={s.id}>
-                <td>{s.name}</td>
-                <td>
-                  <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
-                    <Trash2 size={16} />
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {series.length === 0 && <tr><td colSpan="2" className="text-center text-muted">Nenhuma série cadastrada.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// Classes Component (Unchanged)
-function ClassesCrud() {
-  const [classes, setClasses] = useState([]);
-  const [series, setSeries] = useState([]);
-  const [name, setName] = useState('');
-  const [selectedSeries, setSelectedSeries] = useState([]);
-
-  const fetchData = async () => {
-    const { data: clsData } = await supabase.from('classes').select('*, series(name)').order('name');
-    if (clsData) setClasses(clsData);
-    
-    const { data: srsData } = await supabase.from('series').select('*').order('name');
-    if (srsData) setSeries(srsData);
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!name.trim() || selectedSeries.length === 0) return;
-    
-    const records = selectedSeries.map(sid => ({ name, series_id: sid }));
-    await supabase.from('classes').insert(records);
-    
-    setName('');
-    setSelectedSeries([]);
-    fetchData();
-  };
-
-  const handleDelete = async (id) => {
-    if(confirm('Tem certeza?')) {
-      await supabase.from('classes').delete().eq('id', id);
-      fetchData();
-    }
-  };
-
-  const toggleSeries = (id) => {
-    setSelectedSeries(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-
-  return (
-    <div>
-      <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Turmas</h2>
-      <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
-        <div className="flex gap-4">
-          <div style={{ flex: 1 }}>
-            <Input placeholder="Nome da Turma (ex: Turma A)" value={name} onChange={e => setName(e.target.value)} required />
-          </div>
-          <Button type="submit" variant="primary"><Plus size={18} /> Adicionar em Lote</Button>
-        </div>
-        
-        <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-          <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Atrelar às Séries:</p>
-          <div className="flex flex-wrap gap-3">
-            {series.map(s => (
-              <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} />
-                {s.name}
-              </label>
-            ))}
-            {series.length === 0 && <span className="text-xs text-muted">Cadastre séries primeiro.</span>}
-          </div>
-        </div>
-      </form>
-
-      <div className="table-container">
-        <table className="table">
-          <thead>
-            <tr><th>Série</th><th>Turma</th><th style={{ width: '80px' }}>Ações</th></tr>
-          </thead>
-          <tbody>
-            {classes.map(c => (
-              <tr key={c.id}>
-                <td>{c.series?.name}</td>
-                <td>{c.name}</td>
-                <td>
-                  <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(c.id)}>
-                    <Trash2 size={16} />
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {classes.length === 0 && <tr><td colSpan="3" className="text-center text-muted">Nenhuma turma cadastrada.</td></tr>}
+            {teachers.length === 0 && <tr><td colSpan="5" className="text-center text-muted">Nenhum professor cadastrado.</td></tr>}
           </tbody>
         </table>
       </div>
