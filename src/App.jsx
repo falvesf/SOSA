@@ -22,11 +22,20 @@ function Layout({ children, onLogout }) {
           <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-4)' }}>Observação em Sala</span>
           
           {!loading && schools.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted">Unidade Escolar</label>
+            <div className="flex flex-col gap-0">
+              <label className="text-xs font-medium text-muted" style={{ marginBottom: '2px' }}>Unidade Escolar</label>
               <select 
-                className="input" 
-                style={{ padding: '6px 10px', fontSize: '13px' }}
+                style={{ 
+                  padding: 0, 
+                  margin: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  boxShadow: 'none',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+                className="text-xs font-medium text-muted"
                 value={selectedSchoolId}
                 onChange={(e) => setSelectedSchoolId(e.target.value)}
               >
