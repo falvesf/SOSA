@@ -655,6 +655,27 @@ function TeachersCrud() {
     });
   };
 
+  const toggleSegment = (segId) => {
+    const segSeriesIds = series.filter(s => s.segment_id === segId).map(s => s.id);
+    const allSelected = segSeriesIds.every(id => selectedSeries.includes(id));
+    if (allSelected) {
+      setSelectedSeries(prev => prev.filter(id => !segSeriesIds.includes(id)));
+    } else {
+      setSelectedSeries(prev => Array.from(new Set([...prev, ...segSeriesIds])));
+    }
+  };
+
+  const toggleEditSegment = (segId) => {
+    const segSeriesIds = series.filter(s => s.segment_id === segId).map(s => s.id);
+    setEditingItem(prev => {
+      const allSelected = segSeriesIds.every(id => prev.selectedSeries.includes(id));
+      const newSel = allSelected 
+        ? prev.selectedSeries.filter(id => !segSeriesIds.includes(id))
+        : Array.from(new Set([...prev.selectedSeries, ...segSeriesIds]));
+      return { ...prev, selectedSeries: newSel };
+    });
+  };
+
   const uniqueSegments = series.reduce((acc, curr) => {
     if (!acc.find(x => x.id === curr.segment_id)) {
       acc.push({ id: curr.segment_id, name: curr.segments?.name });
@@ -691,7 +712,12 @@ function TeachersCrud() {
               const segSeries = series.filter(s => s.segment_id === seg.id);
               return (
                 <div key={seg.id} style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                  <p className="text-xs font-semibold text-muted" style={{ marginBottom: 'var(--space-2)' }}>{seg.name}</p>
+                  <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-2)' }}>
+                    <p className="text-xs font-semibold text-muted m-0">{seg.name}</p>
+                    <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleSegment(seg.id)}>
+                      {segSeries.length > 0 && segSeries.every(s => selectedSeries.includes(s.id)) ? 'Desmarcar todas' : 'Selecionar todas'}
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {segSeries.map(s => (
                       <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
@@ -786,7 +812,12 @@ function TeachersCrud() {
                   const segSeries = series.filter(s => s.segment_id === seg.id);
                   return (
                     <div key={seg.id} style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                      <p className="text-xs font-semibold text-muted" style={{ marginBottom: 'var(--space-2)' }}>{seg.name}</p>
+                      <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-2)' }}>
+                        <p className="text-xs font-semibold text-muted m-0">{seg.name}</p>
+                        <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleEditSegment(seg.id)}>
+                          {segSeries.length > 0 && segSeries.every(s => editingItem.selectedSeries.includes(s.id)) ? 'Desmarcar todas' : 'Selecionar todas'}
+                        </button>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {segSeries.map(s => (
                           <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
