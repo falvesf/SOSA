@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select } from '../components/ui';
-import { Save, CheckCircle } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { useSchool } from '../contexts/SchoolContext';
 
 const evaluationOptions = [
   { value: 'Atende plenamente', label: 'Atende plenamente' },
@@ -68,7 +69,7 @@ const ScoreSelector = ({ value, onChange, label, tooltips }) => (
 );
 
 export default function ObservationForm() {
-  const [schools, setSchools] = useState([]);
+  const { selectedSchoolId } = useSchool();
   const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [seriesList, setSeriesList] = useState([]); // renamed from classes
@@ -77,7 +78,6 @@ export default function ObservationForm() {
 
   // Form State
   const [formData, setFormData] = useState({
-    school_id: '',
     visit_date: new Date().toISOString().split('T')[0],
     teacher_id: '',
     subject_id: '',
@@ -97,26 +97,25 @@ export default function ObservationForm() {
   });
 
   useEffect(() => {
+    if (!selectedSchoolId) return;
+
     async function loadData() {
       const [
         { data: tData }, 
         { data: sData },
-        { data: schData },
         { data: subData }
       ] = await Promise.all([
-        supabase.from('teachers').select('*, teacher_series(series_id), teacher_subjects(subject_id)').order('name'),
-        supabase.from('series').select('id, name, segment_id, segments(name)').order('name'),
-        supabase.from('schools').select('id, name, code').order('name'),
-        supabase.from('subjects').select('id, name, segment_subjects(segment_id)').order('name')
+        supabase.from('teachers').select('*, teacher_series(series_id), teacher_subjects(subject_id)').eq('school_id', selectedSchoolId).order('name'),
+        supabase.from('series').select('id, name, segment_id, segments!inner(name)').eq('school_id', selectedSchoolId).order('name'),
+        supabase.from('subjects').select('id, name, segment_subjects(segment_id)').eq('school_id', selectedSchoolId).order('name')
       ]);
       
       if (tData) setTeachers(tData);
       if (sData) setSeriesList(sData);
-      if (schData) setSchools(schData);
       if (subData) setSubjects(subData);
     }
     loadData();
-  }, []);
+  }, [selectedSchoolId]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -150,7 +149,7 @@ export default function ObservationForm() {
       const selectedSeriesObj = seriesList.find(s => s.id === formData.series_id);
       const segment_id = selectedSeriesObj ? selectedSeriesObj.segment_id : null;
 
-      const payload = { ...formData, segment_id, user_id: user?.id };
+      const payload = { ...formData, school_id: selectedSchoolId, segment_id, user_id: user?.id };
       
       const { error } = await supabase.from('observations').insert([payload]);
       
@@ -220,14 +219,6 @@ export default function ObservationForm() {
         <Card style={{ marginBottom: 'var(--space-6)' }}>
           <h2 className="h2" style={{ marginBottom: 'var(--space-4)', color: 'var(--primary)' }}>1. Identificação</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Select 
-              label="Unidade Escolar" 
-              name="school_id" 
-              value={formData.school_id} 
-              onChange={handleChange} 
-              options={schools.map(s => ({value: s.id, label: `${s.code} - ${s.name}`}))} 
-              required 
-            />
             <Input label="Data da Visita" type="date" name="visit_date" value={formData.visit_date} onChange={handleChange} required />
             
             <Select 

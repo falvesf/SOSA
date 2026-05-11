@@ -1,40 +1,83 @@
--- Supabase Schema for Classroom Observation System
+-- Supabase Schema for Classroom Observation System (Multi-Tenant)
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Teachers Table
-CREATE TABLE teachers (
+-- Schools Table
+CREATE TABLE schools (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code TEXT,
     name TEXT NOT NULL,
-    email TEXT UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Segments Table
+CREATE TABLE segments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Series Table
 CREATE TABLE series (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+    segment_id UUID REFERENCES segments(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Classes Table
-CREATE TABLE classes (
+-- Subjects Table
+CREATE TABLE subjects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    series_id UUID REFERENCES series(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Teachers Table
+CREATE TABLE teachers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    email TEXT,
+    teacher_type TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(school_id, email)
+);
+
+-- segment_subjects Pivot
+CREATE TABLE segment_subjects (
+  segment_id UUID REFERENCES segments(id) ON DELETE CASCADE,
+  subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
+  PRIMARY KEY (segment_id, subject_id)
+);
+
+-- teacher_series Pivot
+CREATE TABLE teacher_series (
+  teacher_id UUID REFERENCES teachers(id) ON DELETE CASCADE,
+  series_id UUID REFERENCES series(id) ON DELETE CASCADE,
+  PRIMARY KEY (teacher_id, series_id)
+);
+
+-- teacher_subjects Pivot
+CREATE TABLE teacher_subjects (
+  teacher_id UUID REFERENCES teachers(id) ON DELETE CASCADE,
+  subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
+  PRIMARY KEY (teacher_id, subject_id)
 );
 
 -- Observations Table
 CREATE TABLE observations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id), -- User who submitted
-    school_unit TEXT NOT NULL,
-    visit_date DATE NOT NULL,
+    school_id UUID REFERENCES schools(id),
+    segment_id UUID REFERENCES segments(id),
+    series_id UUID REFERENCES series(id),
+    subject_id UUID REFERENCES subjects(id),
     teacher_id UUID REFERENCES teachers(id),
-    subject TEXT,
-    class_id UUID REFERENCES classes(id),
+    visit_date DATE NOT NULL,
     visit_type TEXT NOT NULL, -- Formativa, Acompanhamento, Devolutiva, Outro
     visit_type_other TEXT,
     visit_objectives TEXT[], -- Array of objectives
@@ -97,13 +140,22 @@ CREATE TABLE observations (
 );
 
 -- Set up Row Level Security (RLS)
-ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE segments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE series ENABLE ROW LEVEL SECURITY;
-ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE segment_subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_series ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_subjects ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users to view, create, update, delete
-CREATE POLICY "Allow full access to authenticated users on teachers" ON teachers FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow full access to authenticated users on series" ON series FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow full access to authenticated users on classes" ON classes FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow full access to authenticated users on observations" ON observations FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON schools FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON segments FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON series FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON subjects FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON teachers FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON observations FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON segment_subjects FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON teacher_series FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow full access to authenticated users" ON teacher_subjects FOR ALL TO authenticated USING (true);

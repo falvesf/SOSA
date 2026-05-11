@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, Modal } from '../components/ui';
 import { Trash2, Plus, Edit2, X, Book } from 'lucide-react';
+import { useSchool } from '../contexts/SchoolContext';
 
 export default function Registries() {
   const [activeTab, setActiveTab] = useState('schools'); // schools, series, subjects, teachers
+  const { selectedSchoolId } = useSchool();
 
   return (
     <div className="container" style={{ padding: 'var(--space-6) 0' }}>
@@ -20,9 +22,12 @@ export default function Registries() {
 
       <Card className="animate-fade-in">
         {activeTab === 'schools' && <SchoolsCrud />}
-        {activeTab === 'series' && <SeriesCrud />}
-        {activeTab === 'subjects' && <SubjectsCrud />}
-        {activeTab === 'teachers' && <TeachersCrud />}
+        {activeTab !== 'schools' && !selectedSchoolId && (
+          <div className="p-8 text-center text-muted">Por favor, selecione uma Unidade Escolar no menu lateral para visualizar ou adicionar cadastros.</div>
+        )}
+        {activeTab === 'series' && selectedSchoolId && <SeriesCrud schoolId={selectedSchoolId} />}
+        {activeTab === 'subjects' && selectedSchoolId && <SubjectsCrud schoolId={selectedSchoolId} />}
+        {activeTab === 'teachers' && selectedSchoolId && <TeachersCrud schoolId={selectedSchoolId} />}
       </Card>
     </div>
   );
@@ -119,7 +124,7 @@ function SchoolsCrud() {
 }
 
 // Segments and Series Component
-function SeriesCrud() {
+function SeriesCrud({ schoolId }) {
   const [segments, setSegments] = useState([]);
   const [series, setSeries] = useState([]);
   
@@ -131,10 +136,10 @@ function SeriesCrud() {
   const [editingSeries, setEditingSeries] = useState(null);
 
   const fetchData = async () => {
-    const { data: segData } = await supabase.from('segments').select('*').order('name');
+    const { data: segData } = await supabase.from('segments').select('*').eq('school_id', schoolId).order('name');
     if (segData) setSegments(segData);
     
-    const { data: serData } = await supabase.from('series').select('*, segments(name)').order('name');
+    const { data: serData } = await supabase.from('series').select('*, segments(name)').eq('school_id', schoolId).order('name');
     if (serData) setSeries(serData);
   };
 
@@ -143,7 +148,7 @@ function SeriesCrud() {
   const handleAddSegment = async (e) => {
     e.preventDefault();
     if (!segmentName.trim()) return;
-    await supabase.from('segments').insert([{ name: segmentName }]);
+    await supabase.from('segments').insert([{ name: segmentName, school_id: schoolId }]);
     setSegmentName('');
     fetchData();
   };
@@ -159,7 +164,7 @@ function SeriesCrud() {
   const handleAddSeries = async (e) => {
     e.preventDefault();
     if (!seriesName.trim() || !segmentId) return;
-    await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId }]);
+    await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId, school_id: schoolId }]);
     setSeriesName('');
     setSegmentId('');
     fetchData();
@@ -319,7 +324,7 @@ function SeriesCrud() {
 }
 
 // Subjects Component
-function SubjectsCrud() {
+function SubjectsCrud({ schoolId }) {
   const [subjects, setSubjects] = useState([]);
   const [segments, setSegments] = useState([]);
   
@@ -333,10 +338,10 @@ function SubjectsCrud() {
     const { data: subData } = await supabase.from('subjects').select(`
       *,
       segment_subjects ( segment_id, segments ( name ) )
-    `).order('name');
+    `).eq('school_id', schoolId).order('name');
     if (subData) setSubjects(subData);
 
-    const { data: segData } = await supabase.from('segments').select('*').order('name');
+    const { data: segData } = await supabase.from('segments').select('*').eq('school_id', schoolId).order('name');
     if (segData) setSegments(segData);
   };
 
@@ -346,14 +351,14 @@ function SubjectsCrud() {
     e.preventDefault();
     if (!name.trim() || !segmentId) return;
     
-    // Check if subject exists (case-insensitive)
-    const { data: existing } = await supabase.from('subjects').select('*').ilike('name', name.trim()).maybeSingle();
+    // Check if subject exists (case-insensitive) in this school
+    const { data: existing } = await supabase.from('subjects').select('*').eq('school_id', schoolId).ilike('name', name.trim()).maybeSingle();
     
     let subjectId;
     if (existing) {
       subjectId = existing.id;
     } else {
-      const { data: newSubject, error } = await supabase.from('subjects').insert([{ name: name.trim() }]).select().single();
+      const { data: newSubject, error } = await supabase.from('subjects').insert([{ name: name.trim(), school_id: schoolId }]).select().single();
       if (error) return console.error(error);
       subjectId = newSubject.id;
     }
@@ -527,7 +532,7 @@ function SubjectsCrud() {
 }
 
 // Teachers Component
-function TeachersCrud() {
+function TeachersCrud({ schoolId }) {
   const [teachers, setTeachers] = useState([]);
   const [series, setSeries] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -545,13 +550,13 @@ function TeachersCrud() {
       *,
       teacher_series ( series_id, series (name, segments(name)) ),
       teacher_subjects ( subject_id, subjects (name) )
-    `).order('name');
+    `).eq('school_id', schoolId).order('name');
     if (tData) setTeachers(tData);
 
-    const { data: serData } = await supabase.from('series').select('*, segments(name)').order('name');
+    const { data: serData } = await supabase.from('series').select('*, segments(name)').eq('school_id', schoolId).order('name');
     if (serData) setSeries(serData);
 
-    const { data: subData } = await supabase.from('subjects').select('*').order('name');
+    const { data: subData } = await supabase.from('subjects').select('*').eq('school_id', schoolId).order('name');
     if (subData) setSubjects(subData);
   };
 
@@ -561,7 +566,7 @@ function TeachersCrud() {
     e.preventDefault();
     if (!name.trim()) return;
     
-    const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email: email || null, teacher_type: teacherType }]).select().single();
+    const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email: email || null, teacher_type: teacherType, school_id: schoolId }]).select().single();
     if (error) {
       alert(`Erro ao adicionar professor: ${error.message}`);
       return console.error(error);

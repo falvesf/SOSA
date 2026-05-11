@@ -5,18 +5,37 @@ import { ClipboardList, Users, BookOpen, LogOut, Info } from 'lucide-react'
 import Registries from './pages/Registries'
 import Instructions from './pages/Instructions'
 import ObservationForm from './pages/ObservationForm'
+import { SchoolProvider, useSchool } from './contexts/SchoolContext'
 
 // Placeholder Pages
 const Dashboard = () => <div className="p-8"><h1>Dashboard</h1><p>Bem-vindo ao Sistema de Observação em Sala.</p></div>
 
 function Layout({ children, onLogout }) {
+  const { schools, selectedSchoolId, setSelectedSchoolId, loading } = useSchool()
+
   return (
     <div className="flex" style={{ height: '100vh', overflow: 'hidden' }}>
       {/* Sidebar */}
       <aside style={{ width: '250px', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--border)' }}>
           <h2 className="h3" style={{ color: 'var(--primary)' }}>SOSA</h2>
-          <span className="text-xs text-muted">Observação em Sala</span>
+          <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-4)' }}>Observação em Sala</span>
+          
+          {!loading && schools.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted">Unidade Escolar</label>
+              <select 
+                className="input" 
+                style={{ padding: '6px 10px', fontSize: '13px' }}
+                value={selectedSchoolId}
+                onChange={(e) => setSelectedSchoolId(e.target.value)}
+              >
+                {schools.map(s => (
+                  <option key={s.id} value={s.id}>{s.code ? `${s.code} - ${s.name}` : s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <nav style={{ padding: 'var(--space-4)', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <Link to="/" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none' }}>
@@ -91,15 +110,17 @@ function App() {
   }
 
   return (
-    <Layout onLogout={() => supabase.auth.signOut()}>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/observacao" element={<ObservationForm />} />
-        <Route path="/cadastros" element={<Registries />} />
-        <Route path="/instrucoes" element={<Instructions />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
+    <SchoolProvider>
+      <Layout onLogout={() => supabase.auth.signOut()}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/observacao" element={<ObservationForm />} />
+          <Route path="/cadastros" element={<Registries />} />
+          <Route path="/instrucoes" element={<Instructions />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </SchoolProvider>
   )
 }
 
