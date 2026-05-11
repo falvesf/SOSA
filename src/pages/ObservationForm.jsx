@@ -12,13 +12,46 @@ const evaluationOptions = [
 
 const scores = [4, 3, 2, 1];
 
+const rubrics = {
+  planejamento: {
+    4: "4 – Excelente: Aula claramente alinhada às habilidades da BNCC, aos referenciais da rede e à progressão das aprendizagens.",
+    3: "3 – Adequado: Aula alinhada à BNCC e aos referenciais da rede, com objetivos claros, ainda que pouco contextualizados.",
+    2: "2 – Em Desenvolvimento: Alinhamento parcial à BNCC e referenciais ou objetivos pouco claros.",
+    1: "1 – Necessita de Acompanhamento: Não há evidências de alinhamento ao planejamento, referenciais ou à BNCC."
+  },
+  metodologia: {
+    4: "4 – Excelente: Metodologias diversificadas, ativas e adequadas à faixa etária, promovendo protagonismo e engajamento. Recursos utilizados de forma intencional.",
+    3: "3 – Adequado: Estratégias adequadas, com participação dos alunos, ainda que pouco diversificadas.",
+    2: "2 – Em Desenvolvimento: Metodologias pouco variadas ou centradas no professor. Uso pouco intencional de recursos.",
+    1: "1 – Necessita de Acompanhamento: Estratégias inadequadas ou inexistentes. Não utiliza recursos ou utiliza de forma inadequada."
+  },
+  avaliacao: {
+    4: "4 – Excelente: Avaliação formativa presente, com feedbacks claros e critérios alinhados aos objetivos.",
+    3: "3 – Adequado: Avaliação coerente, com feedbacks pontuais.",
+    2: "2 – Em Desenvolvimento: Avaliação pouco clara ou desalinhada aos objetivos.",
+    1: "1 – Necessita de Acompanhamento: Não há evidências de avaliação durante a aula."
+  },
+  gestao: {
+    4: "4 – Excelente: Excelente organização do tempo, espaço e condução da turma, com clima positivo de aprendizagem. Relação respeitosa e acolhedora.",
+    3: "3 – Adequado: Boa organização e condução da turma. Relação respeitosa.",
+    2: "2 – Em Desenvolvimento: Dificuldades pontuais na gestão da sala. Relação pouco acolhedora.",
+    1: "1 – Necessita de Acompanhamento: Gestão inadequada do tempo ou da turma. Relação inadequada ou desrespeitosa."
+  },
+  identidade: {
+    4: "4 – Excelente: Valores cristãos integrados de forma natural, ética e coerente com a proposta adventista.",
+    3: "3 – Adequado: Valores presentes de forma pontual e adequada.",
+    2: "2 – Em Desenvolvimento: Valores pouco evidenciados na prática pedagógica.",
+    1: "1 – Necessita de Acompanhamento: Não há evidências de integração dos valores institucionais."
+  }
+};
+
 // Helper Component for Score Selection
-const ScoreSelector = ({ value, onChange, label }) => (
-  <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+const ScoreSelector = ({ value, onChange, label, tooltips }) => (
+  <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0" title={tooltips ? "Passe o mouse sobre as notas para ver a rubrica" : undefined}>
     <span className="text-sm" style={{ flex: 1, paddingRight: '1rem' }}>{label}</span>
     <div className="score-group">
       {scores.map(s => (
-        <label key={s}>
+        <label key={s} title={tooltips ? tooltips[s] : undefined} style={{ cursor: 'help' }}>
           <input 
             type="radio" 
             className="score-radio" 
@@ -258,10 +291,10 @@ export default function ObservationForm() {
           </div>
           
           <div className="flex flex-col gap-2" style={{ marginBottom: 'var(--space-4)' }}>
-            <ScoreSelector label="O plano de aula está alinhado às habilidades/competências da BNCC." value={formData.plan_alignment_score} onChange={v => setScore('plan_alignment_score', v)} />
-            <ScoreSelector label="O conteúdo aplicado está de acordo com a Sequência Didática da AP" value={formData.plan_content_score} onChange={v => setScore('plan_content_score', v)} />
-            <ScoreSelector label="Os objetivos da aula estão claros e coerentes com a série/ano." value={formData.plan_objectives_score} onChange={v => setScore('plan_objectives_score', v)} />
-            <ScoreSelector label="Há conexão com os referenciais curriculares institucionais." value={formData.plan_references_score} onChange={v => setScore('plan_references_score', v)} />
+            <ScoreSelector tooltips={rubrics.planejamento} label="O plano de aula está alinhado às habilidades/competências da BNCC." value={formData.plan_alignment_score} onChange={v => setScore('plan_alignment_score', v)} />
+            <ScoreSelector tooltips={rubrics.planejamento} label="O conteúdo aplicado está de acordo com a Sequência Didática da AP" value={formData.plan_content_score} onChange={v => setScore('plan_content_score', v)} />
+            <ScoreSelector tooltips={rubrics.planejamento} label="Os objetivos da aula estão claros e coerentes com a série/ano." value={formData.plan_objectives_score} onChange={v => setScore('plan_objectives_score', v)} />
+            <ScoreSelector tooltips={rubrics.planejamento} label="Há conexão com os referenciais curriculares institucionais." value={formData.plan_references_score} onChange={v => setScore('plan_references_score', v)} />
           </div>
           
           <div className="form-group">
@@ -277,10 +310,10 @@ export default function ObservationForm() {
             <Select name="methodology_evaluation" value={formData.methodology_evaluation} onChange={handleChange} options={evaluationOptions} />
           </div>
           <div className="flex flex-col gap-2" style={{ marginBottom: 'var(--space-4)' }}>
-            <ScoreSelector label="Metodologias adequadas à faixa etária e ao componente curricular." value={formData.meth_adequate_score} onChange={v => setScore('meth_adequate_score', v)} />
-            <ScoreSelector label="Estratégias que favorecem o aprendizado do estudante." value={formData.meth_strategies_score} onChange={v => setScore('meth_strategies_score', v)} />
-            <ScoreSelector label="Uso intencional de recursos didáticos e tecnológicos." value={formData.meth_resources_score} onChange={v => setScore('meth_resources_score', v)} />
-            <ScoreSelector label="Clareza na condução da aula e nas orientações dadas aos alunos." value={formData.meth_clarity_score} onChange={v => setScore('meth_clarity_score', v)} />
+            <ScoreSelector tooltips={rubrics.metodologia} label="Metodologias adequadas à faixa etária e ao componente curricular." value={formData.meth_adequate_score} onChange={v => setScore('meth_adequate_score', v)} />
+            <ScoreSelector tooltips={rubrics.metodologia} label="Estratégias que favorecem o aprendizado do estudante." value={formData.meth_strategies_score} onChange={v => setScore('meth_strategies_score', v)} />
+            <ScoreSelector tooltips={rubrics.metodologia} label="Uso intencional de recursos didáticos e tecnológicos." value={formData.meth_resources_score} onChange={v => setScore('meth_resources_score', v)} />
+            <ScoreSelector tooltips={rubrics.metodologia} label="Clareza na condução da aula e nas orientações dadas aos alunos." value={formData.meth_clarity_score} onChange={v => setScore('meth_clarity_score', v)} />
           </div>
           <div className="form-group">
             <label className="form-label">Observações da Coordenação:</label>
@@ -295,10 +328,10 @@ export default function ObservationForm() {
             <Select name="learning_evaluation" value={formData.learning_evaluation} onChange={handleChange} options={evaluationOptions} />
           </div>
           <div className="flex flex-col gap-2" style={{ marginBottom: 'var(--space-4)' }}>
-            <ScoreSelector label="Instrumentos avaliativos coerentes com os objetivos da aula." value={formData.learn_instruments_score} onChange={v => setScore('learn_instruments_score', v)} />
-            <ScoreSelector label="Avaliação formativa presente durante a aula." value={formData.learn_formative_score} onChange={v => setScore('learn_formative_score', v)} />
-            <ScoreSelector label="Devolutivas claras aos estudantes." value={formData.learn_feedback_score} onChange={v => setScore('learn_feedback_score', v)} />
-            <ScoreSelector label="Critérios de avaliação compreensíveis e alinhados ao planejamento." value={formData.learn_criteria_score} onChange={v => setScore('learn_criteria_score', v)} />
+            <ScoreSelector tooltips={rubrics.avaliacao} label="Instrumentos avaliativos coerentes com os objetivos da aula." value={formData.learn_instruments_score} onChange={v => setScore('learn_instruments_score', v)} />
+            <ScoreSelector tooltips={rubrics.avaliacao} label="Avaliação formativa presente durante a aula." value={formData.learn_formative_score} onChange={v => setScore('learn_formative_score', v)} />
+            <ScoreSelector tooltips={rubrics.avaliacao} label="Devolutivas claras aos estudantes." value={formData.learn_feedback_score} onChange={v => setScore('learn_feedback_score', v)} />
+            <ScoreSelector tooltips={rubrics.avaliacao} label="Critérios de avaliação compreensíveis e alinhados ao planejamento." value={formData.learn_criteria_score} onChange={v => setScore('learn_criteria_score', v)} />
           </div>
           <div className="form-group">
             <label className="form-label">Observações da Coordenação:</label>
@@ -313,14 +346,14 @@ export default function ObservationForm() {
             <Select name="management_evaluation" value={formData.management_evaluation} onChange={handleChange} options={evaluationOptions} />
           </div>
           <div className="flex flex-col gap-2" style={{ marginBottom: 'var(--space-4)' }}>
-            <ScoreSelector label="Organização do espaço e do tempo pedagógico." value={formData.man_space_score} onChange={v => setScore('man_space_score', v)} />
-            <ScoreSelector label="Relação respeitosa entre professor e estudantes." value={formData.man_respect_score} onChange={v => setScore('man_respect_score', v)} />
-            <ScoreSelector label="Estratégias de mediação de conflitos, quando necessário." value={formData.man_conflict_score} onChange={v => setScore('man_conflict_score', v)} />
-            <ScoreSelector label="Ambiente favorável à aprendizagem." value={formData.man_environment_score} onChange={v => setScore('man_environment_score', v)} />
-            <ScoreSelector label="Uso adequado do material didático." value={formData.man_material_score} onChange={v => setScore('man_material_score', v)} />
-            <ScoreSelector label="Registro do conteúdo no caderno dos alunos." value={formData.man_content_score} onChange={v => setScore('man_content_score', v)} />
-            <ScoreSelector label="As atividades são bem orientadas." value={formData.man_activities_score} onChange={v => setScore('man_activities_score', v)} />
-            <ScoreSelector label="O professor acompanha sua realização circulando pela sala tirando dúvidas." value={formData.man_monitoring_score} onChange={v => setScore('man_monitoring_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="Organização do espaço e do tempo pedagógico." value={formData.man_space_score} onChange={v => setScore('man_space_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="Relação respeitosa entre professor e estudantes." value={formData.man_respect_score} onChange={v => setScore('man_respect_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="Estratégias de mediação de conflitos, quando necessário." value={formData.man_conflict_score} onChange={v => setScore('man_conflict_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="Ambiente favorável à aprendizagem." value={formData.man_environment_score} onChange={v => setScore('man_environment_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="Uso adequado do material didático." value={formData.man_material_score} onChange={v => setScore('man_material_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="Registro do conteúdo no caderno dos alunos." value={formData.man_content_score} onChange={v => setScore('man_content_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="As atividades são bem orientadas." value={formData.man_activities_score} onChange={v => setScore('man_activities_score', v)} />
+            <ScoreSelector tooltips={rubrics.gestao} label="O professor acompanha sua realização circulando pela sala tirando dúvidas." value={formData.man_monitoring_score} onChange={v => setScore('man_monitoring_score', v)} />
           </div>
           <div className="form-group">
             <label className="form-label">Observações da Coordenação:</label>
@@ -335,9 +368,9 @@ export default function ObservationForm() {
             <Select name="identity_evaluation" value={formData.identity_evaluation} onChange={handleChange} options={evaluationOptions} />
           </div>
           <div className="flex flex-col gap-2" style={{ marginBottom: 'var(--space-4)' }}>
-            <ScoreSelector label="Integração de valores filosóficos de forma natural e ética." value={formData.ident_values_score} onChange={v => setScore('ident_values_score', v)} />
-            <ScoreSelector label="Postura docente coerente com os princípios da Educação Adventista." value={formData.ident_posture_score} onChange={v => setScore('ident_posture_score', v)} />
-            <ScoreSelector label="Linguagem, atitudes e exemplos alinhados à proposta confessional." value={formData.ident_language_score} onChange={v => setScore('ident_language_score', v)} />
+            <ScoreSelector tooltips={rubrics.identidade} label="Integração de valores filosóficos de forma natural e ética." value={formData.ident_values_score} onChange={v => setScore('ident_values_score', v)} />
+            <ScoreSelector tooltips={rubrics.identidade} label="Postura docente coerente com os princípios da Educação Adventista." value={formData.ident_posture_score} onChange={v => setScore('ident_posture_score', v)} />
+            <ScoreSelector tooltips={rubrics.identidade} label="Linguagem, atitudes e exemplos alinhados à proposta confessional." value={formData.ident_language_score} onChange={v => setScore('ident_language_score', v)} />
           </div>
           <div className="form-group">
             <label className="form-label">Observações da Coordenação:</label>
