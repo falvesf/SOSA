@@ -408,7 +408,7 @@ function ClassesCrud() {
   const [classes, setClasses] = useState([]);
   const [series, setSeries] = useState([]);
   const [name, setName] = useState('');
-  const [seriesId, setSeriesId] = useState('');
+  const [selectedSeries, setSelectedSeries] = useState([]);
 
   const fetchData = async () => {
     const { data: clsData } = await supabase.from('classes').select('*, series(name)').order('name');
@@ -422,10 +422,13 @@ function ClassesCrud() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !seriesId) return;
-    await supabase.from('classes').insert([{ name, series_id: seriesId }]);
+    if (!name.trim() || selectedSeries.length === 0) return;
+    
+    const records = selectedSeries.map(sid => ({ name, series_id: sid }));
+    await supabase.from('classes').insert(records);
+    
     setName('');
-    setSeriesId('');
+    setSelectedSeries([]);
     fetchData();
   };
 
@@ -436,22 +439,33 @@ function ClassesCrud() {
     }
   };
 
+  const toggleSeries = (id) => {
+    setSelectedSeries(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Turmas</h2>
-      <form onSubmit={handleAdd} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ flex: 1 }}>
-          <Select 
-            value={seriesId} 
-            onChange={e => setSeriesId(e.target.value)} 
-            options={series.map(s => ({ value: s.id, label: s.name }))}
-            required
-          />
+      <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
+        <div className="flex gap-4">
+          <div style={{ flex: 1 }}>
+            <Input placeholder="Nome da Turma (ex: Turma A)" value={name} onChange={e => setName(e.target.value)} required />
+          </div>
+          <Button type="submit" variant="primary"><Plus size={18} /> Adicionar em Lote</Button>
         </div>
-        <div style={{ flex: 1 }}>
-          <Input placeholder="Nome da Turma (ex: Turma A)" value={name} onChange={e => setName(e.target.value)} required />
+        
+        <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+          <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Atrelar às Séries:</p>
+          <div className="flex flex-wrap gap-3">
+            {series.map(s => (
+              <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} />
+                {s.name}
+              </label>
+            ))}
+            {series.length === 0 && <span className="text-xs text-muted">Cadastre séries primeiro.</span>}
+          </div>
         </div>
-        <Button type="submit" variant="primary"><Plus size={18} /> Adicionar</Button>
       </form>
 
       <div className="table-container">
