@@ -646,6 +646,13 @@ function TeachersCrud() {
     });
   };
 
+  const uniqueSegments = series.reduce((acc, curr) => {
+    if (!acc.find(x => x.id === curr.segment_id)) {
+      acc.push({ id: curr.segment_id, name: curr.segments?.name });
+    }
+    return acc;
+  }, []);
+
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Professores</h2>
@@ -669,14 +676,24 @@ function TeachersCrud() {
 
         {/* Both Regente and Especialista get Series */}
         <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-          <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-2)' }}>Séries Atreladas (Salas de Aula):</p>
-          <div className="flex flex-wrap gap-3">
-            {series.map(s => (
-              <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} />
-                {s.segments?.name} - {s.name}
-              </label>
-            ))}
+          <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-3)' }}>Séries Atreladas (Salas de Aula):</p>
+          <div className="flex flex-col gap-3">
+            {uniqueSegments.map(seg => {
+              const segSeries = series.filter(s => s.segment_id === seg.id);
+              return (
+                <div key={seg.id} style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                  <p className="text-xs font-semibold text-muted" style={{ marginBottom: 'var(--space-2)' }}>{seg.name}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {segSeries.map(s => (
+                      <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                        <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} style={{ margin: 0 }} />
+                        <span style={{ color: selectedSeries.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSeries.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
             {series.length === 0 && <span className="text-xs text-muted">Cadastre séries primeiro.</span>}
           </div>
         </div>
@@ -684,12 +701,12 @@ function TeachersCrud() {
         {/* Only Especialista gets Subjects */}
         {teacherType === 'especialista' && (
           <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-            <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-2)' }}>Disciplinas Atreladas (Especialidade):</p>
-            <div className="flex flex-wrap gap-3">
+            <p className="text-sm font-medium text-primary" style={{ marginBottom: 'var(--space-3)' }}>Disciplinas Atreladas (Especialidade):</p>
+            <div className="flex flex-wrap gap-2" style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               {subjects.map(s => (
-                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} />
-                  {s.name}
+                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                  <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ margin: 0 }} />
+                  <span style={{ color: selectedSubjects.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSubjects.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                 </label>
               ))}
               {subjects.length === 0 && <span className="text-xs text-muted">Cadastre disciplinas primeiro.</span>}
@@ -754,25 +771,35 @@ function TeachersCrud() {
             </div>
 
             <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Séries Atreladas:</p>
-              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-                {series.map(s => (
-                  <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" checked={editingItem.selectedSeries.includes(s.id)} onChange={() => toggleEditSeries(s.id)} />
-                    {s.segments?.name} - {s.name}
-                  </label>
-                ))}
+              <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-3)' }}>Séries Atreladas:</p>
+              <div className="flex flex-col gap-3 max-h-60 overflow-y-auto pr-2">
+                {uniqueSegments.map(seg => {
+                  const segSeries = series.filter(s => s.segment_id === seg.id);
+                  return (
+                    <div key={seg.id} style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                      <p className="text-xs font-semibold text-muted" style={{ marginBottom: 'var(--space-2)' }}>{seg.name}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {segSeries.map(s => (
+                          <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                            <input type="checkbox" checked={editingItem.selectedSeries.includes(s.id)} onChange={() => toggleEditSeries(s.id)} style={{ margin: 0 }} />
+                            <span style={{ color: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: editingItem.selectedSeries.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {editingItem.teacher_type === 'especialista' && (
               <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Disciplinas Atreladas:</p>
-                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-3)' }}>Disciplinas Atreladas:</p>
+                <div className="flex flex-wrap gap-2" style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                   {subjects.map(s => (
-                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input type="checkbox" checked={editingItem.selectedSubjects.includes(s.id)} onChange={() => toggleEditSubject(s.id)} />
-                      {s.name}
+                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ backgroundColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
+                      <input type="checkbox" checked={editingItem.selectedSubjects.includes(s.id)} onChange={() => toggleEditSubject(s.id)} style={{ margin: 0 }} />
+                      <span style={{ color: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: editingItem.selectedSubjects.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                     </label>
                   ))}
                 </div>
