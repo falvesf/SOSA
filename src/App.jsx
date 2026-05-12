@@ -6,9 +6,7 @@ import Registries from './pages/Registries'
 import Instructions from './pages/Instructions'
 import ObservationForm from './pages/ObservationForm'
 import { SchoolProvider, useSchool } from './contexts/SchoolContext'
-
-// Placeholder Pages
-const Dashboard = () => <div className="p-8"><h1>Dashboard</h1><p>Bem-vindo ao Sistema de Observação em Sala.</p></div>
+import Dashboard from './pages/Dashboard'
 
 function Layout({ children, onLogout }) {
   const { schools, selectedSchoolId, setSelectedSchoolId, loading } = useSchool()
@@ -109,7 +107,12 @@ function App() {
           <button 
             className="btn btn-primary" 
             style={{ width: '100%' }}
-            onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}
+            onClick={() => supabase.auth.signInWithOAuth({ 
+              provider: 'google',
+              options: {
+                redirectTo: window.location.origin + window.location.pathname
+              }
+            })}
           >
             Entrar com Google
           </button>

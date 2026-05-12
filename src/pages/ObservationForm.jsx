@@ -276,13 +276,22 @@ export default function ObservationForm() {
 
           <div style={{ marginTop: 'var(--space-4)' }}>
             <label className="form-label" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>Objetivos da Visita:</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2" style={{ marginBottom: formData.visit_objectives.includes('Outro') ? 'var(--space-2)' : 0 }}>
               {['Acompanhar a prática pedagógica', 'Observar a aplicação da BNCC e dos referenciais institucionais', 'Apoiar o desenvolvimento profissional docente', 'Monitorar processos de ensino e aprendizagem', 'Outro'].map(obj => (
                 <label key={obj} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={formData.visit_objectives.includes(obj)} onChange={() => handleObjectiveChange(obj)} /> {obj}
                 </label>
               ))}
             </div>
+            {formData.visit_objectives.includes('Outro') && (
+              <Input 
+                placeholder="Especifique outro objetivo..." 
+                name="visit_objectives_other" 
+                value={formData.visit_objectives_other || ''} 
+                onChange={handleChange} 
+                required 
+              />
+            )}
           </div>
         </Card>
 
