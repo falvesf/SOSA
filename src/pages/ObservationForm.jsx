@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select } from '../components/ui';
-import { Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, Edit3 } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
+import { useParams, useNavigate } from 'react-router-dom';
 
 const evaluationOptions = [
   { value: 'Atende plenamente', label: 'Atende plenamente' },
@@ -70,15 +71,18 @@ const ScoreSelector = ({ value, onChange, label, tooltips }) => (
 
 export default function ObservationForm() {
   const { selectedSchoolId } = useSchool();
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [seriesList, setSeriesList] = useState([]); // renamed from classes
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
-    visit_date: new Date().toISOString().split('T')[0],
+    visit_date: '',
     teacher_id: '',
     subject_id: '',
     series_id: '', // renamed from class_id
@@ -95,6 +99,19 @@ export default function ObservationForm() {
     
     strong_points: '', improvement_opportunities: '', observation_synthesis: '', pedagogical_guidelines: '', forwarding: '', teacher_aware: false
   });
+
+  // Set default date for NEW observations only
+  useEffect(() => {
+    const isEdit = window.location.pathname.includes('/editar/');
+    if (!isEdit && !id && !formData.visit_date) {
+      const d = new Date();
+      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      setFormData(prev => ({
+        ...prev,
+        visit_date: localDate
+      }));
+    }
+  }, [id]);
 
   useEffect(() => {
     if (!selectedSchoolId) return;
@@ -116,6 +133,35 @@ export default function ObservationForm() {
     }
     loadData();
   }, [selectedSchoolId]);
+
+  // Fetch existing observation if id is present
+  useEffect(() => {
+    if (!id) return;
+
+    async function fetchObservation() {
+      setFetching(true);
+      const { data, error } = await supabase
+        .from('observations')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (data && !error) {
+        setFormData({
+          ...data,
+          // Robust date parsing: just take the first 10 characters (YYYY-MM-DD)
+          visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
+          visit_objectives: data.visit_objectives || []
+        });
+      } else {
+        console.error('Error fetching observation:', error);
+        alert('Erro ao carregar observação.');
+        navigate('/');
+      }
+      setFetching(false);
+    }
+    fetchObservation();
+  }, [id, navigate]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -151,7 +197,9 @@ export default function ObservationForm() {
 
       const payload = { ...formData, school_id: selectedSchoolId, segment_id, user_id: user?.id };
       
-      const { error } = await supabase.from('observations').insert([payload]);
+      const { error } = id 
+        ? await supabase.from('observations').update(payload).eq('id', id)
+        : await supabase.from('observations').insert([payload]);
       
       if (error) throw error;
       setSuccess(true);
@@ -202,16 +250,26 @@ export default function ObservationForm() {
       <div className="container flex flex-col items-center justify-center animate-fade-in" style={{ height: '80vh' }}>
         <CheckCircle size={64} color="var(--success)" style={{ marginBottom: 'var(--space-4)' }} />
         <h1 className="h1">Salvo com Sucesso!</h1>
-        <p className="text-muted" style={{ marginBottom: 'var(--space-6)' }}>O instrumento de observação foi registrado na base de dados.</p>
-        <Button onClick={() => window.location.reload()}>Preencher Nova Observação</Button>
+        <p className="text-muted" style={{ marginBottom: 'var(--space-6)' }}>O instrumento de observação foi {id ? 'atualizado' : 'registrado'} na base de dados.</p>
+        <Button onClick={() => id ? navigate('/') : window.location.reload()}>
+          {id ? 'Voltar ao Dashboard' : 'Preencher Nova Observação'}
+        </Button>
       </div>
     );
   }
 
+  if (fetching) {
+    return <div className="container p-12 text-center text-muted">Carregando dados da observação...</div>
+  }
+
   return (
     <div className="container animate-fade-in" style={{ padding: 'var(--space-6) 0' }}>
-      <h1 className="h1" style={{ marginBottom: 'var(--space-2)' }}>Instrumento de Observação</h1>
-      <p className="text-muted" style={{ marginBottom: 'var(--space-6)' }}>Preencha as informações referentes à visita em sala de aula.</p>
+      <h1 className="h1" style={{ marginBottom: 'var(--space-2)' }}>
+        {id ? 'Editar Observação' : 'Instrumento de Observação'}
+      </h1>
+      <p className="text-muted" style={{ marginBottom: 'var(--space-6)' }}>
+        {id ? 'Atualize as informações do registro selecionado.' : 'Preencha as informações referentes à visita em sala de aula.'}
+      </p>
       
       <form onSubmit={handleSubmit}>
         
@@ -426,9 +484,9 @@ export default function ObservationForm() {
         </Card>
 
         <div className="flex justify-end gap-4" style={{ marginBottom: 'var(--space-8)' }}>
-          <Button type="button" variant="secondary" onClick={() => window.scrollTo(0,0)}>Cancelar</Button>
+          <Button type="button" variant="secondary" onClick={() => id ? navigate('/') : window.scrollTo(0,0)}>Cancelar</Button>
           <Button type="submit" variant="primary" disabled={loading}>
-            <Save size={18} /> {loading ? 'Salvando...' : 'Finalizar Registro'}
+            {id ? <Edit3 size={18} /> : <Save size={18} />} {loading ? 'Salvando...' : (id ? 'Salvar Alterações' : 'Finalizar Registro')}
           </Button>
         </div>
 

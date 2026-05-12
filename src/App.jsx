@@ -127,6 +127,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/observacao" element={<ObservationForm />} />
+          <Route path="/observacao/editar/:id" element={<ObservationForm />} />
           <Route path="/cadastros" element={<Registries />} />
           <Route path="/instrucoes" element={<Instructions />} />
           <Route path="*" element={<Navigate to="/" replace />} />

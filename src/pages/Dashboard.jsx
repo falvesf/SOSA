@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Card, Button } from '../components/ui';
+import { Card, Button, Modal } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit } from 'lucide-react';
+import ObservationDetails from './ObservationDetails';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { selectedSchoolId } = useSchool();
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, thisMonth: 0 });
+  const [selectedObservation, setSelectedObservation] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchObservations = async () => {
     if (!selectedSchoolId) return;
@@ -61,6 +66,11 @@ export default function Dashboard() {
     } catch (error) {
       alert('Erro ao excluir registro.');
     }
+  };
+
+  const handleView = (observation) => {
+    setSelectedObservation(observation);
+    setIsModalOpen(true);
   };
 
   if (!selectedSchoolId) {
@@ -126,7 +136,9 @@ export default function Dashboard() {
               <tbody>
                 {observations.map(obs => (
                   <tr key={obs.id}>
-                    <td className="text-sm font-medium">{new Date(obs.visit_date).toLocaleDateString('pt-BR')}</td>
+                    <td className="text-sm font-medium">
+                      {obs.visit_date ? obs.visit_date.split('-').reverse().join('/') : 'N/A'}
+                    </td>
                     <td>
                       <div className="flex items-center gap-2">
                         <User size={14} className="text-muted" />
@@ -149,8 +161,11 @@ export default function Dashboard() {
                     </td>
                     <td>
                       <div className="flex gap-2 justify-end">
-                        <Button variant="secondary" style={{ padding: '4px 8px' }} title="Visualizar (Em breve)">
+                        <Button variant="secondary" style={{ padding: '4px 8px' }} title="Visualizar" onClick={() => handleView(obs)}>
                           <Eye size={16} />
+                        </Button>
+                        <Button variant="secondary" style={{ padding: '4px 8px' }} title="Editar" onClick={() => navigate(`/observacao/editar/${obs.id}`)}>
+                          <Edit size={16} />
                         </Button>
                         <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(obs.id)}>
                           <Trash2 size={16} />
@@ -164,6 +179,17 @@ export default function Dashboard() {
           </div>
         )}
       </Card>
+
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title="Detalhes da Observação"
+      >
+        <ObservationDetails observation={selectedObservation} />
+        <div className="flex justify-end mt-6">
+          <Button onClick={() => setIsModalOpen(false)}>Fechar</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -298,3 +298,105 @@ input, select, textarea {
   background-color: var(--primary-light);
   border-color: var(--primary);
 }
+
+/* Print Styles */
+@media print {
+  @page {
+    margin: 1cm;
+    size: A4Portrait;
+  }
+
+  /* Hide the main app content (everything inside #root) */
+  #root {
+    display: none !important;
+  }
+
+  /* Reset body styles for print */
+  html, body {
+    height: auto !important;
+    background-color: white !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* The Modal is a sibling of #root in the body (via Portal) */
+  .modal-overlay {
+    position: static !important;
+    display: block !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .modal-overlay > div {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Hide specific UI elements */
+  .no-print, 
+  button, 
+  .flex.justify-between button {
+    display: none !important;
+  }
+
+  .printable-area {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .page-break {
+    display: block;
+    page-break-before: always;
+    height: 0;
+  }
+
+  .card {
+    border: 1px solid #ddd !important;
+    margin-bottom: 1.5rem !important;
+    break-inside: avoid;
+    box-shadow: none !important;
+    background-color: white !important;
+  }
+
+  /* Font and Color Fixes */
+  .h1, .h2, .h3, h4 { color: #000 !important; }
+  p, span, td, th, label { color: #000 !important; }
+  
+  .badge {
+    border: 1px solid #ccc !important;
+    background-color: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .signature-container {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+  }
+}
+
+.modal-overlay.hide-modal-title .modal-title {
+  display: none;
+}
+
+.print-only {
+  display: none;
+}
