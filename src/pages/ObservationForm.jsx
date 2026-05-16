@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select } from '../components/ui';
-import { Save, CheckCircle, AlertCircle, Edit3, Trash2 } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui';
@@ -97,6 +97,16 @@ export default function ObservationForm() {
   const [visitToDelete, setVisitToDelete] = useState(null);
   const [lastId, setLastId] = useState(id);
 
+  // Scroll to top on mount or id change
+  useEffect(() => {
+    const scrollContainer = document.querySelector('main');
+    if (scrollContainer) {
+      scrollContainer.scrollTo(0, 0);
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [id]);
+
   // Navigation Guard & Form Reset
   useEffect(() => {
     if (!id) {
@@ -113,8 +123,13 @@ export default function ObservationForm() {
     }
   }, [id]);
 
-  const confirmExit = () => { setIsDirty(false); setShowExitModal(false); };
-  const cancelExit = () => { setShowExitModal(false); navigate(`/observacao/editar/${lastId}`); };
+  const confirmExit = () => {
+    setIsDirty(false);
+    setShowExitModal(false);
+    navigate('/');
+  };
+
+  const cancelExit = () => setShowExitModal(false);
 
   useEffect(() => {
     const handleBeforeUnload = (e) => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } };
@@ -167,11 +182,43 @@ export default function ObservationForm() {
     fetchObservation();
   }, [id]);
 
-  // Handlers
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const sidebarWidth = '260px';
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Persistent Settings (User Metadata)
+  const [thresholds, setThresholds] = useState({ full: 80, partial: 60 });
+  const [showConfig, setShowConfig] = useState(false);
+
+  useEffect(() => {
+    async function loadUserSettings() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.sosa_thresholds) {
+        setThresholds(user.user_metadata.sosa_thresholds);
+      }
+    }
+    loadUserSettings();
+  }, []);
+
+  const updateThresholds = async (newThresholds) => {
+    setThresholds(newThresholds);
+    await supabase.auth.updateUser({
+      data: { sosa_thresholds: newThresholds }
+    });
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setIsDirty(true);
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
   const handleStartRevisit = (num) => {
@@ -266,40 +313,36 @@ export default function ObservationForm() {
     setActiveTab(num);
   };
 
-  const openDeleteModal = (num) => {
-    setVisitToDelete(num);
+  const openDeleteModal = (visitNum) => {
+    setVisitToDelete(visitNum);
     setShowDeleteModal(true);
   };
 
   const confirmDeleteRevisit = async () => {
-    const num = visitToDelete;
+    if (!visitToDelete) return;
     setLoading(true);
     try {
-      // Surgical update: only clear the necessary columns
-      const updates = {};
-      if (num === 2) {
-        updates.revisit_date_1 = null;
-        updates.scores_v2 = {};
-        updates.evaluations_v2 = {};
-        updates.comments_v2 = {};
-      } else if (num === 3) {
-        updates.revisit_date_2 = null;
-        updates.scores_v3 = {};
-        updates.evaluations_v3 = {};
-        updates.comments_v3 = {};
+      let updateData = {};
+      if (visitToDelete === 2) {
+        updateData = { 
+          revisit_date_1: null, revisit_date_2: null,
+          scores_v2: {}, evaluations_v2: {}, comments_v2: {},
+          scores_v3: {}, evaluations_v3: {}, comments_v3: {}
+        };
+      } else if (visitToDelete === 3) {
+        updateData = { 
+          revisit_date_2: null,
+          scores_v3: {}, evaluations_v3: {}, comments_v3: {}
+        };
       }
-
-      const { error } = await supabase.from('observations').update(updates).eq('id', id);
+      const { error } = await supabase.from('observations').update(updateData).eq('id', id);
       if (error) throw error;
-
-      // Update local state ONLY after successful DB update
-      setFormData(prev => ({ ...prev, ...updates }));
-      setDbVisitCount(num - 1);
-      setActiveTab(num - 1);
-      setIsDirty(false);
+      setFormData(prev => ({ ...prev, ...updateData }));
+      setDbVisitCount(visitToDelete - 1);
+      setActiveTab(visitToDelete - 1);
     } catch (error) {
       console.error('Error deleting revisit:', error);
-      alert('Erro ao excluir revisita: ' + (error.message || 'Erro no banco de dados'));
+      alert('Erro ao excluir revisita');
     } finally {
       setLoading(false);
       setShowDeleteModal(false);
@@ -384,7 +427,6 @@ export default function ObservationForm() {
     }
     return '';
   };
-
   const setComment = (field, val) => {
     setIsDirty(true);
     setFormData(prev => {
@@ -398,7 +440,7 @@ export default function ObservationForm() {
   // Smart Color Logic for Scores
   const getScoreColorClass = (visitIndex, scoreValue, field) => {
     const v1 = formData[field];
-    const v2 = formData.scores_v2[field];
+    const v2 = formData.scores_v2?.[field];
 
     if (visitIndex === 1) return 'v1';
     
@@ -424,43 +466,114 @@ export default function ObservationForm() {
     const tooltips = rubrics[rubricsKey];
 
     return (
-      <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-        <span className="text-sm" style={{ flex: 1, paddingRight: '1rem' }}>{label}</span>
-        <div className="flex gap-3 relative">
-          {scores.map(score => {
-            const isSelected = currentScore === score;
-            const activeColorClass = isSelected ? getScoreColorClass(activeTab, score, field) : '';
-            
-            let historyClass = '';
-            const pastVisits = history.filter(h => h.visit < activeTab && h.score === score);
-            if (pastVisits.length > 0) {
-              const lastPastVisit = pastVisits[pastVisits.length - 1].visit;
-              // Smart ghost color
-              const ghostColorClass = getScoreColorClass(lastPastVisit, score, field);
-              historyClass = `${ghostColorClass}-ghost`;
-            }
-
-            return (
-              <div key={score} className="relative" title={tooltips ? tooltips[score] : undefined}>
-                <input type="radio" name={field} id={`${field}-${score}`} className="score-radio" checked={isSelected} onChange={() => setScore(field, score)} />
-                <label htmlFor={`${field}-${score}`} className={`score-label ${activeColorClass} ${historyClass}`}>
-                  {score}
-                  <div className="score-pips">
-                    {history.map(h => {
-                      const pipColorClass = getScoreColorClass(h.visit, h.score, field);
-                      return (
-                        <div key={h.visit} className={`score-pip pip-${pipColorClass}`} style={{ opacity: h.score === score ? 1 : 0 }} />
-                      );
-                    })}
-                  </div>
-                </label>
-              </div>
-            );
-          })}
+      <div 
+        className="score-selector-row"
+        style={{ 
+          display: 'flex', 
+          flexDirection: window.innerWidth < 640 ? 'column' : 'row',
+          alignItems: window.innerWidth < 640 ? 'flex-start' : 'center',
+          justifyContent: 'space-between',
+          padding: 'var(--space-3) 0',
+          borderBottom: '1px solid var(--border)',
+          gap: 'var(--space-3)'
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <p className="text-sm font-medium text-gray-700 leading-tight mb-1">{label}</p>
+          <p className="text-[10px] text-muted italic">
+            {currentScore ? tooltips?.[currentScore] : 'Selecione uma pontuação...'}
+          </p>
+        </div>
+        <div className="score-group" style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          {[4, 3, 2, 1].map(num => (
+            <div key={num} className="relative">
+              <input 
+                type="radio" 
+                id={`${field}-${num}`} 
+                name={field} 
+                className="score-radio"
+                checked={currentScore === num}
+                onChange={() => setScore(field, num)}
+              />
+              <label 
+                htmlFor={`${field}-${num}`} 
+                className={`score-label ${getScoreColorClass(activeTab, num, field)} ${currentScore !== num && history.some(h => h.score === num) ? `v${history.find(h => h.score === num)?.visit}-ghost` : ''}`}
+                title={tooltips?.[num]}
+              >
+                {num}
+                <div className="score-pips">
+                  {history.map((h, i) => h.score === num && (
+                    <div key={i} className={`score-pip pip-v${h.visit}`} />
+                  ))}
+                </div>
+              </label>
+            </div>
+          ))}
         </div>
       </div>
     );
   };
+
+  const calculateEvaluation = (scoreFields) => {
+    const scoresList = scoreFields.map(f => getScore(f));
+    const validScores = scoresList.filter(s => s !== null && s !== undefined);
+    
+    if (validScores.length === 0) return 'Não observado';
+    
+    const totalEarned = validScores.reduce((a, b) => a + Number(b), 0);
+    const totalPossible = scoreFields.length * 4;
+    const percentage = (totalEarned / totalPossible) * 100;
+
+    if (percentage >= thresholds.full) return 'Atende plenamente';
+    if (percentage >= thresholds.partial) return 'Atende parcialmente';
+    return 'Não atende';
+  };
+
+  // Automation Effect: Update evaluations based on scores
+  useEffect(() => {
+    const sections = [
+      { evalField: 'planning_evaluation', scoreFields: ['plan_alignment_score', 'plan_content_score', 'plan_objectives_score', 'plan_references_score'] },
+      { evalField: 'methodology_evaluation', scoreFields: ['meth_adequate_score', 'meth_strategies_score', 'meth_resources_score', 'meth_clarity_score'] },
+      { evalField: 'learning_evaluation', scoreFields: ['learn_instruments_score', 'learn_formative_score', 'learn_feedback_score', 'learn_criteria_score'] },
+      { evalField: 'management_evaluation', scoreFields: ['man_space_score', 'man_respect_score', 'man_conflict_score', 'man_environment_score', 'man_material_score', 'man_content_score', 'man_activities_score', 'man_monitoring_score'] },
+      { evalField: 'identity_evaluation', scoreFields: ['ident_values_score', 'ident_posture_score', 'ident_language_score'] }
+    ];
+
+    let hasChanges = false;
+    const updates = {};
+
+    sections.forEach(section => {
+      const newValue = calculateEvaluation(section.scoreFields);
+      const currentValue = getEvaluation(section.evalField);
+      
+      if (newValue !== currentValue) {
+        updates[section.evalField] = newValue;
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      setFormData(prev => {
+        const newData = { ...prev };
+        if (activeTab === 1) {
+          Object.assign(newData, updates);
+        } else if (activeTab === 2) {
+          newData.evaluations_v2 = { ...(prev.evaluations_v2 || {}), ...updates };
+        } else if (activeTab === 3) {
+          newData.evaluations_v3 = { ...(prev.evaluations_v3 || {}), ...updates };
+        }
+        return newData;
+      });
+    }
+  }, [
+    formData.plan_alignment_score, formData.plan_content_score, formData.plan_objectives_score, formData.plan_references_score,
+    formData.meth_adequate_score, formData.meth_strategies_score, formData.meth_resources_score, formData.meth_clarity_score,
+    formData.learn_instruments_score, formData.learn_formative_score, formData.learn_feedback_score, formData.learn_criteria_score,
+    formData.man_space_score, formData.man_respect_score, formData.man_conflict_score, formData.man_environment_score,
+    formData.man_material_score, formData.man_content_score, formData.man_activities_score, formData.man_monitoring_score,
+    formData.ident_values_score, formData.ident_posture_score, formData.ident_language_score,
+    formData.scores_v2, formData.scores_v3, activeTab, thresholds
+  ]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -485,19 +598,29 @@ export default function ObservationForm() {
   const selectedTeacher = teachers.find(t => t.id === formData.teacher_id);
   let availableSeries = seriesList;
   let availableSubjects = subjects;
+  
   if (selectedTeacher) {
     if (selectedTeacher.teacher_series?.length > 0) {
       const allowedSeriesIds = selectedTeacher.teacher_series.map(ts => ts.series_id);
       availableSeries = seriesList.filter(s => allowedSeriesIds.includes(s.id));
     }
+    
     if (selectedTeacher.teacher_type === 'especialista') {
       if (selectedTeacher.teacher_subjects?.length > 0) {
         const allowedSubjectIds = selectedTeacher.teacher_subjects.map(ts => ts.subject_id);
         availableSubjects = subjects.filter(s => allowedSubjectIds.includes(s.id));
-      } else availableSubjects = [];
+      } else {
+        availableSubjects = [];
+      }
     } else {
-      const allowedSegments = Array.from(new Set(selectedTeacher.teacher_series.map(ts => seriesList.find(s => s.id === ts.series_id)?.segment_id).filter(Boolean)));
-      availableSubjects = subjects.filter(sub => sub.segment_subjects && sub.segment_subjects.some(ss => allowedSegments.includes(ss.segment_id)));
+      const allowedSegments = Array.from(new Set(
+        (selectedTeacher.teacher_series || [])
+          .map(ts => seriesList.find(s => s.id === ts.series_id)?.segment_id)
+          .filter(Boolean)
+      ));
+      availableSubjects = subjects.filter(sub => 
+        sub.segment_subjects && sub.segment_subjects.some(ss => allowedSegments.includes(ss.segment_id))
+      );
     }
   }
 
@@ -506,12 +629,12 @@ export default function ObservationForm() {
       <div className="container flex flex-col items-center justify-center animate-fade-in" style={{ height: '80vh' }}>
         <CheckCircle size={64} color="var(--success)" style={{ marginBottom: 'var(--space-4)' }} />
         <h1 className="h1">Salvo com Sucesso!</h1>
-        <Button onClick={() => id ? navigate('/') : window.location.reload()}>{id ? 'Voltar ao Dashboard' : 'Preencher Nova Observação'}</Button>
+        <Button onClick={() => id ? navigate('/') : window.location.reload()}>{id ? 'Voltar ao Dashboard' : 'Nova Observação'}</Button>
       </div>
     );
   }
 
-  const activeThemeColor = 'var(--primary)';
+  const activeThemeColor = activeTab === 1 ? 'var(--primary)' : (activeTab === 2 ? 'var(--success)' : 'var(--warning)');
 
   return (
     <div className="container" style={{ paddingBottom: 'var(--space-8)' }}>
@@ -528,9 +651,67 @@ export default function ObservationForm() {
         paddingRight: '1rem',
         borderBottom: '1px solid #e2e8f0'
       }}>
-        <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-          <h1 className="h1">Observação em Sala de Aula</h1>
+        <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-2)' }}>
+          <h1 className="h2 md:h1">Observação Pedagógica</h1>
+          <button 
+            type="button" 
+            onClick={() => setShowConfig(!showConfig)}
+            className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
+            style={{ 
+              backgroundColor: '#f1f5f9', // Light gray background
+              border: '1px solid #e2e8f0',
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: 'var(--text-muted)'
+            }}
+            title="Configurações de Rigor"
+          >
+            <Settings size={20} />
+          </button>
         </div>
+
+        {showConfig && (
+          <div className="mb-4 p-5 bg-white rounded-xl border border-gray-200 shadow-lg animate-fade-in" style={{ margin: 'var(--space-2) 0' }}>
+            <div className="flex items-center gap-2 mb-5 text-sm font-bold text-gray-800">
+              <Settings size={18} className="text-primary" /> 
+              <span>Ajuste do Rigor Pedagógico</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Atende plenamente (&ge;)</label>
+                  <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">{thresholds.full}%</span>
+                </div>
+                <input 
+                  type="range" min="0" max="100" step="5" 
+                  value={thresholds.full} 
+                  onChange={(e) => updateThresholds({ ...thresholds, full: Number(e.target.value) })}
+                  className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Atende parcialmente (&ge;)</label>
+                  <span className="px-3 py-1 bg-success/10 text-success rounded-full text-xs font-bold">{thresholds.partial}%</span>
+                </div>
+                <input 
+                  type="range" min="0" max="100" step="5" 
+                  value={thresholds.partial} 
+                  onChange={(e) => updateThresholds({ ...thresholds, partial: Number(e.target.value) })}
+                  className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-success"
+                />
+              </div>
+            </div>
+            <div className="mt-6 pt-3 border-t border-gray-50 flex justify-between items-center">
+              <p className="text-[10px] text-muted italic">
+                * As configurações são salvas automaticamente na sua conta e aplicadas em tempo real.
+              </p>
+              <button type="button" onClick={() => setShowConfig(false)} className="text-[10px] font-bold text-primary uppercase tracking-wider hover:underline">Fechar</button>
+            </div>
+          </div>
+        )}
 
         {/* Modern Tabs Structure */}
         <div style={{ 
@@ -539,16 +720,21 @@ export default function ObservationForm() {
           marginBottom: '-1px', 
           position: 'relative', 
           zIndex: 1,
-          paddingLeft: 'var(--space-2)'
-        }}>
+          paddingLeft: 'var(--space-2)',
+          overflowX: 'auto',
+          whiteSpace: 'nowrap',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch'
+        }} className="no-scrollbar">
           {/* Tab 1: Original */}
           <button 
             type="button" 
             onClick={() => setActiveTab(1)} 
             className="transition-all"
             style={{ 
-              padding: '12px 24px',
-              fontSize: '14px',
+              padding: '10px 20px',
+              fontSize: '13px',
               fontWeight: '600',
               backgroundColor: activeTab === 1 ? 'white' : 'transparent',
               borderTop: activeTab === 1 ? '1px solid var(--border)' : '1px solid transparent',
@@ -561,21 +747,22 @@ export default function ObservationForm() {
               boxShadow: activeTab === 1 ? '0 -2px 10px rgba(0,0,0,0.05)' : 'none',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              flexShrink: 0
             }}
           >
-            1ª Visita (Original)
+            1ª Visita
           </button>
           
           {/* Tab 2: Revisita 1 */}
-          {formData.revisit_date_1 ? (
+          {id && (formData.revisit_date_1 ? (
             <button 
               type="button" 
               onClick={() => setActiveTab(2)} 
               className="transition-all"
               style={{ 
-                padding: '12px 20px 12px 24px',
-                fontSize: '14px',
+                padding: '10px 20px',
+                fontSize: '13px',
                 fontWeight: '600',
                 backgroundColor: activeTab === 2 ? 'white' : 'transparent',
                 borderTop: activeTab === 2 ? '1px solid var(--border)' : '1px solid transparent',
@@ -588,53 +775,60 @@ export default function ObservationForm() {
                 boxShadow: activeTab === 2 ? '0 -2px 10px rgba(0,0,0,0.05)' : 'none',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px'
+                gap: '8px',
+                flexShrink: 0
               }}
             >
-              2ª Visita (Verde)
-              {/* Show 'X' only if it's the LATEST revisit */}
+              2ª Visita
               {!formData.revisit_date_2 && (
                 <span 
                   onClick={(e) => { e.stopPropagation(); openDeleteModal(2); }}
                   className="hover:bg-red-50 p-1 rounded-full transition-colors"
                   style={{ color: 'var(--error)', display: 'flex' }}
                 >
-                  <Trash2 size={14} />
+                  <X size={14} />
                 </span>
               )}
             </button>
-          ) : id && dbVisitCount === 1 && (
+          ) : (
             <button 
               type="button" 
-              onClick={() => startRevisit(2)} 
+              onClick={() => {
+                const now = new Date().toISOString().split('T')[0];
+                setFormData(prev => ({ ...prev, revisit_date_1: now }));
+                setActiveTab(2);
+                setIsDirty(true);
+              }} 
+              className="transition-all"
               style={{ 
-                padding: '12px 24px',
-                fontSize: '14px',
-                fontWeight: '600',
+                padding: '10px 16px',
+                fontSize: '12px',
+                fontWeight: '500',
                 backgroundColor: 'transparent',
-                borderTop: '1px solid transparent',
-                borderLeft: '1px solid transparent',
-                borderRight: '1px solid transparent',
+                border: '1px dashed var(--border)',
                 borderBottom: '1px solid var(--border)',
                 borderRadius: '8px 8px 0 0',
-                color: 'var(--success)',
-                opacity: 0.7,
-                cursor: 'pointer'
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                flexShrink: 0
               }}
             >
-              + Iniciar Revisita 1
+              <PlusCircle size={14} /> Adicionar Revisita
             </button>
-          )}
+          ))}
 
           {/* Tab 3: Revisita 2 */}
-          {formData.revisit_date_2 ? (
+          {id && formData.revisit_date_1 && (formData.revisit_date_2 ? (
             <button 
               type="button" 
               onClick={() => setActiveTab(3)} 
               className="transition-all"
               style={{ 
-                padding: '12px 20px 12px 24px',
-                fontSize: '14px',
+                padding: '10px 20px',
+                fontSize: '13px',
                 fontWeight: '600',
                 backgroundColor: activeTab === 3 ? 'white' : 'transparent',
                 borderTop: activeTab === 3 ? '1px solid var(--border)' : '1px solid transparent',
@@ -647,127 +841,200 @@ export default function ObservationForm() {
                 boxShadow: activeTab === 3 ? '0 -2px 10px rgba(0,0,0,0.05)' : 'none',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px'
+                gap: '8px',
+                flexShrink: 0
               }}
             >
-              3ª Visita (Laranja)
+              3ª Visita
               <span 
                 onClick={(e) => { e.stopPropagation(); openDeleteModal(3); }}
                 className="hover:bg-red-50 p-1 rounded-full transition-colors"
                 style={{ color: 'var(--error)', display: 'flex' }}
               >
-                <Trash2 size={14} />
+                <X size={14} />
               </span>
             </button>
-          ) : id && dbVisitCount === 2 && (
+          ) : (
             <button 
               type="button" 
-              onClick={() => startRevisit(3)} 
+              onClick={() => {
+                const d = new Date();
+                const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                setFormData(prev => ({ ...prev, revisit_date_2: localDate }));
+                setActiveTab(3);
+                setIsDirty(true);
+              }} 
+              className="transition-all"
               style={{ 
-                padding: '12px 24px',
-                fontSize: '14px',
-                fontWeight: '600',
+                padding: '10px 16px',
+                fontSize: '12px',
+                fontWeight: '500',
                 backgroundColor: 'transparent',
-                borderTop: '1px solid transparent',
-                borderLeft: '1px solid transparent',
-                borderRight: '1px solid transparent',
+                border: '1px dashed var(--border)',
                 borderBottom: '1px solid var(--border)',
                 borderRadius: '8px 8px 0 0',
-                color: 'var(--warning)',
-                opacity: 0.7,
-                cursor: 'pointer'
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                flexShrink: 0
               }}
             >
-              + Iniciar Revisita 2
+              <PlusCircle size={14} /> Adicionar Revisita
             </button>
-          )}
+          ))}
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card style={{ marginBottom: 'var(--space-6)', borderLeft: `4px solid ${activeThemeColor}` }}>
-          <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-            <h2 className="h2" style={{ color: activeThemeColor }}>1. Identificação</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              {activeTab === 1 && <Input label="Data da Visita Original" type="date" name="visit_date" value={formData.visit_date} onChange={handleChange} required disabled={id} />}
-              {activeTab === 2 && <Input label="Data da 1ª Revisita (Verde)" type="date" name="revisit_date_1" value={formData.revisit_date_1} onChange={handleChange} required disabled={dbVisitCount >= 2} />}
-              {activeTab === 3 && <Input label="Data da 2ª Revisita (Laranja)" type="date" name="revisit_date_2" value={formData.revisit_date_2} onChange={handleChange} required disabled={dbVisitCount >= 3} />}
+      <form onSubmit={handleSubmit} className="animate-fade-in" style={{ marginTop: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ marginBottom: 'var(--space-8)' }}>
+          <Card>
+            <h3 className="h3 mb-4 flex items-center gap-2"><User size={20} color={activeThemeColor} /> 1. Identificação</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">Professor(a)</label>
+                <select 
+                  className="form-input"
+                  value={formData.teacher_id || ''}
+                  onChange={(e) => {
+                    const tId = e.target.value;
+                    const teacher = teachers.find(t => t.id === tId);
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      teacher_id: tId, 
+                      series_id: teacher?.teacher_series?.[0]?.series_id || '',
+                      subject_id: teacher?.teacher_subjects?.[0]?.subject_id || ''
+                    }));
+                  }}
+                  required
+                >
+                  <option value="">Selecione o professor</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Data da Visita</label>
+                <input 
+                  type="date" 
+                  className="form-input" 
+                  value={activeTab === 1 ? (formData.visit_date || '') : (activeTab === 2 ? (formData.revisit_date_1 || '') : (formData.revisit_date_2 || ''))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData(prev => {
+                      if (activeTab === 1) return { ...prev, visit_date: val };
+                      if (activeTab === 2) return { ...prev, revisit_date_1: val };
+                      if (activeTab === 3) return { ...prev, revisit_date_2: val };
+                      return prev;
+                    });
+                  }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Ano/Série</label>
+                <select 
+                  className="form-input"
+                  value={formData.series_id || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, series_id: e.target.value }))}
+                  required
+                >
+                  <option value="">Selecione a série</option>
+                  {availableSeries.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Disciplina</label>
+                <select 
+                  className="form-input"
+                  value={formData.subject_id || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, subject_id: e.target.value }))}
+                  required
+                >
+                  <option value="">Selecione a disciplina</option>
+                  {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
             </div>
-            <Select label="Professor(a)" name="teacher_id" value={formData.teacher_id} onChange={(e) => { handleChange(e); setFormData(prev => ({ ...prev, series_id: '', subject_id: '' })); }} options={teachers.map(t => ({value: t.id, label: t.name}))} required disabled={id} />
-            <Select label="Disciplina" name="subject_id" value={formData.subject_id} onChange={handleChange} options={availableSubjects.map(s => ({value: s.id, label: s.name}))} required disabled={id} />
-            <Select label="Turma / Série Observada" name="series_id" value={formData.series_id} onChange={handleChange} options={availableSeries.map(s => ({value: s.id, label: `${s.segments?.name} - ${s.name}`}))} required disabled={id} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
             <div className="form-group mt-4">
-              <label className="form-label">Tipo de Visita:</label>
-              <Select 
-                name="visit_type" 
-                value={getEvaluation('visit_type')} 
-                onChange={(e) => setEvaluation('visit_type', e.target.value)} 
-                options={[
-                  { value: 'Formativa', label: 'Formativa' },
-                  { value: 'Acompanhamento', label: 'Acompanhamento' },
-                  { value: 'Devolutiva', label: 'Devolutiva' },
-                  { value: 'Outro', label: 'Outro' }
-                ]} 
-              />
+              <label className="form-label">Tipo de Visita</label>
+              <div className="flex flex-wrap gap-4 mt-2">
+                {['Formativa', 'Acompanhamento', 'Devolutiva', 'Outro'].map(type => (
+                  <label key={type} className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="visit_type" 
+                      className="radio" 
+                      checked={getEvaluation('visit_type') === type}
+                      onChange={() => setEvaluation('visit_type', type)}
+                    />
+                    <span className="text-sm">{type}</span>
+                  </label>
+                ))}
+              </div>
               {getEvaluation('visit_type') === 'Outro' && (
                 <input 
                   type="text" 
                   className="form-input mt-2" 
-                  placeholder="Especifique o tipo..." 
-                  value={getEvaluation('visit_type_other')} 
-                  onChange={(e) => setEvaluation('visit_type_other', e.target.value)} 
+                  placeholder="Especifique o tipo..."
+                  value={getEvaluation('visit_type_other') || ''}
+                  onChange={(e) => setEvaluation('visit_type_other', e.target.value)}
                 />
               )}
             </div>
-          </div>
+          </Card>
 
-          <div className="form-group mt-4">
-            <label className="form-label">Objetivos da Visita:</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Card>
+            <h3 className="h3 mb-4 flex items-center gap-2"><Target size={20} color={activeThemeColor}/> 2. Objetivos</h3>
+            <div className="flex flex-col gap-2">
               {[
                 'Acompanhar a prática pedagógica',
                 'Observar a aplicação da BNCC e dos referenciais institucionais',
                 'Apoiar o desenvolvimento profissional docente',
-                'Monitorar processos de ensino e aprendizagem',
-                'Outro'
-              ].map((obj) => (
-                <label key={obj} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={getEvaluation('visit_objectives')?.includes(obj) || false}
+                'Monitorar processos de ensino e aprendizagem'
+              ].map(obj => (
+                <label key={obj} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-md cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    className="checkbox" 
+                    checked={(getEvaluation('visit_objectives') || []).includes(obj)}
                     onChange={(e) => {
                       const current = getEvaluation('visit_objectives') || [];
-                      const updated = e.target.checked 
-                        ? [...current, obj] 
-                        : current.filter(item => item !== obj);
-                      setEvaluation('visit_objectives', updated);
+                      const next = e.target.checked ? [...current, obj] : current.filter(o => o !== obj);
+                      setEvaluation('visit_objectives', next);
                     }}
                   />
                   <span className="text-sm">{obj}</span>
                 </label>
               ))}
+              <div className="flex items-center gap-3 p-2 mt-2">
+                <input 
+                  type="checkbox" 
+                  className="checkbox" 
+                  checked={(getEvaluation('visit_objectives') || []).includes('Outro')}
+                  onChange={(e) => {
+                    const current = getEvaluation('visit_objectives') || [];
+                    const next = e.target.checked ? [...current, 'Outro'] : current.filter(o => o !== 'Outro');
+                    setEvaluation('visit_objectives', next);
+                  }}
+                />
+                <input 
+                  type="text" 
+                  className="form-input flex-1" 
+                  placeholder="Outro objetivo..."
+                  disabled={!(getEvaluation('visit_objectives') || []).includes('Outro')}
+                  value={getEvaluation('visit_objectives_other') || ''}
+                  onChange={(e) => setEvaluation('visit_objectives_other', e.target.value)}
+                />
+              </div>
             </div>
-            {getEvaluation('visit_objectives')?.includes('Outro') && (
-              <input 
-                type="text" 
-                className="form-input mt-2" 
-                placeholder="Especifique outros objetivos..." 
-                value={getEvaluation('visit_objectives_other')} 
-                onChange={(e) => setEvaluation('visit_objectives_other', e.target.value)} 
-              />
-            )}
-          </div>
-        </Card>
+          </Card>
+        </div>
 
-        <Card style={{ marginBottom: 'var(--space-6)' }}>
-          <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-            <h2 className="h2" style={{ color: activeThemeColor }}>3. Planejamento</h2>
-            <Select name="planning_evaluation" value={getEvaluation('planning_evaluation')} onChange={(e) => setEvaluation('planning_evaluation', e.target.value)} options={evaluationOptions} />
+        <Card className="md:col-span-2" style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="h3 flex items-center gap-2"><ClipboardList size={20} color={activeThemeColor}/> 3. Planejamento</h3>
+            <Select value={getEvaluation('planning_evaluation')} onChange={(e) => setEvaluation('planning_evaluation', e.target.value)} options={evaluationOptions} />
           </div>
           <ScoreSelector field="plan_alignment_score" rubricsKey="planejamento" label="Alinhamento às habilidades BNCC" />
           <ScoreSelector field="plan_content_score" rubricsKey="planejamento" label="Conteúdo conforme Sequência Didática" />
@@ -779,10 +1046,10 @@ export default function ObservationForm() {
           </div>
         </Card>
 
-        <Card style={{ marginBottom: 'var(--space-6)' }}>
-          <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-            <h2 className="h2" style={{ color: activeThemeColor }}>4. Metodologia</h2>
-            <Select name="methodology_evaluation" value={getEvaluation('methodology_evaluation')} onChange={(e) => setEvaluation('methodology_evaluation', e.target.value)} options={evaluationOptions} />
+        <Card className="md:col-span-2" style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="h3 flex items-center gap-2"><Zap size={20} color={activeThemeColor}/> 4. Metodologia</h3>
+            <Select value={getEvaluation('methodology_evaluation')} onChange={(e) => setEvaluation('methodology_evaluation', e.target.value)} options={evaluationOptions} />
           </div>
           <ScoreSelector field="meth_adequate_score" rubricsKey="metodologia" label="Metodologias adequadas à faixa etária" />
           <ScoreSelector field="meth_strategies_score" rubricsKey="metodologia" label="Estratégias que favorecem o aprendizado" />
@@ -794,10 +1061,10 @@ export default function ObservationForm() {
           </div>
         </Card>
 
-        <Card style={{ marginBottom: 'var(--space-6)' }}>
-          <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-            <h2 className="h2" style={{ color: activeThemeColor }}>5. Avaliação</h2>
-            <Select name="learning_evaluation" value={getEvaluation('learning_evaluation')} onChange={(e) => setEvaluation('learning_evaluation', e.target.value)} options={evaluationOptions} />
+        <Card className="md:col-span-2" style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="h3 flex items-center gap-2"><CheckCircle size={20} color={activeThemeColor}/> 5. Avaliação</h3>
+            <Select value={getEvaluation('learning_evaluation')} onChange={(e) => setEvaluation('learning_evaluation', e.target.value)} options={evaluationOptions} />
           </div>
           <ScoreSelector field="learn_instruments_score" rubricsKey="avaliacao" label="Instrumentos coerentes com objetivos" />
           <ScoreSelector field="learn_formative_score" rubricsKey="avaliacao" label="Avaliação formativa presente" />
@@ -809,10 +1076,10 @@ export default function ObservationForm() {
           </div>
         </Card>
 
-        <Card style={{ marginBottom: 'var(--space-6)' }}>
-          <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-            <h2 className="h2" style={{ color: activeThemeColor }}>6. Gestão de Sala</h2>
-            <Select name="management_evaluation" value={getEvaluation('management_evaluation')} onChange={(e) => setEvaluation('management_evaluation', e.target.value)} options={evaluationOptions} />
+        <Card className="md:col-span-2" style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="h3 flex items-center gap-2"><Settings size={20} color={activeThemeColor}/> 6. Gestão de Sala</h3>
+            <Select value={getEvaluation('management_evaluation')} onChange={(e) => setEvaluation('management_evaluation', e.target.value)} options={evaluationOptions} />
           </div>
           <ScoreSelector field="man_space_score" rubricsKey="gestao" label="Organização do espaço e do tempo pedagógico" />
           <ScoreSelector field="man_respect_score" rubricsKey="gestao" label="Relação respeitosa entre professor e estudantes" />
@@ -821,21 +1088,21 @@ export default function ObservationForm() {
           <ScoreSelector field="man_material_score" rubricsKey="gestao" label="Uso adequado do material didático" />
           <ScoreSelector field="man_content_score" rubricsKey="gestao" label="Registro do conteúdo no caderno dos alunos" />
           <ScoreSelector field="man_activities_score" rubricsKey="gestao" label="As atividades são bem orientadas" />
-          <ScoreSelector field="man_monitoring_score" rubricsKey="gestao" label="O professor acompanha sua realização circulando pela sala tirando dúvidas" />
+          <ScoreSelector field="man_monitoring_score" rubricsKey="gestao" label="O professor acompanha sua realização circulando pela sala" />
           <div className="form-group mt-4">
             <label className="form-label">Observações:</label>
             <textarea className="form-input" rows="3" value={getComment('management_observations')} onChange={(e) => setComment('management_observations', e.target.value)} />
           </div>
         </Card>
 
-        <Card style={{ marginBottom: 'var(--space-6)' }}>
-          <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-            <h2 className="h2" style={{ color: activeThemeColor }}>7. Identidade Confessional</h2>
-            <Select name="identity_evaluation" value={getEvaluation('identity_evaluation')} onChange={(e) => setEvaluation('identity_evaluation', e.target.value)} options={evaluationOptions} />
+        <Card className="md:col-span-2" style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="h3 flex items-center gap-2"><Heart size={20} color={activeThemeColor}/> 7. Identidade Confessional</h3>
+            <Select value={getEvaluation('identity_evaluation')} onChange={(e) => setEvaluation('identity_evaluation', e.target.value)} options={evaluationOptions} />
           </div>
           <ScoreSelector field="ident_values_score" rubricsKey="identidade" label="Integração de valores naturais e éticos" />
           <ScoreSelector field="ident_posture_score" rubricsKey="identidade" label="Postura coerente com princípios EA" />
-          <ScoreSelector field="ident_language_score" rubricsKey="identidade" label="Linguagem, atitudes e exemplos alinhados à proposta confessional" />
+          <ScoreSelector field="ident_language_score" rubricsKey="identidade" label="Linguagem, atitudes e exemplos alinhados à proposta" />
           <div className="form-group mt-4">
             <label className="form-label">Observações:</label>
             <textarea className="form-input" rows="3" value={getComment('identity_observations')} onChange={(e) => setComment('identity_observations', e.target.value)} />
@@ -843,43 +1110,108 @@ export default function ObservationForm() {
         </Card>
 
         <Card style={{ marginBottom: 'var(--space-6)' }}>
-          <h2 className="h2" style={{ color: activeThemeColor, marginBottom: 'var(--space-4)' }}>Síntese e Devolutiva</h2>
+          <h3 className="h3 mb-4 flex items-center gap-2"><Award size={20} color={activeThemeColor}/> 8. Pontos Fortes da Aula</h3>
           <div className="form-group">
-            <label className="form-label">Pontos Fortes:</label>
-            <textarea className="form-input" rows="3" value={getComment('strong_points')} onChange={(e) => setComment('strong_points', e.target.value)} />
-          </div>
-          <div className="form-group mt-4">
-            <label className="form-label">Oportunidades de Melhoria:</label>
-            <textarea className="form-input" rows="3" value={getComment('improvement_opportunities')} onChange={(e) => setComment('improvement_opportunities', e.target.value)} />
-          </div>
-          <div className="form-group mt-4">
-            <label className="form-label">Diretrizes Pedagógicas:</label>
-            <textarea className="form-input" rows="3" value={getComment('pedagogical_guidelines')} onChange={(e) => setComment('pedagogical_guidelines', e.target.value)} />
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <input type="checkbox" id="teacher_aware" name="teacher_aware" checked={formData.teacher_aware} onChange={handleChange} />
-            <label htmlFor="teacher_aware" className="text-sm font-semibold">Professor(a) ciente da devolutiva?</label>
+            <textarea 
+              className="form-input" 
+              rows="3" 
+              placeholder="Descreva os pontos positivos observados..."
+              value={getComment('strong_points')} 
+              onChange={(e) => setComment('strong_points', e.target.value)} 
+            />
           </div>
         </Card>
 
-        {/* STICKY FOOTER: Save and Cancel Buttons */}
-        <div className="flex justify-end gap-4 no-print" style={{ 
+        <Card style={{ marginBottom: 'var(--space-6)' }}>
+          <h3 className="h3 mb-4 flex items-center gap-2"><Zap size={20} color={activeThemeColor}/> 9. Oportunidades de Aprimoramento</h3>
+          <div className="form-group">
+            <label className="text-xs text-muted mb-2">(Orientações formativas da coordenação pedagógica)</label>
+            <textarea 
+              className="form-input" 
+              rows="3" 
+              placeholder="Indique pontos a serem desenvolvidos..."
+              value={getComment('improvement_opportunities')} 
+              onChange={(e) => setComment('improvement_opportunities', e.target.value)} 
+            />
+          </div>
+        </Card>
+
+        <Card style={{ marginBottom: 'var(--space-6)' }}>
+          <h3 className="h3 mb-4 flex items-center gap-2"><ClipboardList size={20} color={activeThemeColor}/> 10. Devolutiva ao(à) Professor(a)</h3>
+          
+          <div className="form-group">
+            <label className="form-label">Síntese da Observação:</label>
+            <textarea 
+              className="form-input" 
+              rows="3" 
+              value={getComment('observation_synthesis')} 
+              onChange={(e) => setComment('observation_synthesis', e.target.value)} 
+            />
+          </div>
+
+          <div className="form-group mt-4">
+            <label className="form-label">Orientações Pedagógicas:</label>
+            <textarea 
+              className="form-input" 
+              rows="3" 
+              value={getComment('pedagogical_guidelines')} 
+              onChange={(e) => setComment('pedagogical_guidelines', e.target.value)} 
+            />
+          </div>
+
+          <div className="form-group mt-4">
+            <label className="form-label">Combinados e Encaminhamentos:</label>
+            <textarea 
+              className="form-input" 
+              rows="3" 
+              value={getComment('forwarding')} 
+              onChange={(e) => setComment('forwarding', e.target.value)} 
+            />
+          </div>
+        </Card>
+
+        <Card style={{ marginBottom: 'var(--space-6)' }}>
+          <h3 className="h3 mb-4 flex items-center gap-2"><Heart size={20} color={activeThemeColor}/> 11. Registro Final</h3>
+          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <input 
+              type="checkbox" 
+              id="teacher_aware" 
+              className="checkbox"
+              checked={formData.teacher_aware} 
+              onChange={(e) => setFormData(prev => ({ ...prev, teacher_aware: e.target.checked }))} 
+            />
+            <label htmlFor="teacher_aware" className="text-sm font-semibold cursor-pointer">
+              Professor(a) ciente da devolutiva?
+            </label>
+          </div>
+        </Card>
+
+        {/* STICKY FOOTER: Actions */}
+        <div style={{ 
           position: 'sticky', 
           bottom: 0, 
-          zIndex: 20, 
-          backgroundColor: 'white', 
+          zIndex: 100, 
+          backgroundColor: 'rgba(255, 255, 255, 0.9)', 
+          backdropFilter: 'blur(8px)',
           padding: 'var(--space-4)',
-          margin: '0 -1rem',
+          margin: '0 -1rem -2rem -1rem', // Match container padding
           borderTop: '1px solid var(--border)',
-          boxShadow: '0 -4px 12px rgba(0,0,0,0.05)',
-          paddingLeft: '1.5rem',
-          paddingRight: '1.5rem'
+          boxShadow: '0 -4px 15px rgba(0,0,0,0.08)',
+          display: 'flex',
+          justifyContent: 'center'
         }}>
-          <Button type="button" variant="secondary" onClick={() => navigate('/')}>Cancelar</Button>
-          <Button type="submit" variant="primary" disabled={loading}>
-            {loading ? 'Salvando...' : (id ? 'Salvar Alterações' : 'Finalizar Registro')}
-          </Button>
+          <div className="container flex justify-between md:justify-end gap-3" style={{ padding: 0, maxWidth: '1200px', width: '100%' }}>
+            <Button type="button" variant="secondary" onClick={() => navigate('/')}>Cancelar</Button>
+            <div className="flex gap-3">
+              <Button type="submit" variant="primary" disabled={loading}>
+                {loading ? 'Salvando...' : (id ? 'Salvar Alterações' : 'Finalizar Registro')}
+              </Button>
+            </div>
+          </div>
         </div>
+
+        {/* Padding for content below fixed footer */}
+        <div style={{ height: '80px' }} />
 
         <Modal isOpen={showExitModal} onClose={cancelExit} title="Alterações não salvas">
           <div style={{ padding: 'var(--space-2)' }}>

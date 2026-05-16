@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, Link } from 'react-router-dom'
+import { useLocation, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { ClipboardList, Users, BookOpen, LogOut, Info } from 'lucide-react'
@@ -8,16 +8,81 @@ import ObservationForm from './pages/ObservationForm'
 import { SchoolProvider, useSchool } from './contexts/SchoolContext'
 import Dashboard from './pages/Dashboard'
 
+import { Menu, X as CloseIcon } from 'lucide-react'
+
 function Layout({ children, onLogout }) {
   const { schools, selectedSchoolId, setSelectedSchoolId, loading } = useSchool()
+  const location = useLocation()
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    setIsSidebarOpen(false)
+  }, [location.pathname])
+
+  const sidebarWidth = '260px'
 
   return (
-    <div className="flex" style={{ height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', width: '100vw', overflow: 'hidden', position: 'relative' }}>
+      
+      {/* Mobile Header */}
+      {isMobile && (
+        <header style={{ 
+          display: 'flex', alignItems: 'center', justifyBetween: 'space-between', padding: '12px 16px', 
+          backgroundColor: 'white', borderBottom: '1px solid var(--border)', zIndex: 100,
+          width: '100%', justifyContent: 'space-between'
+        }}>
+          <h2 className="h3" style={{ color: 'var(--primary)', margin: 0 }}>SOSA</h2>
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+          >
+            {isSidebarOpen ? <CloseIcon size={24} /> : <Menu size={24} />}
+          </button>
+        </header>
+      )}
+
+      {/* Overlay for mobile */}
+      {isMobile && isSidebarOpen && (
+        <div 
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 110 }}
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside style={{ width: '250px', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+      <aside 
+        style={{ 
+          width: sidebarWidth, 
+          backgroundColor: 'var(--surface)', 
+          borderRight: '1px solid var(--border)', 
+          display: 'flex', 
+          flexDirection: 'column',
+          position: isMobile ? 'fixed' : 'relative',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          zIndex: 120,
+          transform: isMobile ? (isSidebarOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+          transition: 'transform 0.3s ease-in-out'
+        }}
+      >
         <div style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--border)' }}>
-          <h2 className="h3" style={{ color: 'var(--primary)' }}>SOSA</h2>
-          <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-4)' }}>Observação em Sala</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 className="h3" style={{ color: 'var(--primary)', margin: 0 }}>SOSA</h2>
+            {isMobile && (
+              <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'none', border: 'none' }}>
+                <CloseIcon size={20} />
+              </button>
+            )}
+          </div>
+          <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-4)', marginTop: '4px' }}>Observação em Sala</span>
           
           {!loading && schools.length > 0 && (
             <div className="flex flex-col gap-0">
@@ -66,7 +131,7 @@ function Layout({ children, onLogout }) {
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, backgroundColor: 'var(--background)', overflowY: 'auto' }}>
+      <main style={{ flex: 1, backgroundColor: 'var(--background)', overflowY: 'auto', padding: isMobile ? 'var(--space-4)' : '0' }}>
         {children}
       </main>
     </div>
@@ -93,15 +158,13 @@ function App() {
   }, [])
 
   if (loading) {
-    return <div className="flex items-center justify-center" style={{ height: '100vh' }}>Carregando...</div>
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Carregando...</div>
   }
 
-  // Se não estiver logado, por enquanto vamos renderizar um botão de login simples para simular.
-  // Em produção, isso redirecionará ou mostrará a tela de login.
   if (!session) {
     return (
-      <div className="flex flex-col items-center justify-center bg-gray-50" style={{ height: '100vh', backgroundColor: 'var(--background)' }}>
-        <div className="card text-center" style={{ maxWidth: '400px', width: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--background)' }}>
+        <div className="card text-center" style={{ maxWidth: '400px', width: '90%' }}>
           <h1 className="h2" style={{ marginBottom: 'var(--space-2)' }}>Acesso Restrito</h1>
           <p className="text-muted" style={{ marginBottom: 'var(--space-6)' }}>Faça login com sua conta do Google Workspace para continuar.</p>
           <button 

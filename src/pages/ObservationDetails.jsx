@@ -211,19 +211,19 @@ export default function ObservationDetails({ observation }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
             {observation.planning_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Visita</p>
                 <p className="text-[10px]">{observation.planning_observations}</p>
               </div>
             )}
             {observation.comments_v2?.planning_observations && observation.comments_v2.planning_observations !== observation.planning_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v2.planning_observations}</p>
               </div>
             )}
             {observation.comments_v3?.planning_observations && observation.comments_v3.planning_observations !== observation.comments_v2?.planning_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>3ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v3.planning_observations}</p>
               </div>
             )}
@@ -253,19 +253,19 @@ export default function ObservationDetails({ observation }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
             {observation.methodology_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Visita</p>
                 <p className="text-[10px]">{observation.methodology_observations}</p>
               </div>
             )}
             {observation.comments_v2?.methodology_observations && observation.comments_v2.methodology_observations !== observation.methodology_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v2.methodology_observations}</p>
               </div>
             )}
             {observation.comments_v3?.methodology_observations && observation.comments_v3.methodology_observations !== observation.comments_v2?.methodology_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>3ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v3.methodology_observations}</p>
               </div>
             )}
@@ -295,19 +295,19 @@ export default function ObservationDetails({ observation }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
             {observation.learning_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Visita</p>
                 <p className="text-[10px]">{observation.learning_observations}</p>
               </div>
             )}
             {observation.comments_v2?.learning_observations && observation.comments_v2.learning_observations !== observation.learning_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v2.learning_observations}</p>
               </div>
             )}
             {observation.comments_v3?.learning_observations && observation.comments_v3.learning_observations !== observation.comments_v2?.learning_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>3ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v3.learning_observations}</p>
               </div>
             )}
@@ -341,19 +341,19 @@ export default function ObservationDetails({ observation }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
             {observation.management_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Visita</p>
                 <p className="text-[10px]">{observation.management_observations}</p>
               </div>
             )}
             {observation.comments_v2?.management_observations && observation.comments_v2.management_observations !== observation.management_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v2.management_observations}</p>
               </div>
             )}
             {observation.comments_v3?.management_observations && observation.comments_v3.management_observations !== observation.comments_v2?.management_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>3ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v3.management_observations}</p>
               </div>
             )}
@@ -382,19 +382,19 @@ export default function ObservationDetails({ observation }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
             {observation.identity_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Visita</p>
                 <p className="text-[10px]">{observation.identity_observations}</p>
               </div>
             )}
             {observation.comments_v2?.identity_observations && observation.comments_v2.identity_observations !== observation.identity_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v2.identity_observations}</p>
               </div>
             )}
             {observation.comments_v3?.identity_observations && observation.comments_v3.identity_observations !== observation.comments_v2?.identity_observations && (
               <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
-                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>3ª Visita</p>
                 <p className="text-[10px]">{observation.comments_v3.identity_observations}</p>
               </div>
             )}

@@ -89,7 +89,14 @@ export default function Dashboard() {
       <h1 className="h1" style={{ marginBottom: 'var(--space-6)' }}>Dashboard</h1>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-6" style={{ marginBottom: 'var(--space-8)' }}>
+      <div 
+        style={{ 
+          display: 'grid', 
+          gridTemplateColumns: window.innerWidth < 640 ? '1fr' : '1fr 1fr',
+          gap: 'var(--space-6)',
+          marginBottom: 'var(--space-8)'
+        }}
+      >
         <Card className="flex items-center gap-4" style={{ borderLeft: '4px solid var(--primary)' }}>
           <div style={{ backgroundColor: 'var(--primary-light)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
             <Calendar size={24} className="text-primary" />
@@ -123,14 +130,22 @@ export default function Dashboard() {
           <div className="text-center p-8 text-muted">Nenhuma observação encontrada para esta unidade.</div>
         ) : (
           <div className="table-container">
-            <table className="table">
+            <table className="table" style={{ minWidth: '700px' }}>
               <thead>
                 <tr>
-                  <th>Data</th>
-                  <th>Professor</th>
-                  <th>Série / Turma</th>
-                  <th>Disciplina</th>
-                  <th style={{ width: '100px' }}>Ações</th>
+                  <th style={{ backgroundColor: 'var(--surface-hover)' }}>Data</th>
+                  <th style={{ backgroundColor: 'var(--surface-hover)' }}>Professor</th>
+                  <th style={{ backgroundColor: 'var(--surface-hover)' }}>Série / Turma</th>
+                  <th style={{ backgroundColor: 'var(--surface-hover)' }}>Disciplina</th>
+                  <th style={{ 
+                    width: '120px', 
+                    position: 'sticky', 
+                    right: 0, 
+                    backgroundColor: 'var(--surface-hover)', 
+                    zIndex: 20,
+                    textAlign: 'right',
+                    boxShadow: '-4px 0 8px rgba(0,0,0,0.05)'
+                  }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,7 +174,13 @@ export default function Dashboard() {
                         <span className="text-sm">{obs.subjects?.name || 'N/A'}</span>
                       </div>
                     </td>
-                    <td>
+                    <td style={{ 
+                      position: 'sticky', 
+                      right: 0, 
+                      backgroundColor: 'white', 
+                      zIndex: 10,
+                      boxShadow: '-4px 0 8px rgba(0,0,0,0.05)'
+                    }}>
                       <div className="flex gap-2 justify-end">
                         <Button variant="secondary" style={{ padding: '4px 8px' }} title="Visualizar" onClick={() => handleView(obs)}>
                           <Eye size={16} />

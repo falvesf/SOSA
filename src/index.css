@@ -104,6 +104,12 @@ input, select, textarea {
   padding: 0 var(--space-4);
 }
 
+@media (max-width: 640px) {
+  .container {
+    padding: 0 var(--space-3);
+  }
+}
+
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
 .flex-wrap { flex-wrap: wrap; }
@@ -115,9 +121,29 @@ input, select, textarea {
 .gap-6 { gap: var(--space-6); }
 
 .grid { display: grid; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Responsive Grid */
+@media (max-width: 1024px) {
+  .grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  .grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-cols-2 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  
+  .h1 { font-size: 1.75rem; }
+  .h2 { font-size: 1.25rem; }
+  .h3 { font-size: 1.125rem; }
+}
+
+@media (max-width: 480px) {
+  .grid-cols-3 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .grid-cols-4 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+}
 
 /* Card Component */
 .card {
