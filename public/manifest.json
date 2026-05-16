@@ -1,0 +1,16 @@
+{
+  "short_name": "SOSA",
+  "name": "SOSA - Sistema de Observação em Sala de Aula",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#6366f1",
+  "background_color": "#ffffff"
+}
