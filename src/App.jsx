@@ -11,7 +11,7 @@ import Dashboard from './pages/Dashboard'
 import { Menu, X as CloseIcon } from 'lucide-react'
 
 function Layout({ children, onLogout }) {
-  const { schools, selectedSchoolId, setSelectedSchoolId, loading } = useSchool()
+  const { schools, selectedSchoolId, setSelectedSchoolId, selectedBimestre, updateBimestre, loading } = useSchool()
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -31,19 +31,19 @@ function Layout({ children, onLogout }) {
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', width: '100vw', overflow: 'hidden', position: 'relative' }}>
       
-      {/* Mobile Header */}
+      {/* Mobile Header - More compact */}
       {isMobile && (
         <header style={{ 
-          display: 'flex', alignItems: 'center', justifyBetween: 'space-between', padding: '12px 16px', 
+          display: 'flex', alignItems: 'center', padding: '8px 16px', 
           backgroundColor: 'white', borderBottom: '1px solid var(--border)', zIndex: 100,
           width: '100%', justifyContent: 'space-between'
         }}>
-          <h2 className="h3" style={{ color: 'var(--primary)', margin: 0 }}>SOSA</h2>
+          <h2 className="h3" style={{ color: 'var(--primary)', margin: 0, fontSize: '1.25rem' }}>SOSA</h2>
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
           >
-            {isSidebarOpen ? <CloseIcon size={24} /> : <Menu size={24} />}
+            {isSidebarOpen ? <CloseIcon size={22} /> : <Menu size={22} />}
           </button>
         </header>
       )}
@@ -73,7 +73,7 @@ function Layout({ children, onLogout }) {
           transition: 'transform 0.3s ease-in-out'
         }}
       >
-        <div style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="h3" style={{ color: 'var(--primary)', margin: 0 }}>SOSA</h2>
             {isMobile && (
@@ -82,11 +82,37 @@ function Layout({ children, onLogout }) {
               </button>
             )}
           </div>
-          <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-4)', marginTop: '4px' }}>Observação em Sala</span>
+          <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-3)', marginTop: '2px' }}>Observação em Sala</span>
           
-          {!loading && schools.length > 0 && (
-            <div className="flex flex-col gap-0">
-              <label className="text-xs font-medium text-muted" style={{ marginBottom: '2px' }}>Unidade Escolar</label>
+          <div className="flex flex-col gap-2">
+            {!loading && schools.length > 0 && (
+              <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
+                <label className="text-xs font-semibold text-muted" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Unidade Escolar</label>
+                <select 
+                  style={{ 
+                    padding: 0, 
+                    margin: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    cursor: 'pointer',
+                    width: '100%',
+                    fontSize: '11px'
+                  }}
+                  className="font-medium text-muted"
+                  value={selectedSchoolId}
+                  onChange={(e) => setSelectedSchoolId(e.target.value)}
+                >
+                  {schools.map(s => (
+                    <option key={s.id} value={s.id}>{s.code ? `${s.code} - ${s.name}` : s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
+              <label className="text-xs font-semibold text-muted" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Bimestre Ativo</label>
               <select 
                 style={{ 
                   padding: 0, 
@@ -96,36 +122,39 @@ function Layout({ children, onLogout }) {
                   outline: 'none',
                   boxShadow: 'none',
                   cursor: 'pointer',
-                  width: '100%'
+                  width: '100%',
+                  fontSize: '11px',
+                  color: 'var(--primary)'
                 }}
-                className="text-xs font-medium text-muted"
-                value={selectedSchoolId}
-                onChange={(e) => setSelectedSchoolId(e.target.value)}
+                className="font-bold"
+                value={selectedBimestre}
+                onChange={(e) => updateBimestre(e.target.value)}
               >
-                {schools.map(s => (
-                  <option key={s.id} value={s.id}>{s.code ? `${s.code} - ${s.name}` : s.name}</option>
-                ))}
+                <option value="1º Bimestre">1º Bimestre</option>
+                <option value="2º Bimestre">2º Bimestre</option>
+                <option value="3º Bimestre">3º Bimestre</option>
+                <option value="4º Bimestre">4º Bimestre</option>
               </select>
             </div>
-          )}
+          </div>
         </div>
-        <nav style={{ padding: 'var(--space-4)', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <Link to="/" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none' }}>
-            <BookOpen size={18} /> Dashboard
+        <nav style={{ padding: 'var(--space-4)', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+          <Link to="/" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
+            <BookOpen size={16} /> Dashboard
           </Link>
-          <Link to="/observacao" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none' }}>
-            <ClipboardList size={18} /> Nova Observação
+          <Link to="/observacao" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
+            <ClipboardList size={16} /> Nova Observação
           </Link>
-          <Link to="/cadastros" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none' }}>
-            <Users size={18} /> Cadastros
+          <Link to="/cadastros" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
+            <Users size={16} /> Cadastros
           </Link>
-          <Link to="/instrucoes" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none' }}>
-            <Info size={18} /> Instruções e Rubrica
+          <Link to="/instrucoes" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
+            <Info size={16} /> Instruções e Rubrica
           </Link>
         </nav>
         <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--border)' }}>
-          <button onClick={onLogout} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', border: 'none', color: 'var(--error)' }}>
-            <LogOut size={18} /> Sair
+          <button onClick={onLogout} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', border: 'none', color: 'var(--error)', padding: '8px 12px', fontSize: '13px' }}>
+            <LogOut size={16} /> Sair
           </button>
         </div>
       </aside>

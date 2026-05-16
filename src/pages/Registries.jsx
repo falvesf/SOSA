@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Input, Select, Modal } from '../components/ui';
+import { Card, Button, Input, Select, Modal, ConfirmModal, Toast } from '../components/ui';
 import { Trash2, Plus, Edit2, X, Book } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
 
@@ -39,6 +39,9 @@ function SchoolsCrud() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [editingItem, setEditingItem] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const fetchSchools = async () => {
     const { data } = await supabase.from('schools').select('*').order('name');
@@ -49,35 +52,72 @@ function SchoolsCrud() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !code.trim()) return;
-    await supabase.from('schools').insert([{ code, name }]);
-    setCode('');
-    setName('');
-    fetchSchools();
+    if (!name.trim() || !code.trim() || saving) return;
+    
+    setSaving(true);
+    const { data, error } = await supabase.from('schools').insert([{ code, name }]).select();
+    
+    if (!error) {
+      setCode('');
+      setName('');
+      await fetchSchools();
+      setToast({ message: 'Unidade Escolar adicionada com sucesso!' });
+      
+      // Scroll to the new item
+      if (data?.[0]?.id) {
+        setTimeout(() => {
+          const element = document.getElementById(`school-${data[0].id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.style.backgroundColor = 'var(--primary-light)';
+            setTimeout(() => { element.style.backgroundColor = ''; }, 2000);
+          }
+        }, 100);
+      }
+    } else {
+      setToast({ message: 'Erro ao adicionar unidade.', type: 'error' });
+    }
+    setSaving(false);
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editingItem.name.trim() || !editingItem.code.trim()) return;
-    await supabase.from('schools').update({ code: editingItem.code, name: editingItem.name }).eq('id', editingItem.id);
-    setEditingItem(null);
-    fetchSchools();
+    if (!editingItem.name.trim() || !editingItem.code.trim() || saving) return;
+    
+    setSaving(true);
+    const { error } = await supabase.from('schools').update({ code: editingItem.code, name: editingItem.name }).eq('id', editingItem.id);
+    
+    if (!error) {
+      setEditingItem(null);
+      fetchSchools();
+      setToast({ message: 'Unidade Escolar atualizada com sucesso!' });
+    } else {
+      setToast({ message: 'Erro ao atualizar unidade.', type: 'error' });
+    }
+    setSaving(false);
   };
 
-  const handleDelete = async (id) => {
-    if(confirm('Tem certeza?')) {
-      await supabase.from('schools').delete().eq('id', id);
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { error } = await supabase.from('schools').delete().eq('id', deleteConfirm);
+    if (!error) {
       fetchSchools();
+      setToast({ message: 'Unidade Escolar excluída com sucesso!' });
+    } else {
+      setToast({ message: 'Erro ao excluir unidade.', type: 'error' });
     }
+    setDeleteConfirm(null);
   };
 
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Unidades Escolares</h2>
       <form onSubmit={handleAdd} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ flex: 1 }}><Input placeholder="Código da Unidade (ex: 001)" value={code} onChange={e => setCode(e.target.value)} required /></div>
-        <div style={{ flex: 2 }}><Input placeholder="Nome da Unidade" value={name} onChange={e => setName(e.target.value)} required /></div>
-        <Button type="submit" variant="primary"><Plus size={18} /> Adicionar</Button>
+        <div style={{ flex: 1 }}><Input placeholder="Código da Unidade (ex: 001)" value={code} onChange={e => setCode(e.target.value)} required disabled={saving} /></div>
+        <div style={{ flex: 2 }}><Input placeholder="Nome da Unidade" value={name} onChange={e => setName(e.target.value)} required disabled={saving} /></div>
+        <Button type="submit" variant="primary" disabled={saving}>
+          {saving ? 'Adicionando...' : <><Plus size={18} /> Adicionar</>}
+        </Button>
       </form>
 
       <div className="table-container">
@@ -87,7 +127,7 @@ function SchoolsCrud() {
           </thead>
           <tbody>
             {schools.map(s => (
-              <tr key={s.id}>
+              <tr key={s.id} id={`school-${s.id}`} style={{ transition: 'background-color 0.5s' }}>
                 <td>{s.code}</td>
                 <td>{s.name}</td>
                 <td>
@@ -95,7 +135,7 @@ function SchoolsCrud() {
                     <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })}>
                       <Edit2 size={16} />
                     </Button>
-                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(s.id)}>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(s.id)}>
                       <Trash2 size={16} />
                     </Button>
                   </div>
@@ -110,15 +150,26 @@ function SchoolsCrud() {
       <Modal isOpen={!!editingItem} onClose={() => setEditingItem(null)} title="Editar Unidade Escolar">
         {editingItem && (
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-            <Input label="Código da Unidade" value={editingItem.code} onChange={e => setEditingItem({...editingItem, code: e.target.value})} required />
-            <Input label="Nome da Unidade" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required />
+            <Input label="Código da Unidade" value={editingItem.code} onChange={e => setEditingItem({...editingItem, code: e.target.value})} required disabled={saving} />
+            <Input label="Nome da Unidade" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required disabled={saving} />
             <div className="flex justify-end gap-2" style={{ marginTop: 'var(--space-4)' }}>
-              <Button type="button" variant="secondary" onClick={() => setEditingItem(null)}>Cancelar</Button>
-              <Button type="submit" variant="primary">Salvar Alterações</Button>
+              <Button type="button" variant="secondary" onClick={() => setEditingItem(null)} disabled={saving}>Cancelar</Button>
+              <Button type="submit" variant="primary" disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
             </div>
           </form>
         )}
       </Modal>
+
+      <ConfirmModal 
+        isOpen={!!deleteConfirm} 
+        onClose={() => setDeleteConfirm(null)} 
+        onConfirm={confirmDelete}
+        message="Tem certeza que deseja excluir esta unidade escolar? Esta ação não pode ser desfeita."
+      />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -134,6 +185,10 @@ function SeriesCrud({ schoolId }) {
 
   const [editingSegment, setEditingSegment] = useState(null);
   const [editingSeries, setEditingSeries] = useState(null);
+  
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { type, id }
 
   const fetchData = async () => {
     const { data: segData } = await supabase.from('segments').select('*').eq('school_id', schoolId).order('name');
@@ -143,53 +198,117 @@ function SeriesCrud({ schoolId }) {
     if (serData) setSeries(serData);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [schoolId]);
 
   const handleAddSegment = async (e) => {
     e.preventDefault();
-    if (!segmentName.trim()) return;
-    await supabase.from('segments').insert([{ name: segmentName, school_id: schoolId }]);
-    setSegmentName('');
-    fetchData();
+    if (!segmentName.trim() || saving) return;
+    
+    setSaving(true);
+    const { data, error } = await supabase.from('segments').insert([{ name: segmentName, school_id: schoolId }]).select();
+    
+    if (!error) {
+      setSegmentName('');
+      await fetchData();
+      setToast({ message: 'Turma (Segmento) adicionada com sucesso!' });
+      
+      if (data?.[0]?.id) {
+        setTimeout(() => {
+          const el = document.getElementById(`segment-${data[0].id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.backgroundColor = 'var(--primary-light)';
+            setTimeout(() => { el.style.backgroundColor = ''; }, 2000);
+          }
+        }, 100);
+      }
+    } else {
+      setToast({ message: 'Erro ao adicionar turma.', type: 'error' });
+    }
+    setSaving(false);
   };
 
   const handleEditSegmentSubmit = async (e) => {
     e.preventDefault();
-    if (!editingSegment.name.trim()) return;
-    await supabase.from('segments').update({ name: editingSegment.name }).eq('id', editingSegment.id);
-    setEditingSegment(null);
-    fetchData();
+    if (!editingSegment.name.trim() || saving) return;
+    
+    setSaving(true);
+    const { error } = await supabase.from('segments').update({ name: editingSegment.name }).eq('id', editingSegment.id);
+    if (!error) {
+      setEditingSegment(null);
+      fetchData();
+      setToast({ message: 'Turma atualizada com sucesso!' });
+    } else {
+      setToast({ message: 'Erro ao atualizar turma.', type: 'error' });
+    }
+    setSaving(false);
   };
 
   const handleAddSeries = async (e) => {
     e.preventDefault();
-    if (!seriesName.trim() || !segmentId) return;
-    await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId, school_id: schoolId }]);
-    setSeriesName('');
-    setSegmentId('');
-    fetchData();
+    if (!seriesName.trim() || !segmentId || saving) return;
+    
+    setSaving(true);
+    const { data, error } = await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId, school_id: schoolId }]).select();
+    
+    if (!error) {
+      setSeriesName('');
+      setSegmentId('');
+      await fetchData();
+      setToast({ message: 'Série adicionada com sucesso!' });
+      
+      if (data?.[0]?.id) {
+        setTimeout(() => {
+          const el = document.getElementById(`series-${data[0].id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.backgroundColor = 'var(--primary-light)';
+            setTimeout(() => { el.style.backgroundColor = ''; }, 2000);
+          }
+        }, 100);
+      }
+    } else {
+      setToast({ message: 'Erro ao adicionar série.', type: 'error' });
+    }
+    setSaving(false);
   };
 
   const handleEditSeriesSubmit = async (e) => {
     e.preventDefault();
-    if (!editingSeries.name.trim() || !editingSeries.segment_id) return;
-    await supabase.from('series').update({ name: editingSeries.name, segment_id: editingSeries.segment_id }).eq('id', editingSeries.id);
-    setEditingSeries(null);
-    fetchData();
+    if (!editingSeries.name.trim() || !editingSeries.segment_id || saving) return;
+    
+    setSaving(true);
+    const { error } = await supabase.from('series').update({ name: editingSeries.name, segment_id: editingSeries.segment_id }).eq('id', editingSeries.id);
+    if (!error) {
+      setEditingSeries(null);
+      fetchData();
+      setToast({ message: 'Série atualizada com sucesso!' });
+    } else {
+      setToast({ message: 'Erro ao atualizar série.', type: 'error' });
+    }
+    setSaving(false);
   };
 
-  const handleDeleteSegment = async (id) => {
-    if(confirm('Atenção: Excluir a Turma (Segmento) excluirá TODAS as Séries atreladas a ela! Tem certeza?')) {
-      await supabase.from('segments').delete().eq('id', id);
-      fetchData();
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { type, id } = deleteConfirm;
+    
+    let error;
+    if (type === 'segment') {
+      const result = await supabase.from('segments').delete().eq('id', id);
+      error = result.error;
+    } else {
+      const result = await supabase.from('series').delete().eq('id', id);
+      error = result.error;
     }
-  };
 
-  const handleDeleteSeries = async (id) => {
-    if(confirm('Tem certeza que deseja excluir esta série?')) {
-      await supabase.from('series').delete().eq('id', id);
+    if (!error) {
       fetchData();
+      setToast({ message: `${type === 'segment' ? 'Turma' : 'Série'} excluída com sucesso!` });
+    } else {
+      setToast({ message: 'Erro ao excluir item.', type: 'error' });
     }
+    setDeleteConfirm(null);
   };
 
   return (
@@ -201,8 +320,10 @@ function SeriesCrud({ schoolId }) {
         <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-4)' }}>Crie categorias para agrupar suas séries (ex: Fundamental I, Educação Infantil).</p>
         
         <form onSubmit={handleAddSegment} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-4)' }}>
-          <div style={{ flex: 1 }}><Input placeholder="Nome da nova turma/segmento..." value={segmentName} onChange={e => setSegmentName(e.target.value)} required /></div>
-          <Button type="submit" variant="primary">Adicionar Turma</Button>
+          <div style={{ flex: 1 }}><Input placeholder="Nome da nova turma/segmento..." value={segmentName} onChange={e => setSegmentName(e.target.value)} required disabled={saving} /></div>
+          <Button type="submit" variant="primary" disabled={saving}>
+            {saving ? 'Adicionando...' : 'Adicionar Turma'}
+          </Button>
         </form>
 
         <div className="table-container">
@@ -212,14 +333,14 @@ function SeriesCrud({ schoolId }) {
             </thead>
             <tbody>
               {segments.map(s => (
-                <tr key={s.id}>
+                <tr key={s.id} id={`segment-${s.id}`} style={{ transition: 'background-color 0.5s' }}>
                   <td>{s.name}</td>
                   <td>
                     <div className="flex gap-2 justify-end">
                       <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingSegment({ ...s })}>
                         <Edit2 size={16} />
                       </Button>
-                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSegment(s.id)}>
+                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm({ type: 'segment', id: s.id })}>
                         <Trash2 size={16} />
                       </Button>
                     </div>
@@ -238,7 +359,7 @@ function SeriesCrud({ schoolId }) {
         
         <form onSubmit={handleAddSeries} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
           <div style={{ flex: 1 }}>
-            <Input placeholder="Nome da Série (ex: 1º Ano A)" value={seriesName} onChange={e => setSeriesName(e.target.value)} required />
+            <Input placeholder="Nome da Série (ex: 1º Ano A)" value={seriesName} onChange={e => setSeriesName(e.target.value)} required disabled={saving} />
           </div>
           <div style={{ flex: 1 }}>
             <Select 
@@ -246,9 +367,12 @@ function SeriesCrud({ schoolId }) {
               onChange={e => setSegmentId(e.target.value)} 
               options={segments.map(s => ({ value: s.id, label: s.name }))}
               required
+              disabled={saving}
             />
           </div>
-          <Button type="submit" variant="primary">Adicionar Série</Button>
+          <Button type="submit" variant="primary" disabled={saving}>
+            {saving ? 'Adicionando...' : 'Adicionar Série'}
+          </Button>
         </form>
 
         {/* Listagem Agrupada */}
@@ -265,14 +389,14 @@ function SeriesCrud({ schoolId }) {
                 <table className="table text-sm" style={{ margin: 0, borderTop: 'none' }}>
                   <tbody>
                     {segSeries.map(s => (
-                      <tr key={s.id}>
+                      <tr key={s.id} id={`series-${s.id}`} style={{ transition: 'background-color 0.5s' }}>
                         <td style={{ borderTop: 'none' }}>{s.name}</td>
                         <td style={{ width: '100px', borderTop: 'none', textAlign: 'right' }}>
                           <div className="flex gap-2 justify-end">
                             <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingSeries({ ...s })}>
                               <Edit2 size={16} />
                             </Button>
-                            <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteSeries(s.id)}>
+                            <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm({ type: 'series', id: s.id })}>
                               <Trash2 size={16} />
                             </Button>
                           </div>
@@ -291,10 +415,12 @@ function SeriesCrud({ schoolId }) {
       <Modal isOpen={!!editingSegment} onClose={() => setEditingSegment(null)} title="Editar Turma (Segmento)">
         {editingSegment && (
           <form onSubmit={handleEditSegmentSubmit} className="flex flex-col gap-4">
-            <Input label="Nome da Turma" value={editingSegment.name} onChange={e => setEditingSegment({...editingSegment, name: e.target.value})} required />
+            <Input label="Nome da Turma" value={editingSegment.name} onChange={e => setEditingSegment({...editingSegment, name: e.target.value})} required disabled={saving} />
             <div className="flex justify-end gap-2" style={{ marginTop: 'var(--space-4)' }}>
-              <Button type="button" variant="secondary" onClick={() => setEditingSegment(null)}>Cancelar</Button>
-              <Button type="submit" variant="primary">Salvar Alterações</Button>
+              <Button type="button" variant="secondary" onClick={() => setEditingSegment(null)} disabled={saving}>Cancelar</Button>
+              <Button type="submit" variant="primary" disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
             </div>
           </form>
         )}
@@ -303,22 +429,36 @@ function SeriesCrud({ schoolId }) {
       <Modal isOpen={!!editingSeries} onClose={() => setEditingSeries(null)} title="Editar Série">
         {editingSeries && (
           <form onSubmit={handleEditSeriesSubmit} className="flex flex-col gap-4">
-            <Input label="Nome da Série" value={editingSeries.name} onChange={e => setEditingSeries({...editingSeries, name: e.target.value})} required />
+            <Input label="Nome da Série" value={editingSeries.name} onChange={e => setEditingSeries({...editingSeries, name: e.target.value})} required disabled={saving} />
             <Select 
               label="Turma / Segmento"
               value={editingSeries.segment_id} 
               onChange={e => setEditingSeries({...editingSeries, segment_id: e.target.value})} 
               options={segments.map(s => ({ value: s.id, label: s.name }))}
               required
+              disabled={saving}
             />
             <div className="flex justify-end gap-2" style={{ marginTop: 'var(--space-4)' }}>
-              <Button type="button" variant="secondary" onClick={() => setEditingSeries(null)}>Cancelar</Button>
-              <Button type="submit" variant="primary">Salvar Alterações</Button>
+              <Button type="button" variant="secondary" onClick={() => setEditingSeries(null)} disabled={saving}>Cancelar</Button>
+              <Button type="submit" variant="primary" disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
             </div>
           </form>
         )}
       </Modal>
 
+      <ConfirmModal 
+        isOpen={!!deleteConfirm} 
+        onClose={() => setDeleteConfirm(null)} 
+        onConfirm={confirmDelete}
+        message={deleteConfirm?.type === 'segment' 
+          ? "Atenção: Excluir a Turma (Segmento) excluirá TODAS as Séries atreladas a ela! Tem certeza?" 
+          : "Tem certeza que deseja excluir esta série?"
+        }
+      />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -333,6 +473,10 @@ function SubjectsCrud({ schoolId }) {
   const [segmentId, setSegmentId] = useState('');
   
   const [editingItem, setEditingItem] = useState(null);
+  
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { type, subjectId, segId }
 
   const fetchData = async () => {
     const { data: subData } = await supabase.from('subjects').select(`
@@ -345,12 +489,13 @@ function SubjectsCrud({ schoolId }) {
     if (segData) setSegments(segData);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [schoolId]);
 
   const handleQuickAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !segmentId) return;
+    if (!name.trim() || !segmentId || saving) return;
     
+    setSaving(true);
     // Check if subject exists (case-insensitive) in this school
     const { data: existing } = await supabase.from('subjects').select('*').eq('school_id', schoolId).ilike('name', name.trim()).maybeSingle();
     
@@ -359,7 +504,11 @@ function SubjectsCrud({ schoolId }) {
       subjectId = existing.id;
     } else {
       const { data: newSubject, error } = await supabase.from('subjects').insert([{ name: name.trim(), school_id: schoolId }]).select().single();
-      if (error) return console.error(error);
+      if (error) {
+        setToast({ message: 'Erro ao adicionar disciplina.', type: 'error' });
+        setSaving(false);
+        return;
+      }
       subjectId = newSubject.id;
     }
 
@@ -368,16 +517,31 @@ function SubjectsCrud({ schoolId }) {
     
     if (!existingMap) {
       await supabase.from('segment_subjects').insert([{ subject_id: subjectId, segment_id: segmentId }]);
+      setToast({ message: 'Disciplina vinculada com sucesso!' });
+      
+      // Scroll logic
+      setTimeout(() => {
+        const el = document.getElementById(`subject-${subjectId}-${segmentId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.boxShadow = '0 0 0 3px var(--primary)';
+          setTimeout(() => { el.style.boxShadow = ''; }, 2000);
+        }
+      }, 100);
+    } else {
+      setToast({ message: 'Esta disciplina já está vinculada a esta turma.', type: 'info' });
     }
     
     setName('');
-    fetchData();
+    await fetchData();
+    setSaving(false);
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editingItem.name.trim()) return;
+    if (!editingItem.name.trim() || saving) return;
     
+    setSaving(true);
     // Update subject name
     await supabase.from('subjects').update({ name: editingItem.name }).eq('id', editingItem.id);
     
@@ -391,22 +555,26 @@ function SubjectsCrud({ schoolId }) {
     }
     
     setEditingItem(null);
-    fetchData();
+    await fetchData();
+    setToast({ message: 'Disciplina atualizada com sucesso!' });
+    setSaving(false);
   };
 
-  const handleRemoveMapping = async (subjectId, segId) => {
-    if(confirm('Remover esta disciplina desta turma?')) {
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { type, subjectId, segId } = deleteConfirm;
+    
+    if (type === 'mapping') {
       await supabase.from('segment_subjects').delete().eq('subject_id', subjectId).eq('segment_id', segId);
-      fetchData();
-    }
-  };
-
-  const handleDeleteFullSubject = async (id) => {
-    if(confirm('Atenção: Isso excluirá a disciplina de TODAS as turmas e professores! Tem certeza?')) {
-      await supabase.from('subjects').delete().eq('id', id);
+      setToast({ message: 'Vínculo removido com sucesso!' });
+    } else {
+      await supabase.from('subjects').delete().eq('id', subjectId);
+      setToast({ message: 'Disciplina excluída permanentemente!' });
       setEditingItem(null);
-      fetchData();
     }
+    
+    fetchData();
+    setDeleteConfirm(null);
   };
 
   const startEdit = (s) => {
@@ -440,12 +608,15 @@ function SubjectsCrud({ schoolId }) {
               onChange={e => setSegmentId(e.target.value)} 
               options={segments.map(s => ({ value: s.id, label: s.name }))}
               required
+              disabled={saving}
             />
           </div>
           <div style={{ flex: 2, minWidth: '200px' }}>
-            <Input label="Nome da disciplina" placeholder="Ex: Robótica" value={name} onChange={e => setName(e.target.value)} required />
+            <Input label="Nome da disciplina" placeholder="Ex: Robótica" value={name} onChange={e => setName(e.target.value)} required disabled={saving} />
           </div>
-          <Button type="submit" variant="primary" style={{ height: '42px', marginBottom: '1px' }}>+ Adicionar</Button>
+          <Button type="submit" variant="primary" style={{ height: '42px', marginBottom: '1px' }} disabled={saving}>
+            {saving ? 'Adicionando...' : '+ Adicionar'}
+          </Button>
         </form>
       </div>
 
@@ -464,11 +635,11 @@ function SubjectsCrud({ schoolId }) {
               
               <div className="flex flex-wrap gap-2">
                 {segSubjects.map(sub => (
-                  <div key={sub.id} className="flex items-center" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '4px 12px', fontSize: '0.85rem', color: '#475569', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                  <div key={sub.id} id={`subject-${sub.id}-${seg.id}`} className="flex items-center" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '4px 12px', fontSize: '0.85rem', color: '#475569', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', transition: 'all 0.5s' }}>
                     <span style={{ cursor: 'pointer', marginRight: '8px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => startEdit(sub)} title="Editar Disciplina">
                       {sub.name}
                     </span>
-                    <button type="button" onClick={() => handleRemoveMapping(sub.id, seg.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#94a3b8', borderRadius: '50%' }} title="Remover desta Turma">
+                    <button type="button" onClick={() => setDeleteConfirm({ type: 'mapping', subjectId: sub.id, segId: seg.id })} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#94a3b8', borderRadius: '50%' }} title="Remover desta Turma">
                       <X size={14} />
                     </button>
                   </div>
@@ -490,7 +661,7 @@ function SubjectsCrud({ schoolId }) {
                   <span style={{ cursor: 'pointer', marginRight: '8px' }} onClick={() => startEdit(sub)} title="Editar Disciplina">
                     {sub.name}
                   </span>
-                  <button type="button" onClick={() => handleDeleteFullSubject(sub.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#ef4444' }} title="Excluir Permanentemente">
+                  <button type="button" onClick={() => setDeleteConfirm({ type: 'full', subjectId: sub.id })} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#ef4444' }} title="Excluir Permanentemente">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -503,7 +674,7 @@ function SubjectsCrud({ schoolId }) {
       <Modal isOpen={!!editingItem} onClose={() => setEditingItem(null)} title="Editar Disciplina">
         {editingItem && (
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-            <Input label="Nome da Disciplina" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required />
+            <Input label="Nome da Disciplina" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required disabled={saving} />
             
             <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <p className="text-sm font-medium" style={{ marginBottom: 'var(--space-2)' }}>Turmas (Segmentos):</p>
@@ -518,15 +689,29 @@ function SubjectsCrud({ schoolId }) {
             </div>
 
             <div className="flex justify-between items-center" style={{ marginTop: 'var(--space-4)' }}>
-              <Button type="button" variant="danger" onClick={() => handleDeleteFullSubject(editingItem.id)} title="Excluir Permanentemente de todo o sistema">Excluir Tudo</Button>
+              <Button type="button" variant="danger" onClick={() => setDeleteConfirm({ type: 'full', subjectId: editingItem.id })} title="Excluir Permanentemente de todo o sistema" disabled={saving}>Excluir Tudo</Button>
               <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={() => setEditingItem(null)}>Cancelar</Button>
-                <Button type="submit" variant="primary">Salvar Alterações</Button>
+                <Button type="button" variant="secondary" onClick={() => setEditingItem(null)} disabled={saving}>Cancelar</Button>
+                <Button type="submit" variant="primary" disabled={saving}>
+                  {saving ? 'Salvando...' : 'Salvar Alterações'}
+                </Button>
               </div>
             </div>
           </form>
         )}
       </Modal>
+
+      <ConfirmModal 
+        isOpen={!!deleteConfirm} 
+        onClose={() => setDeleteConfirm(null)} 
+        onConfirm={confirmDelete}
+        message={deleteConfirm?.type === 'mapping' 
+          ? "Remover esta disciplina desta turma?" 
+          : "Atenção: Isso excluirá a disciplina de TODAS as turmas e professores! Tem certeza?"
+        }
+      />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -544,6 +729,10 @@ function TeachersCrud({ schoolId }) {
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   
   const [editingItem, setEditingItem] = useState(null);
+  
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const fetchData = async () => {
     const { data: tData } = await supabase.from('teachers').select(`
@@ -560,16 +749,19 @@ function TeachersCrud({ schoolId }) {
     if (subData) setSubjects(subData);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [schoolId]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
     
+    setSaving(true);
     const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email: email || null, teacher_type: teacherType, school_id: schoolId }]).select().single();
+    
     if (error) {
-      alert(`Erro ao adicionar professor: ${error.message}`);
-      return console.error(error);
+      setToast({ message: `Erro ao adicionar professor: ${error.message}`, type: 'error' });
+      setSaving(false);
+      return;
     }
 
     if (newTeacher) {
@@ -582,6 +774,18 @@ function TeachersCrud({ schoolId }) {
         const subjectMappings = selectedSubjects.map(sid => ({ teacher_id: newTeacher.id, subject_id: sid }));
         await supabase.from('teacher_subjects').insert(subjectMappings);
       }
+      
+      setToast({ message: 'Professor adicionado com sucesso!' });
+      
+      // Scroll logic
+      setTimeout(() => {
+        const el = document.getElementById(`teacher-${newTeacher.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.backgroundColor = 'var(--primary-light)';
+          setTimeout(() => { el.style.backgroundColor = ''; }, 2000);
+        }
+      }, 100);
     }
 
     setName('');
@@ -589,13 +793,15 @@ function TeachersCrud({ schoolId }) {
     setTeacherType('regente');
     setSelectedSeries([]);
     setSelectedSubjects([]);
-    fetchData();
+    await fetchData();
+    setSaving(false);
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editingItem.name.trim()) return;
+    if (!editingItem.name.trim() || saving) return;
     
+    setSaving(true);
     const { error } = await supabase.from('teachers').update({ 
       name: editingItem.name, 
       email: editingItem.email || null, 
@@ -603,8 +809,9 @@ function TeachersCrud({ schoolId }) {
     }).eq('id', editingItem.id);
 
     if (error) {
-      alert(`Erro ao atualizar professor: ${error.message}`);
-      return console.error(error);
+      setToast({ message: `Erro ao atualizar professor: ${error.message}`, type: 'error' });
+      setSaving(false);
+      return;
     }
 
     // Rebuild series mappings
@@ -622,7 +829,9 @@ function TeachersCrud({ schoolId }) {
     }
 
     setEditingItem(null);
-    fetchData();
+    await fetchData();
+    setToast({ message: 'Professor atualizado com sucesso!' });
+    setSaving(false);
   };
 
   const startEdit = (t) => {
@@ -636,11 +845,16 @@ function TeachersCrud({ schoolId }) {
     });
   };
 
-  const handleDelete = async (id) => {
-    if(confirm('Tem certeza?')) {
-      await supabase.from('teachers').delete().eq('id', id);
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { error } = await supabase.from('teachers').delete().eq('id', deleteConfirm);
+    if (!error) {
       fetchData();
+      setToast({ message: 'Professor excluído com sucesso!' });
+    } else {
+      setToast({ message: 'Erro ao excluir professor.', type: 'error' });
     }
+    setDeleteConfirm(null);
   };
 
   const toggleSeries = (id) => setSelectedSeries(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -693,18 +907,18 @@ function TeachersCrud({ schoolId }) {
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Professores</h2>
       <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
         <div className="flex gap-4 items-center flex-wrap">
-          <div style={{ flex: '1 1 200px' }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required /></div>
-          <div style={{ flex: '1 1 200px' }}><Input type="email" placeholder="E-mail (opcional)" value={email} onChange={e => setEmail(e.target.value)} /></div>
+          <div style={{ flex: '1 1 200px' }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required disabled={saving} /></div>
+          <div style={{ flex: '1 1 200px' }}><Input type="email" placeholder="E-mail (opcional)" value={email} onChange={e => setEmail(e.target.value)} disabled={saving} /></div>
         </div>
 
         <div className="flex gap-6 items-center flex-wrap" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <span className="text-sm font-medium">Tipo do Professor:</span>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="radio" name="teacherType" value="regente" checked={teacherType === 'regente'} onChange={(e) => { setTeacherType(e.target.value); setSelectedSubjects([]); }} />
+            <input type="radio" name="teacherType" value="regente" checked={teacherType === 'regente'} onChange={(e) => { setTeacherType(e.target.value); setSelectedSubjects([]); }} disabled={saving} />
             Regente
           </label>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="radio" name="teacherType" value="especialista" checked={teacherType === 'especialista'} onChange={(e) => setTeacherType(e.target.value)} />
+            <input type="radio" name="teacherType" value="especialista" checked={teacherType === 'especialista'} onChange={(e) => setTeacherType(e.target.value)} disabled={saving} />
             Especialista
           </label>
         </div>
@@ -719,14 +933,14 @@ function TeachersCrud({ schoolId }) {
                 <div key={seg.id} style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                   <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-2)' }}>
                     <p className="text-xs font-semibold text-muted m-0">{seg.name}</p>
-                    <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleSegment(seg.id)}>
+                    <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleSegment(seg.id)} disabled={saving}>
                       {segSeries.length > 0 && segSeries.every(s => selectedSeries.includes(s.id)) ? 'Desmarcar todas' : 'Selecionar todas'}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {segSeries.map(s => (
                       <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
-                        <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} style={{ margin: 0 }} />
+                        <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} style={{ margin: 0 }} disabled={saving} />
                         <span style={{ color: selectedSeries.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSeries.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                       </label>
                     ))}
@@ -745,7 +959,7 @@ function TeachersCrud({ schoolId }) {
             <div className="flex flex-wrap gap-2" style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               {subjects.map(s => (
                 <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
-                  <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ margin: 0 }} />
+                  <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ margin: 0 }} disabled={saving} />
                   <span style={{ color: selectedSubjects.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSubjects.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                 </label>
               ))}
@@ -755,7 +969,9 @@ function TeachersCrud({ schoolId }) {
         )}
 
         <div>
-          <Button type="submit" variant="primary"><Plus size={18} /> Adicionar Professor</Button>
+          <Button type="submit" variant="primary" disabled={saving}>
+            {saving ? 'Adicionando...' : <><Plus size={18} /> Adicionar Professor</>}
+          </Button>
         </div>
       </form>
 
@@ -766,7 +982,7 @@ function TeachersCrud({ schoolId }) {
           </thead>
           <tbody>
             {teachers.map(t => (
-              <tr key={t.id}>
+              <tr key={t.id} id={`teacher-${t.id}`} style={{ transition: 'background-color 0.5s' }}>
                 <td>{t.name}<br/><span className="text-xs text-muted">{t.email}</span></td>
                 <td style={{ textTransform: 'capitalize' }}>{t.teacher_type || 'N/A'}</td>
                 <td className="text-xs text-muted">
@@ -780,7 +996,7 @@ function TeachersCrud({ schoolId }) {
                     <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEdit(t)}>
                       <Edit2 size={16} />
                     </Button>
-                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDelete(t.id)}>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(t.id)}>
                       <Trash2 size={16} />
                     </Button>
                   </div>
@@ -796,17 +1012,17 @@ function TeachersCrud({ schoolId }) {
         {editingItem && (
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
             <div className="flex gap-4 flex-wrap">
-              <div style={{ flex: '1 1 200px' }}><Input label="Nome" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required /></div>
-              <div style={{ flex: '1 1 200px' }}><Input label="E-mail" type="email" value={editingItem.email} onChange={e => setEditingItem({...editingItem, email: e.target.value})} /></div>
+              <div style={{ flex: '1 1 200px' }}><Input label="Nome" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required disabled={saving} /></div>
+              <div style={{ flex: '1 1 200px' }}><Input label="E-mail" type="email" value={editingItem.email} onChange={e => setEditingItem({...editingItem, email: e.target.value})} disabled={saving} /></div>
             </div>
 
             <div className="flex gap-6 items-center flex-wrap" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <span className="text-sm font-medium">Tipo:</span>
+              <span className="text-sm font-medium">Tipo do Professor:</span>
               <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input type="radio" value="regente" checked={editingItem.teacher_type === 'regente'} onChange={(e) => setEditingItem({...editingItem, teacher_type: e.target.value})} /> Regente
+                <input type="radio" name="editTeacherType" value="regente" checked={editingItem.teacher_type === 'regente'} onChange={(e) => setEditingItem({...editingItem, teacher_type: e.target.value, selectedSubjects: []})} disabled={saving} /> Regente
               </label>
               <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input type="radio" value="especialista" checked={editingItem.teacher_type === 'especialista'} onChange={(e) => setEditingItem({...editingItem, teacher_type: e.target.value})} /> Especialista
+                <input type="radio" name="editTeacherType" value="especialista" checked={editingItem.teacher_type === 'especialista'} onChange={(e) => setEditingItem({...editingItem, teacher_type: e.target.value})} disabled={saving} /> Especialista
               </label>
             </div>
 
@@ -819,14 +1035,14 @@ function TeachersCrud({ schoolId }) {
                     <div key={seg.id} style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                       <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-2)' }}>
                         <p className="text-xs font-semibold text-muted m-0">{seg.name}</p>
-                        <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleEditSegment(seg.id)}>
+                        <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleEditSegment(seg.id)} disabled={saving}>
                           {segSeries.length > 0 && segSeries.every(s => editingItem.selectedSeries.includes(s.id)) ? 'Desmarcar todas' : 'Selecionar todas'}
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {segSeries.map(s => (
                           <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
-                            <input type="checkbox" checked={editingItem.selectedSeries.includes(s.id)} onChange={() => toggleEditSeries(s.id)} style={{ margin: 0 }} />
+                            <input type="checkbox" checked={editingItem.selectedSeries.includes(s.id)} onChange={() => toggleEditSeries(s.id)} style={{ margin: 0 }} disabled={saving} />
                             <span style={{ color: editingItem.selectedSeries.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: editingItem.selectedSeries.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                           </label>
                         ))}
@@ -843,7 +1059,7 @@ function TeachersCrud({ schoolId }) {
                 <div className="flex flex-wrap gap-2" style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                   {subjects.map(s => (
                     <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
-                      <input type="checkbox" checked={editingItem.selectedSubjects.includes(s.id)} onChange={() => toggleEditSubject(s.id)} style={{ margin: 0 }} />
+                      <input type="checkbox" checked={editingItem.selectedSubjects.includes(s.id)} onChange={() => toggleEditSubject(s.id)} style={{ margin: 0 }} disabled={saving} />
                       <span style={{ color: editingItem.selectedSubjects.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: editingItem.selectedSubjects.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                     </label>
                   ))}
@@ -852,13 +1068,23 @@ function TeachersCrud({ schoolId }) {
             )}
 
             <div className="flex justify-end gap-2" style={{ marginTop: 'var(--space-4)' }}>
-              <Button type="button" variant="secondary" onClick={() => setEditingItem(null)}>Cancelar</Button>
-              <Button type="submit" variant="primary">Salvar Alterações</Button>
+              <Button type="button" variant="secondary" onClick={() => setEditingItem(null)} disabled={saving}>Cancelar</Button>
+              <Button type="submit" variant="primary" disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
             </div>
           </form>
         )}
       </Modal>
 
+      <ConfirmModal 
+        isOpen={!!deleteConfirm} 
+        onClose={() => setDeleteConfirm(null)} 
+        onConfirm={confirmDelete}
+        message="Tem certeza que deseja excluir este professor? Esta ação não pode ser desfeita."
+      />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

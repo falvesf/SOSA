@@ -73,3 +73,49 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
 
   return createPortal(modalContent, document.body);
 };
+
+export const ConfirmModal = ({ isOpen, onClose, onConfirm, title = "Confirmar Exclusão", message, confirmText = "Sim, Excluir", cancelText = "Cancelar", variant = "danger" }) => (
+  <Modal isOpen={isOpen} onClose={onClose} title={title}>
+    <div style={{ padding: 'var(--space-2)' }}>
+      <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-6)' }}>{message}</p>
+      <div className="flex justify-end gap-3">
+        <Button variant="secondary" onClick={onClose}>{cancelText}</Button>
+        <Button variant={variant} onClick={() => { onConfirm(); onClose(); }}>{confirmText}</Button>
+      </div>
+    </div>
+  </Modal>
+);
+
+export const Toast = ({ message, type = 'success', onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const styles = {
+    success: { bg: 'var(--success)', icon: '✓' },
+    error: { bg: 'var(--error)', icon: '✕' },
+    info: { bg: 'var(--primary)', icon: 'ℹ' }
+  };
+
+  const { bg, icon } = styles[type] || styles.success;
+
+  return createPortal(
+    <div className="animate-fade-in" style={{
+      position: 'fixed', bottom: 'var(--space-6)', right: 'var(--space-6)',
+      zIndex: 10000, backgroundColor: bg, color: 'white',
+      padding: '12px 24px', borderRadius: 'var(--radius-md)',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      display: 'flex', alignItems: 'center', gap: '12px',
+      fontWeight: 500, fontSize: '0.875rem'
+    }}>
+      <span style={{ 
+        width: '20px', height: '20px', backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '12px'
+      }}>{icon}</span>
+      {message}
+    </div>,
+    document.body
+  );
+};

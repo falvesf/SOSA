@@ -77,7 +77,7 @@ const initialFormState = {
 };
 
 export default function ObservationForm() {
-  const { selectedSchoolId } = useSchool();
+  const { selectedSchoolId, selectedBimestre } = useSchool();
   const { id } = useParams();
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
@@ -312,6 +312,8 @@ export default function ObservationForm() {
     });
     setActiveTab(num);
   };
+
+
 
   const openDeleteModal = (visitNum) => {
     setVisitToDelete(visitNum);
@@ -583,7 +585,7 @@ export default function ObservationForm() {
       const selectedSeriesObj = seriesList.find(s => s.id === formData.series_id);
       const segment_id = selectedSeriesObj ? selectedSeriesObj.segment_id : null;
       const { id: _id, created_at, updated_at, ...cleanData } = formData;
-      const payload = { ...cleanData, school_id: selectedSchoolId, segment_id, user_id: user?.id, visit_date: cleanData.visit_date || null, revisit_date_1: cleanData.revisit_date_1 || null, revisit_date_2: cleanData.revisit_date_2 || null };
+      const payload = { ...cleanData, school_id: selectedSchoolId, segment_id, user_id: user?.id, visit_date: cleanData.visit_date || null, revisit_date_1: cleanData.revisit_date_1 || null, revisit_date_2: cleanData.revisit_date_2 || null, bimestre: selectedBimestre };
       const { error } = id ? await supabase.from('observations').update(payload).eq('id', id) : await supabase.from('observations').insert([payload]);
       if (error) throw error;
       setIsDirty(false);
