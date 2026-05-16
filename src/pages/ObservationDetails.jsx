@@ -144,6 +144,10 @@ export default function ObservationDetails({ observation }) {
             <label className="text-xs font-bold text-muted uppercase block">Data da Visita Original</label>
             <p className="text-sm font-medium">{observation.visit_date ? observation.visit_date.split('-').reverse().join('/') : 'N/A'}</p>
           </div>
+          <div>
+            <label className="text-xs font-bold text-muted uppercase block">Bimestre</label>
+            <p className="text-sm font-medium">{observation.bimestre || 'N/A'}</p>
+          </div>
           {observation.revisit_date_1 && (
             <div>
               <label className="text-xs font-bold text-muted uppercase block" style={{ color: 'var(--success)' }}>1ª Revisita</label>

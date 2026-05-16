@@ -19,6 +19,20 @@ function Layout({ children, onLogout }) {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
+    
+    // Orientation Lock logic
+    const lockOrientation = async () => {
+      if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+        try {
+          // This usually requires PWA standalone mode or fullscreen
+          await window.screen.orientation.lock('portrait');
+        } catch (e) {
+          // Silent fail - browsers restricted
+        }
+      }
+    };
+    lockOrientation();
+
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
