@@ -299,6 +299,41 @@ input, select, textarea {
   border-color: var(--primary);
 }
 
+.score-pips {
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+
+.score-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.pip-v1 { background-color: var(--primary); }
+.pip-v2 { background-color: var(--success); }
+.pip-v3 { background-color: var(--warning); }
+
+.score-label.v1 { background-color: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.score-label.v2 { background-color: #ecfdf5; border-color: var(--success); color: var(--success); }
+.score-label.v3 { background-color: #fffbeb; border-color: var(--warning); color: var(--warning); }
+
+.score-radio:checked + .score-label.v1 { background-color: var(--primary); color: white; border-color: var(--primary); }
+.score-radio:checked + .score-label.v2 { background-color: var(--success); color: white; border-color: var(--success); }
+.score-radio:checked + .score-label.v3 { background-color: var(--warning); color: white; border-color: var(--warning); }
+
+.score-label.v1-ghost { border-color: var(--primary); color: var(--primary); opacity: 0.6; border-style: dashed; }
+.score-label.v2-ghost { border-color: var(--success); color: var(--success); opacity: 0.6; border-style: dashed; }
+.score-label.v3-ghost { border-color: var(--warning); color: var(--warning); opacity: 0.6; border-style: dashed; }
+
+/* Se houver conflito (múltiplas cores no mesmo), prevalece a cor da visita ATUAL, 
+   mas as pips mostram o histórico */
+
 /* Print Styles */
 @media print {
   @page {

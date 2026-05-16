@@ -23,22 +23,43 @@ const DetailSection = ({ title, children }) => (
   </div>
 );
 
-const ScoreDisplay = ({ label, score }) => (
-  <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-    <span className="text-sm text-muted">{label}</span>
-    <div className="flex items-center gap-2">
-      <span className="font-bold" style={{ 
-        color: score >= 3 ? 'var(--success)' : score === 2 ? '#f59e0b' : 'var(--error)',
-        backgroundColor: score >= 3 ? '#ecfdf5' : score === 2 ? '#fffbeb' : '#fef2f2',
-        padding: '2px 8px',
-        borderRadius: 'var(--radius-sm)',
-        fontSize: '0.875rem'
-      }}>
-        Nota: {score || 'N/A'}
-      </span>
+const ScoreProgression = ({ label, scores = {} }) => {
+  const renderBadge = (score, visitNum, isVisible) => {
+    const colors = {
+      1: { text: 'var(--primary)', bg: 'var(--primary-light)' },
+      2: { text: 'var(--success)', bg: '#ecfdf5' },
+      3: { text: 'var(--warning)', bg: '#fffbeb' }
+    };
+    const { text, bg } = colors[visitNum];
+    
+    return (
+      <div style={{ width: '28px', display: 'flex', justifyContent: 'center' }}>
+        {isVisible && score !== null && score !== undefined && (
+          <span title={`Visita ${visitNum}`} style={{ 
+            color: text, backgroundColor: bg, 
+            width: '24px', height: '24px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '4px', 
+            fontSize: '0.75rem', fontWeight: 'bold', border: `1px solid ${text}40`
+          }}>
+            {score}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+      <span className="text-sm text-muted" style={{ flex: 1 }}>{label}</span>
+      <div className="flex items-center gap-1">
+        {renderBadge(scores.v1, 1, true)}
+        {renderBadge(scores.v2, 2, scores.v2 !== undefined && scores.v2 !== null && scores.v2 !== scores.v1)}
+        {renderBadge(scores.v3, 3, scores.v3 !== undefined && scores.v3 !== null && scores.v3 !== scores.v2)}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const EvaluationBadge = ({ evaluation }) => {
   const getStyles = () => {
@@ -77,6 +98,13 @@ export default function ObservationDetails({ observation }) {
 
   if (!observation) return null;
 
+  const evaluationOptions = [
+    { label: 'Atende plenamente', value: 'Atende plenamente' },
+    { label: 'Atende parcialmente', value: 'Atende parcialmente' },
+    { label: 'Não atende', value: 'Não atende' },
+    { label: 'Não observado', value: 'Não observado' }
+  ];
+
   const selectedSchool = schools.find(s => s.id === selectedSchoolId);
 
 
@@ -113,9 +141,21 @@ export default function ObservationDetails({ observation }) {
             <p className="text-sm font-medium">{observation.teachers?.name || 'N/A'}</p>
           </div>
           <div>
-            <label className="text-xs font-bold text-muted uppercase block">Data da Visita</label>
+            <label className="text-xs font-bold text-muted uppercase block">Data da Visita Original</label>
             <p className="text-sm font-medium">{observation.visit_date ? observation.visit_date.split('-').reverse().join('/') : 'N/A'}</p>
           </div>
+          {observation.revisit_date_1 && (
+            <div>
+              <label className="text-xs font-bold text-muted uppercase block" style={{ color: 'var(--success)' }}>1ª Revisita</label>
+              <p className="text-sm font-medium">{observation.revisit_date_1.split('-').reverse().join('/')}</p>
+            </div>
+          )}
+          {observation.revisit_date_2 && (
+            <div>
+              <label className="text-xs font-bold text-muted uppercase block" style={{ color: 'var(--warning)' }}>2ª Revisita</label>
+              <p className="text-sm font-medium">{observation.revisit_date_2.split('-').reverse().join('/')}</p>
+            </div>
+          )}
           <div>
             <label className="text-xs font-bold text-muted uppercase block">Disciplina</label>
             <p className="text-sm font-medium">{observation.subjects?.name || 'N/A'}</p>
@@ -151,103 +191,214 @@ export default function ObservationDetails({ observation }) {
         <Card style={{ padding: 'var(--space-4)', border: '1px solid #eee' }}>
           <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-3)' }}>
             <h4 className="font-bold text-sm">3. Planejamento e Alinhamento Curricular</h4>
-            <EvaluationBadge evaluation={observation.planning_evaluation} />
+            <div className="flex gap-2">
+              <EvaluationBadge evaluation={observation.planning_evaluation} />
+              {observation.evaluations_v2?.planning_evaluation && observation.evaluations_v2.planning_evaluation !== observation.planning_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v2.planning_evaluation} />
+              )}
+              {observation.evaluations_v3?.planning_evaluation && observation.evaluations_v3.planning_evaluation !== observation.evaluations_v2?.planning_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v3.planning_evaluation} />
+              )}
+            </div>
           </div>
           <div className="flex flex-col">
-            <ScoreDisplay label="Alinhamento às habilidades/competências da BNCC" score={observation.plan_alignment_score} />
-            <ScoreDisplay label="Conteúdo de acordo com Sequência Didática" score={observation.plan_content_score} />
-            <ScoreDisplay label="Objetivos claros e coerentes" score={observation.plan_objectives_score} />
-            <ScoreDisplay label="Conexão com referenciais institucionais" score={observation.plan_references_score} />
+            <ScoreProgression label="Alinhamento às habilidades/competências da BNCC" scores={{v1: observation.plan_alignment_score, v2: observation.scores_v2?.plan_alignment_score, v3: observation.scores_v3?.plan_alignment_score}} />
+            <ScoreProgression label="Conteúdo de acordo com Sequência Didática" scores={{v1: observation.plan_content_score, v2: observation.scores_v2?.plan_content_score, v3: observation.scores_v3?.plan_content_score}} />
+            <ScoreProgression label="Objetivos claros e coerentes" scores={{v1: observation.plan_objectives_score, v2: observation.scores_v2?.plan_objectives_score, v3: observation.scores_v3?.plan_objectives_score}} />
+            <ScoreProgression label="Conexão com referenciais institucionais" scores={{v1: observation.plan_references_score, v2: observation.scores_v2?.plan_references_score, v3: observation.scores_v3?.plan_references_score}} />
           </div>
-          {observation.planning_observations && (
-            <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px dashed #ccc' }}>
-              <p className="text-xs font-bold text-muted uppercase mb-1">Observações da Coordenação:</p>
-              <p className="text-xs">{observation.planning_observations}</p>
-            </div>
-          )}
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+            {observation.planning_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p className="text-[10px]">{observation.planning_observations}</p>
+              </div>
+            )}
+            {observation.comments_v2?.planning_observations && observation.comments_v2.planning_observations !== observation.planning_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v2.planning_observations}</p>
+              </div>
+            )}
+            {observation.comments_v3?.planning_observations && observation.comments_v3.planning_observations !== observation.comments_v2?.planning_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v3.planning_observations}</p>
+              </div>
+            )}
+          </div>
         </Card>
 
         {/* 4. Metodologia */}
         <Card style={{ padding: 'var(--space-4)', border: '1px solid #eee' }}>
           <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-3)' }}>
             <h4 className="font-bold text-sm">4. Metodologia e Estratégias de Ensino</h4>
-            <EvaluationBadge evaluation={observation.methodology_evaluation} />
+            <div className="flex gap-2">
+              <EvaluationBadge evaluation={observation.methodology_evaluation} />
+              {observation.evaluations_v2?.methodology_evaluation && observation.evaluations_v2.methodology_evaluation !== observation.methodology_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v2.methodology_evaluation} />
+              )}
+              {observation.evaluations_v3?.methodology_evaluation && observation.evaluations_v3.methodology_evaluation !== observation.evaluations_v2?.methodology_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v3.methodology_evaluation} />
+              )}
+            </div>
           </div>
           <div className="flex flex-col">
-            <ScoreDisplay label="Adequação à faixa etária/componente" score={observation.meth_adequate_score} />
-            <ScoreDisplay label="Estratégias que favorecem o aprendizado" score={observation.meth_strategies_score} />
-            <ScoreDisplay label="Uso intencional de recursos" score={observation.meth_resources_score} />
-            <ScoreDisplay label="Clareza na condução e orientações" score={observation.meth_clarity_score} />
+            <ScoreProgression label="Adequação à faixa etária/componente" scores={{v1: observation.meth_adequate_score, v2: observation.scores_v2?.meth_adequate_score, v3: observation.scores_v3?.meth_adequate_score}} />
+            <ScoreProgression label="Estratégias que favorecem o aprendizado" scores={{v1: observation.meth_strategies_score, v2: observation.scores_v2?.meth_strategies_score, v3: observation.scores_v3?.meth_strategies_score}} />
+            <ScoreProgression label="Uso intencional de recursos" scores={{v1: observation.meth_resources_score, v2: observation.scores_v2?.meth_resources_score, v3: observation.scores_v3?.meth_resources_score}} />
+            <ScoreProgression label="Clareza na condução e orientações" scores={{v1: observation.meth_clarity_score, v2: observation.scores_v2?.meth_clarity_score, v3: observation.scores_v3?.meth_clarity_score}} />
           </div>
-          {observation.methodology_observations && (
-            <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px dashed #ccc' }}>
-              <p className="text-xs font-bold text-muted uppercase mb-1">Observações da Coordenação:</p>
-              <p className="text-xs">{observation.methodology_observations}</p>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+            {observation.methodology_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p className="text-[10px]">{observation.methodology_observations}</p>
+              </div>
+            )}
+            {observation.comments_v2?.methodology_observations && observation.comments_v2.methodology_observations !== observation.methodology_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v2.methodology_observations}</p>
+              </div>
+            )}
+            {observation.comments_v3?.methodology_observations && observation.comments_v3.methodology_observations !== observation.comments_v2?.methodology_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v3.methodology_observations}</p>
+              </div>
+            )}
+          </div>
         </Card>
 
         {/* 5. Avaliação */}
         <Card style={{ padding: 'var(--space-4)', border: '1px solid #eee' }}>
           <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-3)' }}>
             <h4 className="font-bold text-sm">5. Avaliação da Aprendizagem</h4>
-            <EvaluationBadge evaluation={observation.learning_evaluation} />
+            <div className="flex gap-2">
+              <EvaluationBadge evaluation={observation.learning_evaluation} />
+              {observation.evaluations_v2?.learning_evaluation && observation.evaluations_v2.learning_evaluation !== observation.learning_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v2.learning_evaluation} />
+              )}
+              {observation.evaluations_v3?.learning_evaluation && observation.evaluations_v3.learning_evaluation !== observation.evaluations_v2?.learning_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v3.learning_evaluation} />
+              )}
+            </div>
           </div>
           <div className="flex flex-col">
-            <ScoreDisplay label="Instrumentos coerentes com objetivos" score={observation.learn_instruments_score} />
-            <ScoreDisplay label="Avaliação formativa presente" score={observation.learn_formative_score} />
-            <ScoreDisplay label="Devolutivas claras aos estudantes" score={observation.learn_feedback_score} />
-            <ScoreDisplay label="Critérios alinhados ao planejamento" score={observation.learn_criteria_score} />
+            <ScoreProgression label="Instrumentos coerentes com objetivos" scores={{v1: observation.learn_instruments_score, v2: observation.scores_v2?.learn_instruments_score, v3: observation.scores_v3?.learn_instruments_score}} />
+            <ScoreProgression label="Avaliação formativa presente" scores={{v1: observation.learn_formative_score, v2: observation.scores_v2?.learn_formative_score, v3: observation.scores_v3?.learn_formative_score}} />
+            <ScoreProgression label="Devolutivas claras aos estudantes" scores={{v1: observation.learn_feedback_score, v2: observation.scores_v2?.learn_feedback_score, v3: observation.scores_v3?.learn_feedback_score}} />
+            <ScoreProgression label="Critérios alinhados ao planejamento" scores={{v1: observation.learn_criteria_score, v2: observation.scores_v2?.learn_criteria_score, v3: observation.scores_v3?.learn_criteria_score}} />
           </div>
-          {observation.learning_observations && (
-            <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px dashed #ccc' }}>
-              <p className="text-xs font-bold text-muted uppercase mb-1">Observações da Coordenação:</p>
-              <p className="text-xs">{observation.learning_observations}</p>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+            {observation.learning_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p className="text-[10px]">{observation.learning_observations}</p>
+              </div>
+            )}
+            {observation.comments_v2?.learning_observations && observation.comments_v2.learning_observations !== observation.learning_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v2.learning_observations}</p>
+              </div>
+            )}
+            {observation.comments_v3?.learning_observations && observation.comments_v3.learning_observations !== observation.comments_v2?.learning_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v3.learning_observations}</p>
+              </div>
+            )}
+          </div>
         </Card>
 
         {/* 6. Gestão */}
         <Card style={{ padding: 'var(--space-4)', border: '1px solid #eee' }}>
           <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-3)' }}>
             <h4 className="font-bold text-sm">6. Gestão de Sala e Clima Escolar</h4>
-            <EvaluationBadge evaluation={observation.management_evaluation} />
+            <div className="flex gap-2">
+              <EvaluationBadge evaluation={observation.management_evaluation} />
+              {observation.evaluations_v2?.management_evaluation && observation.evaluations_v2.management_evaluation !== observation.management_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v2.management_evaluation} />
+              )}
+              {observation.evaluations_v3?.management_evaluation && observation.evaluations_v3.management_evaluation !== observation.evaluations_v2?.management_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v3.management_evaluation} />
+              )}
+            </div>
           </div>
           <div className="flex flex-col">
-            <ScoreDisplay label="Organização do espaço/tempo" score={observation.man_space_score} />
-            <ScoreDisplay label="Relação respeitosa" score={observation.man_respect_score} />
-            <ScoreDisplay label="Mediação de conflitos" score={observation.man_conflict_score} />
-            <ScoreDisplay label="Ambiente favorável à aprendizagem" score={observation.man_environment_score} />
-            <ScoreDisplay label="Uso do material didático" score={observation.man_material_score} />
-            <ScoreDisplay label="Registro no caderno" score={observation.man_content_score} />
-            <ScoreDisplay label="Atividades bem orientadas" score={observation.man_activities_score} />
-            <ScoreDisplay label="Acompanhamento circulando pela sala" score={observation.man_monitoring_score} />
+            <ScoreProgression label="Organização do espaço/tempo" scores={{v1: observation.man_space_score, v2: observation.scores_v2?.man_space_score, v3: observation.scores_v3?.man_space_score}} />
+            <ScoreProgression label="Relação respeitosa" scores={{v1: observation.man_respect_score, v2: observation.scores_v2?.man_respect_score, v3: observation.scores_v3?.man_respect_score}} />
+            <ScoreProgression label="Mediação de conflitos" scores={{v1: observation.man_conflict_score, v2: observation.scores_v2?.man_conflict_score, v3: observation.scores_v3?.man_conflict_score}} />
+            <ScoreProgression label="Ambiente favorável à aprendizagem" scores={{v1: observation.man_environment_score, v2: observation.scores_v2?.man_environment_score, v3: observation.scores_v3?.man_environment_score}} />
+            <ScoreProgression label="Uso do material didático" scores={{v1: observation.man_material_score, v2: observation.scores_v2?.man_material_score, v3: observation.scores_v3?.man_material_score}} />
+            <ScoreProgression label="Registro no caderno" scores={{v1: observation.man_content_score, v2: observation.scores_v2?.man_content_score, v3: observation.scores_v3?.man_content_score}} />
+            <ScoreProgression label="Atividades bem orientadas" scores={{v1: observation.man_activities_score, v2: observation.scores_v2?.man_activities_score, v3: observation.scores_v3?.man_activities_score}} />
+            <ScoreProgression label="Acompanhamento circulando pela sala" scores={{v1: observation.man_monitoring_score, v2: observation.scores_v2?.man_monitoring_score, v3: observation.scores_v3?.man_monitoring_score}} />
           </div>
-          {observation.management_observations && (
-            <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px dashed #ccc' }}>
-              <p className="text-xs font-bold text-muted uppercase mb-1">Observações da Coordenação:</p>
-              <p className="text-xs">{observation.management_observations}</p>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+            {observation.management_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p className="text-[10px]">{observation.management_observations}</p>
+              </div>
+            )}
+            {observation.comments_v2?.management_observations && observation.comments_v2.management_observations !== observation.management_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v2.management_observations}</p>
+              </div>
+            )}
+            {observation.comments_v3?.management_observations && observation.comments_v3.management_observations !== observation.comments_v2?.management_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v3.management_observations}</p>
+              </div>
+            )}
+          </div>
         </Card>
 
         {/* 7. Identidade */}
         <Card style={{ padding: 'var(--space-4)', border: '1px solid #eee' }}>
           <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-3)' }}>
             <h4 className="font-bold text-sm">7. Identidade Confessional e Valores</h4>
-            <EvaluationBadge evaluation={observation.identity_evaluation} />
+            <div className="flex gap-2">
+              <EvaluationBadge evaluation={observation.identity_evaluation} />
+              {observation.evaluations_v2?.identity_evaluation && observation.evaluations_v2.identity_evaluation !== observation.identity_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v2.identity_evaluation} />
+              )}
+              {observation.evaluations_v3?.identity_evaluation && observation.evaluations_v3.identity_evaluation !== observation.evaluations_v2?.identity_evaluation && (
+                <EvaluationBadge evaluation={observation.evaluations_v3.identity_evaluation} />
+              )}
+            </div>
           </div>
           <div className="flex flex-col">
-            <ScoreDisplay label="Integração de valores" score={observation.ident_values_score} />
-            <ScoreDisplay label="Postura docente coerente" score={observation.ident_posture_score} />
-            <ScoreDisplay label="Linguagem/exemplos alinhados" score={observation.ident_language_score} />
+            <ScoreProgression label="Integração de valores" scores={{v1: observation.ident_values_score, v2: observation.scores_v2?.ident_values_score, v3: observation.scores_v3?.ident_values_score}} />
+            <ScoreProgression label="Postura docente coerente" scores={{v1: observation.ident_posture_score, v2: observation.scores_v2?.ident_posture_score, v3: observation.scores_v3?.ident_posture_score}} />
+            <ScoreProgression label="Linguagem/exemplos alinhados" scores={{v1: observation.ident_language_score, v2: observation.scores_v2?.ident_language_score, v3: observation.scores_v3?.ident_language_score}} />
           </div>
-          {observation.identity_observations && (
-            <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px dashed #ccc' }}>
-              <p className="text-xs font-bold text-muted uppercase mb-1">Observações da Coordenação:</p>
-              <p className="text-xs">{observation.identity_observations}</p>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+            {observation.identity_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #eee' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px' }}>Visita Original</p>
+                <p className="text-[10px]">{observation.identity_observations}</p>
+              </div>
+            )}
+            {observation.comments_v2?.identity_observations && observation.comments_v2.identity_observations !== observation.identity_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #dcfce7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#4ade80', textTransform: 'uppercase', marginBottom: '2px' }}>1ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v2.identity_observations}</p>
+              </div>
+            )}
+            {observation.comments_v3?.identity_observations && observation.comments_v3.identity_observations !== observation.comments_v2?.identity_observations && (
+              <div style={{ padding: 'var(--space-2)', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fef3c7' }}>
+                <p style={{ fontSize: '9px', fontWeight: 500, color: '#fbbf24', textTransform: 'uppercase', marginBottom: '2px' }}>2ª Revisita</p>
+                <p className="text-[10px]">{observation.comments_v3.identity_observations}</p>
+              </div>
+            )}
+          </div>
         </Card>
       </div>
 
@@ -292,255 +443,399 @@ export default function ObservationDetails({ observation }) {
   );
 
   const renderInstitutionalModel = () => {
+    if (!observation) return null;
+
+    // Helper to get data for a specific visit with inheritance fallbacks
+    const getVisitData = (visitNum) => {
+      const v1 = observation;
+      const v2 = observation.evaluations_v2 || {};
+      const v3 = observation.evaluations_v3 || {};
+      const s2 = observation.scores_v2 || {};
+      const s3 = observation.scores_v3 || {};
+      const c2 = observation.comments_v2 || {};
+      const c3 = observation.comments_v3 || {};
+
+      const getField = (field, type = 'evaluation') => {
+        const val1 = v1[field];
+        let val2, val3;
+        
+        if (type === 'score') {
+          val2 = s2[field];
+          val3 = s3[field];
+        } else if (type === 'comment') {
+          val2 = c2[field];
+          val3 = c3[field];
+        } else {
+          val2 = v2[field];
+          val3 = v3[field];
+        }
+
+        if (visitNum === 1) return val1;
+        if (visitNum === 2) return (val2 !== undefined && val2 !== null) ? val2 : val1;
+        if (visitNum === 3) {
+          if (val3 !== undefined && val3 !== null) return val3;
+          if (val2 !== undefined && val2 !== null) return val2;
+          return val1;
+        }
+        return null;
+      };
+
+      return {
+        date: visitNum === 1 ? observation.visit_date : (visitNum === 2 ? observation.revisit_date_1 : observation.revisit_date_2),
+        type: getField('visit_type'),
+        type_other: getField('visit_type_other'),
+        objectives: getField('visit_objectives') || [],
+        objectives_other: getField('visit_objectives_other'),
+        evaluations: {
+          planning: getField('planning_evaluation'),
+          methodology: getField('methodology_evaluation'),
+          learning: getField('learning_evaluation'),
+          management: getField('management_evaluation'),
+          identity: getField('identity_evaluation')
+        },
+        scores: {
+          plan_alignment: getField('plan_alignment_score', 'score'),
+          plan_content: getField('plan_content_score', 'score'),
+          plan_objectives: getField('plan_objectives_score', 'score'),
+          plan_references: getField('plan_references_score', 'score'),
+          meth_adequate: getField('meth_adequate_score', 'score'),
+          meth_strategies: getField('meth_strategies_score', 'score'),
+          meth_resources: getField('meth_resources_score', 'score'),
+          meth_clarity: getField('meth_clarity_score', 'score'),
+          learn_instruments: getField('learn_instruments_score', 'score'),
+          learn_formative: getField('learn_formative_score', 'score'),
+          learn_feedback: getField('learn_feedback_score', 'score'),
+          learn_criteria: getField('learn_criteria_score', 'score'),
+          man_space: getField('man_space_score', 'score'),
+          man_respect: getField('man_respect_score', 'score'),
+          man_conflict: getField('man_conflict_score', 'score'),
+          man_environment: getField('man_environment_score', 'score'),
+          man_material: getField('man_material_score', 'score'),
+          man_content: getField('man_content_score', 'score'),
+          man_activities: getField('man_activities_score', 'score'),
+          man_monitoring: getField('man_monitoring_score', 'score'),
+          ident_values: getField('ident_values_score', 'score'),
+          ident_posture: getField('ident_posture_score', 'score'),
+          ident_language: getField('ident_language_score', 'score')
+        },
+        comments: {
+          planning: getField('planning_observations', 'comment'),
+          methodology: getField('methodology_observations', 'comment'),
+          learning: getField('learning_observations', 'comment'),
+          management: getField('management_observations', 'comment'),
+          identity: getField('identity_observations', 'comment'),
+          strong_points: getField('strong_points', 'comment'),
+          improvement: getField('improvement_opportunities', 'comment'),
+          guidelines: getField('pedagogical_guidelines', 'comment'),
+          synthesis: getField('observation_synthesis', 'comment'),
+          forwarding: getField('forwarding', 'comment')
+        },
+        teacher_aware: getField('teacher_aware')
+      };
+    };
+
+    const visitCount = observation.revisit_date_2 ? 3 : (observation.revisit_date_1 ? 2 : 1);
+    const pages = [];
+
     const isChecked = (val, target) => val === target ? '(X)' : '( )';
-    const scoreX = (val, target) => val === target ? 'X' : '';
+    
+    // NEW: Smart colored markers for rubric grid only
+    const renderScoreMarkers = (field, score, currentPage) => {
+      const v1 = observation[field];
+      const v2 = observation.scores_v2?.[field];
+      const v3 = observation.scores_v3?.[field];
 
-    return (
-      <div className="institutional-model" style={{ 
-        color: '#000', 
-        fontFamily: '"Times New Roman", Times, serif',
-        lineHeight: '1.2'
-      }}>
-        {/* HEADER */}
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <img 
-            src={bannerImg} 
-            alt="Banner Institucional" 
-            style={{ width: '100%', maxHeight: '100px', objectFit: 'contain', marginBottom: '10px' }} 
-          />
-          <h1 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0', textTransform: 'uppercase' }}>
-            INSTRUMENTO DE OBSERVAÇÃO EM SALA DE AULA
-          </h1>
-          <h2 style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>
-            Coordenação Pedagógica – {observation.series?.segments?.name || observation.series?.name || 'N/A'}
-          </h2>
+      const markers = [];
+      const colors = { 1: '#0ea5e9', 2: '#10b981', 3: '#f59e0b' };
+
+      // Rule: Page 1 always shows original in Blue (or black if you prefer, but Blue is the 'Original' ID)
+      if (v1 === score) {
+        markers.push(<span key="1" style={{ color: colors[1] }}>X</span>);
+      }
+
+      // Rule: Page 2 shows V2 if it changed from V1
+      if (currentPage >= 2 && v2 !== undefined && v2 !== null && v2 !== v1 && v2 === score) {
+        markers.push(<span key="2" style={{ color: colors[2] }}>X</span>);
+      }
+
+      // Rule: Page 3 shows V3 if it changed from V2 (or V1)
+      if (currentPage === 3 && v3 !== undefined && v3 !== null && v3 !== v2 && v3 !== v1 && v3 === score) {
+        markers.push(<span key="3" style={{ color: colors[3] }}>X</span>);
+      }
+
+      return (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', fontWeight: 'bold' }}>
+          {markers}
         </div>
+      );
+    };
 
-        {/* 1. IDENTIFICAÇÃO */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
-          <thead>
-            <tr>
-              <th colSpan="4" style={{ border: '1px solid #000', padding: '4px', textAlign: 'left', backgroundColor: '#f3f4f6', fontSize: '12px' }}>
-                1. IDENTIFICAÇÃO
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', width: '50%' }}>
-                <strong>Unidade Escolar:</strong> {selectedSchool?.name}
-              </td>
-              <td colSpan="3" style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
-                <strong>Data da Visita:</strong> {observation.visit_date ? observation.visit_date.split('-').reverse().join('/') : 'N/A'}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
-                <strong>Professor(a):</strong> {observation.teachers?.name}
-              </td>
-              <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', width: '25%' }}>
-                <strong>Disciplina:</strong> {observation.subjects?.name}
-              </td>
-              <td colSpan="2" style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
-                <strong>Ano/Série:</strong> {observation.series?.name}
-              </td>
-            </tr>
-            <tr>
-              <td colSpan="4" style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
-                <strong>Tipo de Visita:</strong> 
-                <span style={{ marginLeft: '10px' }}>{isChecked(observation.visit_type, 'Formativa')} Formativa</span>
-                <span style={{ marginLeft: '10px' }}>{isChecked(observation.visit_type, 'Acompanhamento')} Acompanhamento</span>
-                <span style={{ marginLeft: '10px' }}>{isChecked(observation.visit_type, 'Devolutiva')} Devolutiva</span>
-                <span style={{ marginLeft: '10px' }}>{observation.visit_type === 'Outro' ? `(X) Outro: ${observation.visit_type_other}` : '( ) Outro: __________'}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    for (let v = 1; v <= visitCount; v++) {
+      const data = getVisitData(v);
 
-        {/* OBJECTIVES */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
-          <thead>
-            <tr>
-              <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'left', backgroundColor: '#f3f4f6', fontSize: '12px', width: '90%' }}>
-                +
-              </th>
-              <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', backgroundColor: '#f3f4f6', fontSize: '12px' }}>
-                (✓)
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              'Acompanhar a prática pedagógica',
-              'Observar a aplicação da BNCC e dos referenciais institucionais',
-              'Apoiar o desenvolvimento profissional docente',
-              'Monitorar processos de ensino e aprendizagem'
-            ].map((obj, i) => (
-              <tr key={i}>
-                <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>{obj}</td>
-                <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>
-                  {observation.visit_objectives?.includes(obj) ? '✓' : ''}
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
-                <strong>Outro:</strong> {observation.visit_objectives_other || ''}
-              </td>
-              <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>
-                {observation.visit_objectives?.includes('Outro') ? '✓' : ''}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      pages.push(
+        <div key={v} className="institutional-model" style={{ 
+          color: '#000', 
+          fontFamily: '"Times New Roman", Times, serif',
+          lineHeight: '1.2',
+          backgroundColor: 'white',
+          padding: '20px',
+          marginBottom: v < visitCount ? '50px' : '0',
+          pageBreakAfter: 'always'
+        }}>
+          {/* HEADER */}
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <img 
+              src={bannerImg} 
+              alt="Banner Institucional" 
+              style={{ width: '100%', maxHeight: '100px', objectFit: 'contain', marginBottom: '10px' }} 
+            />
+            <h1 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0', textTransform: 'uppercase' }}>
+              INSTRUMENTO DE OBSERVAÇÃO EM SALA DE AULA
+            </h1>
+            <h2 style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>
+              Coordenação Pedagógica – {observation.series?.segments?.name || observation.series?.name || 'N/A'}
+            </h2>
+          </div>
 
-        {/* SECTIONS 3-7 (Iterative) */}
-        {[
-          { 
-            id: 3, title: 'PLANEJAMENTO E ALINHAMENTO CURRICULAR', 
-            base: 'Base: BNCC, Referenciais Curriculares da Educação Infantil e Regimento da Educação Adventista',
-            eval: observation.planning_evaluation,
-            obs: observation.planning_observations,
-            items: [
-              { label: 'O plano de aula está alinhado às habilidades/competências da BNCC.', score: observation.plan_alignment_score },
-              { label: 'O conteúdo aplicado está de acordo com a Sequência Didática da AP.', score: observation.plan_content_score },
-              { label: 'Os objetivos da aula estão claros e coerentes com a série/ano.', score: observation.plan_objectives_score },
-              { label: 'Há conexão com os referenciais curriculares institucionais.', score: observation.plan_references_score }
-            ]
-          },
-          { 
-            id: 4, title: 'METODOLOGIA E ESTRATÉGIAS DE ENSINO', 
-            eval: observation.methodology_evaluation,
-            obs: observation.methodology_observations,
-            items: [
-              { label: 'Metodologias adequadas à faixa etária e ao componente curricular.', score: observation.meth_adequate_score },
-              { label: 'Estratégias que favorecem o aprendizado do estudante.', score: observation.meth_strategies_score },
-              { label: 'Uso Intencional de recursos didáticos e tecnológicos.', score: observation.meth_resources_score },
-              { label: 'Clareza na condução da aula e nas orientações dadas aos alunos.', score: observation.meth_clarity_score }
-            ]
-          },
-          { 
-            id: 5, title: 'AVALIAÇÃO DA APRENDIZAGEM', 
-            subtitle: 'Conforme princípios da avaliação formativa e institucional',
-            eval: observation.learning_evaluation,
-            obs: observation.learning_observations,
-            items: [
-              { label: 'Instrumentos avaliativos coerentes com os objetivos da aula.', score: observation.learn_instruments_score },
-              { label: 'Avaliação formativa presente durante a aula.', score: observation.learn_formative_score },
-              { label: 'Devolutivas claras aos estudantes.', score: observation.learn_feedback_score },
-              { label: 'Critérios de avaliação compreensíveis e alinhados ao planejamento.', score: observation.learn_criteria_score }
-            ]
-          },
-          { 
-            id: 6, title: 'GESTÃO DE SALA DE AULA E CLIMA ESCOLAR', 
-            eval: observation.management_evaluation,
-            obs: observation.management_observations,
-            items: [
-              { label: 'Organização do espaço e do tempo pedagógico.', score: observation.man_space_score },
-              { label: 'Relação respeitosa entre professor e estudantes.', score: observation.man_respect_score },
-              { label: 'Estratégias de mediação de conflitos, quando necessário.', score: observation.man_conflict_score },
-              { label: 'Ambiente favorável à aprendizagem.', score: observation.man_environment_score },
-              { label: 'Uso adequado do material didático.', score: observation.man_material_score },
-              { label: 'Registro do conteúdo no caderno dos alunos.', score: observation.man_content_score },
-              { label: 'As atividades são bem orientadas.', score: observation.man_activities_score },
-              { label: 'O professor acompanha sua realização circulando pela sala tirando dúvidas.', score: observation.man_monitoring_score }
-            ]
-          },
-          { 
-            id: 7, title: 'IDENTIDADE CONFESSIONAL E VALORES ADVENTISTAS', 
-            eval: observation.identity_evaluation,
-            obs: observation.identity_observations,
-            items: [
-              { label: 'Integração de valores filosóficos de forma natural e ética.', score: observation.ident_values_score },
-              { label: 'Postura docente coerente com os princípios da Educação Adventista.', score: observation.ident_posture_score },
-              { label: 'Linguagem, atitudes e exemplos alinhados à proposta confessional.', score: observation.ident_language_score }
-            ]
-          }
-        ].map((section) => (
-          <table key={section.id} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
+          {/* 1. IDENTIFICAÇÃO */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
             <thead>
               <tr>
-                <th colSpan="5" style={{ border: '1px solid #000', padding: '4px', textAlign: 'left', backgroundColor: '#f3f4f6', fontSize: '11px' }}>
-                  {section.id}. {section.title}
-                  {section.base && <div style={{ fontSize: '9px', fontWeight: 'normal', fontStyle: 'italic' }}>{section.base}</div>}
-                  {section.subtitle && <div style={{ fontSize: '9px', fontWeight: 'normal', fontStyle: 'italic' }}>{section.subtitle}</div>}
+                <th colSpan="4" style={{ border: '1px solid #000', padding: '4px', textAlign: 'left', backgroundColor: '#f3f4f6', fontSize: '12px' }}>
+                  1. IDENTIFICAÇÃO
                 </th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td colSpan="5" style={{ border: '1px solid #000', padding: '4px', fontSize: '10px' }}>
-                  <strong>Avaliação:</strong>
-                  <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Atende plenamente')} Atende plenamente</span>
-                  <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Atende parcialmente')} Atende parcialmente</span>
-                  <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Não atende')} Não atende</span>
-                  <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Não observado')} Não observado</span>
+                <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', width: '50%' }}>
+                  <strong>Unidade Escolar:</strong> {selectedSchool?.name}
+                </td>
+                <td colSpan="3" style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
+                  <strong>Data da Visita:</strong> {data.date ? data.date.split('-').reverse().join('/') : 'N/A'}
                 </td>
               </tr>
-              <tr style={{ backgroundColor: '#f9fafb', textAlign: 'center', fontSize: '9px' }}>
-                <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'left', width: '80%' }}>4- Excelente / 3- Adequado / 2 – Em desenvolvimento / 1- Necessita de Acompanhamento</td>
-                <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>4</td>
-                <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>3</td>
-                <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>2</td>
-                <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>1</td>
-              </tr>
-              {section.items.map((item, idx) => (
-                <tr key={idx}>
-                  <td style={{ border: '1px solid #000', padding: '4px', fontSize: '10px' }}>{item.label}</td>
-                  <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>{scoreX(item.score, 4)}</td>
-                  <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>{scoreX(item.score, 3)}</td>
-                  <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>{scoreX(item.score, 2)}</td>
-                  <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>{scoreX(item.score, 1)}</td>
-                </tr>
-              ))}
               <tr>
-                <td colSpan="5" style={{ border: '1px solid #000', padding: '4px', fontSize: '10px', minHeight: '40px' }}>
-                  <strong>Observações da Coordenação:</strong> {section.obs}
+                <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
+                  <strong>Professor(a):</strong> {observation.teachers?.name}
+                </td>
+                <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', width: '25%' }}>
+                  <strong>Disciplina:</strong> {observation.subjects?.name}
+                </td>
+                <td colSpan="2" style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
+                  <strong>Ano/Série:</strong> {observation.series?.name}
+                </td>
+              </tr>
+              <tr>
+                <td colSpan="4" style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
+                  <strong>Tipo de Visita:</strong> 
+                  <span style={{ marginLeft: '10px' }}>{isChecked(data.type, 'Formativa')} Formativa</span>
+                  <span style={{ marginLeft: '10px' }}>{isChecked(data.type, 'Acompanhamento')} Acompanhamento</span>
+                  <span style={{ marginLeft: '10px' }}>{isChecked(data.type, 'Devolutiva')} Devolutiva</span>
+                  <span style={{ marginLeft: '10px' }}>{data.type === 'Outro' ? `(X) Outro: ${data.type_other}` : '( ) Outro: __________'}</span>
                 </td>
               </tr>
             </tbody>
           </table>
-        ))}
 
-        {/* 8-11 REMAINING SECTIONS */}
-        <div style={{ fontSize: '11px', marginBottom: '10px' }}>
-          <strong>8. PONTOS FORTES DA AULA:</strong>
-          <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{observation.strong_points}</div>
-        </div>
+          {/* OBJECTIVES */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
+            <thead>
+              <tr>
+                <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'left', backgroundColor: '#f3f4f6', fontSize: '12px', width: '90%' }}>
+                  Objetivos da Visita
+                </th>
+                <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', backgroundColor: '#f3f4f6', fontSize: '12px' }}>
+                  (✓)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                'Acompanhar a prática pedagógica',
+                'Observar a aplicação da BNCC e dos referenciais institucionais',
+                'Apoiar o desenvolvimento profissional docente',
+                'Monitorar processos de ensino e aprendizagem'
+              ].map((obj, i) => (
+                <tr key={i}>
+                  <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>{obj}</td>
+                  <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>
+                    {data.objectives.includes(obj) ? '✓' : ''}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
+                  <strong>Outro:</strong> {data.objectives.includes('Outro') ? data.objectives_other : ''}
+                </td>
+                <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>
+                  {data.objectives.includes('Outro') ? '✓' : ''}
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-        <div style={{ fontSize: '11px', marginBottom: '10px' }}>
-          <strong>9. OPORTUNIDADES DE APRIMORAMENTO:</strong>
-          <div style={{ fontSize: '9px', fontStyle: 'italic' }}>(Orientações formativas da coordenação pedagógica)</div>
-          <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{observation.improvement_opportunities}</div>
-        </div>
+          {/* RUBRICS */}
+          {[
+            { 
+              id: 3, title: 'PLANEJAMENTO E ALINHAMENTO CURRICULAR', 
+              base: 'Baseado na Sequência Didática (SD) e Plano de Aula (PA)',
+              eval: data.evaluations.planning,
+              obs: data.comments.planning,
+              items: [
+                { label: 'O plano de aula está alinhado às habilidades/competências da BNCC.', key: 'plan_alignment_score' },
+                { label: 'O conteúdo aplicado está de acordo com a Sequência Didática da AP.', key: 'plan_content_score' },
+                { label: 'Os objetivos da aula estão claros e coerentes com a série/ano.', key: 'plan_objectives_score' },
+                { label: 'Há conexão com os referenciais curriculares institucionais.', key: 'plan_references_score' }
+              ]
+            },
+            { 
+              id: 4, title: 'METODOLOGIA E ESTRATÉGIAS DE ENSINO', 
+              eval: data.evaluations.methodology,
+              obs: data.comments.methodology,
+              items: [
+                { label: 'Metodologias adequadas à faixa etária e ao componente curricular.', key: 'meth_adequate_score' },
+                { label: 'Estratégias que favorecem o aprendizado do estudante.', key: 'meth_strategies_score' },
+                { label: 'Uso Intencional de recursos didáticos e tecnológicos.', key: 'meth_resources_score' },
+                { label: 'Clareza na condução da aula e nas orientações dadas aos alunos.', key: 'meth_clarity_score' }
+              ]
+            },
+            { 
+              id: 5, title: 'AVALIAÇÃO DA APRENDIZAGEM', 
+              subtitle: 'Conforme princípios da avaliação formativa e institucional',
+              eval: data.evaluations.learning,
+              obs: data.comments.learning,
+              items: [
+                { label: 'Instrumentos avaliativos coerentes com os objetivos propostos.', key: 'learn_instruments_score' },
+                { label: 'Evidências de avaliação formativa e acompanhamento individual.', key: 'learn_formative_score' },
+                { label: 'Devolutivas claras aos estudantes sobre seu desempenho.', key: 'learn_feedback_score' },
+                { label: 'Critérios de avaliação alinhados ao planejamento.', key: 'learn_criteria_score' }
+              ]
+            },
+            { 
+              id: 6, title: 'GESTÃO DE SALA DE AULA E CLIMA ESCOLAR', 
+              eval: data.evaluations.management,
+              obs: data.comments.management,
+              items: [
+                { label: 'Organização do espaço e do tempo pedagógico.', key: 'man_space_score' },
+                { label: 'Relação respeitosa entre professor e estudantes.', key: 'man_respect_score' },
+                { label: 'Estratégias de mediação de conflitos, quando necessário.', key: 'man_conflict_score' },
+                { label: 'Ambiente favorável à aprendizagem.', key: 'man_environment_score' },
+                { label: 'Uso adequado do material didático.', key: 'man_material_score' },
+                { label: 'Registro do conteúdo no caderno dos alunos.', key: 'man_content_score' },
+                { label: 'As atividades são bem orientadas.', key: 'man_activities_score' },
+                { label: 'O professor acompanha sua realização circulando pela sala tirando dúvidas dos alunos.', key: 'man_monitoring_score' }
+              ]
+            },
+            { 
+              id: 7, title: 'IDENTIDADE CONFESSIONAL E VALORES ADVENTISTAS', 
+              eval: data.evaluations.identity,
+              obs: data.comments.identity,
+              items: [
+                { label: 'Integração de valores filosóficos de forma natural e ética.', key: 'ident_values_score' },
+                { label: 'Postura docente coerente com os princípios da Ed. Adventista.', key: 'ident_posture_score' },
+                { label: 'Linguagem, atitudes e exemplos alinhados à proposta confessional.', key: 'ident_language_score' }
+              ]
+            }
+          ].map((section) => (
+            <table key={section.id} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
+              <thead>
+                <tr>
+                  <th colSpan="5" style={{ border: '1px solid #000', padding: '4px', textAlign: 'left', backgroundColor: '#f3f4f6', fontSize: '11px' }}>
+                    {section.id}. {section.title}
+                    {section.base && <div style={{ fontSize: '9px', fontWeight: 'normal', fontStyle: 'italic' }}>{section.base}</div>}
+                    {section.subtitle && <div style={{ fontSize: '9px', fontWeight: 'normal', fontStyle: 'italic' }}>{section.subtitle}</div>}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan="5" style={{ border: '1px solid #000', padding: '4px', fontSize: '10px' }}>
+                    <strong>Avaliação:</strong>
+                    <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Atende plenamente')} Atende plenamente</span>
+                    <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Atende parcialmente')} Atende parcialmente</span>
+                    <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Não atende')} Não atende</span>
+                    <span style={{ marginLeft: '10px' }}>{isChecked(section.eval, 'Não observado')} Não observado</span>
+                  </td>
+                </tr>
+                <tr style={{ backgroundColor: '#f9fafb', textAlign: 'center', fontSize: '9px' }}>
+                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'left', width: '80%' }}>4- Excelente / 3- Adequado / 2 – Em desenvolvimento / 1- Necessita de Acompanhamento</td>
+                  <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>4</td>
+                  <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>3</td>
+                  <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>2</td>
+                  <td style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>1</td>
+                </tr>
+                {section.items.map((item, idx) => (
+                  <tr key={idx}>
+                    <td style={{ border: '1px solid #000', padding: '4px', fontSize: '10px' }}>{item.label}</td>
+                    {[4, 3, 2, 1].map(s => (
+                      <td key={s} style={{ border: '1px solid #000', padding: '4px', textAlign: 'center', fontSize: '10px' }}>
+                        {renderScoreMarkers(item.key, s, v)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan="5" style={{ border: '1px solid #000', padding: '4px', fontSize: '10px', minHeight: '40px' }}>
+                    <strong>Observações da Coordenação:</strong> {section.obs}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          ))}
 
-        <div style={{ fontSize: '11px', marginBottom: '10px' }}>
-          <strong>10. DEVOLUTIVA AO(À) PROFESSOR(A)</strong>
-          <div style={{ fontWeight: 'bold' }}>Síntese da Observação:</div>
-          <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{observation.observation_synthesis}</div>
-          
-          <div style={{ fontWeight: 'bold', marginTop: '10px' }}>Orientações Pedagógicas:</div>
-          <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{observation.pedagogical_guidelines}</div>
-          
-          <div style={{ fontWeight: 'bold', marginTop: '10px' }}>Combinados e Encaminhamentos:</div>
-          <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{observation.forwarding}</div>
-        </div>
+          {/* REMAINING SECTIONS */}
+          <div style={{ fontSize: '11px', marginBottom: '10px' }}>
+            <strong>8. PONTOS FORTES DA AULA:</strong>
+            <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{data.comments.strong_points}</div>
+          </div>
 
-        <div style={{ fontSize: '11px', marginTop: '20px' }}>
-          <strong>11. REGISTRO FINAL</strong> - Professor(a) ciente da devolutiva: 
-          <span style={{ marginLeft: '10px' }}>{isChecked(observation.teacher_aware, true)} Sim</span>
-          <span style={{ marginLeft: '10px' }}>{isChecked(observation.teacher_aware, false)} Não</span>
-        </div>
+          <div style={{ fontSize: '11px', marginBottom: '10px' }}>
+            <strong>9. OPORTUNIDADES DE APRIMORAMENTO:</strong>
+            <div style={{ fontSize: '9px', fontStyle: 'italic' }}>(Orientações formativas da coordenação pedagógica)</div>
+            <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{data.comments.improvement}</div>
+          </div>
 
-        <div style={{ marginTop: '40px', fontSize: '11px' }}>
-          <div style={{ marginBottom: '15px' }}>Assinatura da Coordenação Pedagógica: ________________________________________________</div>
-          <div style={{ marginBottom: '15px' }}>Assinatura do(a) Professor(a): ________________________________________________</div>
-          <div>Data: ____ / ____ / ________</div>
-        </div>
+          <div style={{ fontSize: '11px', marginBottom: '10px' }}>
+            <strong>10. DEVOLUTIVA AO(À) PROFESSOR(A)</strong>
+            <div style={{ fontWeight: 'bold' }}>Síntese da Observação:</div>
+            <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{data.comments.synthesis}</div>
+            
+            <div style={{ fontWeight: 'bold', marginTop: '10px' }}>Orientações Pedagógicas:</div>
+            <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{data.comments.guidelines}</div>
+            
+            <div style={{ fontWeight: 'bold', marginTop: '10px' }}>Combinados e Encaminhamentos:</div>
+            <div style={{ borderBottom: '1px solid #ccc', minHeight: '40px', padding: '5px' }}>{data.comments.forwarding}</div>
+          </div>
 
-        <div style={{ marginTop: '30px', fontSize: '10px', fontStyle: 'italic', textAlign: 'justify', color: '#444' }}>
-          <strong>Observação Institucional:</strong> Este instrumento tem caráter formativo, orientador e colaborativo, conforme o Regimento Escolar e a proposta pedagógica da Rede Adventista de Educação, visando ao fortalecimento da prática docente e à melhoria contínua da aprendizagem dos estudantes.
+          <div style={{ fontSize: '11px', marginTop: '20px' }}>
+            <strong>11. REGISTRO FINAL</strong> - Professor(a) ciente da devolutiva: 
+            <span style={{ marginLeft: '10px' }}>{isChecked(data.teacher_aware, true)} Sim</span>
+            <span style={{ marginLeft: '10px' }}>{isChecked(data.teacher_aware, false)} Não</span>
+          </div>
+
+          <div style={{ marginTop: '40px', fontSize: '11px' }}>
+            <div style={{ marginBottom: '15px' }}>Assinatura da Coordenação Pedagógica: ________________________________________________</div>
+            <div style={{ marginBottom: '15px' }}>Assinatura do(a) Professor(a): ________________________________________________</div>
+            <div>Data: ____ / ____ / ________</div>
+          </div>
+
+          <div style={{ marginTop: '30px', fontSize: '10px', fontStyle: 'italic', textAlign: 'justify', color: '#444' }}>
+            <strong>Observação Institucional:</strong> Este instrumento tem caráter formativo, orientador e colaborativo, conforme o Regimento Escolar e a proposta pedagógica da Rede Adventista de Educação, visando ao fortalecimento da prática docente e à melhoria contínua da aprendizagem dos estudantes.
+          </div>
         </div>
+      );
+    }
+
+    return (
+      <div className="institutional-model-wrapper no-scrollbar" style={{ 
+        maxWidth: '850px', 
+        margin: '0 auto',
+        backgroundColor: '#eee',
+        padding: '20px'
+      }}>
+        {pages}
       </div>
     );
   };
