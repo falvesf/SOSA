@@ -449,6 +449,11 @@ input, select, textarea {
     margin-bottom: 0 !important;
   }
 
+  .institutional-model:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
   .page-break {
     display: block;
     page-break-before: always;

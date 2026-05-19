@@ -585,7 +585,7 @@ export default function ObservationDetails({ observation }) {
           backgroundColor: 'white',
           padding: '20px',
           marginBottom: v < visitCount ? '50px' : '0',
-          pageBreakAfter: 'always'
+          pageBreakAfter: v < visitCount ? 'always' : 'avoid'
         }}>
           {/* HEADER */}
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
