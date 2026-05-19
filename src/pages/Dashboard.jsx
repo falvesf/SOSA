@@ -143,17 +143,19 @@ export default function Dashboard() {
       periodData = months.map(m => ({ label: m, value: counts[m] })).filter(m => m.value > 0 || (months.indexOf(m.label) <= now.getMonth()));
     }
 
-    // 3. Status Card Data
-    const statusTrend = {};
-    observations.forEach(obs => {
-      const evals = [obs.planning_evaluation, obs.methodology_evaluation, obs.learning_evaluation, obs.management_evaluation, obs.identity_evaluation];
-      if (evals.some(e => e === statusFilter)) {
-        const month = new Date(obs.visit_date).getMonth();
-        statusTrend[month] = (statusTrend[month] || 0) + 1;
-      }
+    // 3. Status Card Data: Frequência do status selecionado por dimensão pedagógica
+    const dimensions = [
+      { key: 'planning_evaluation', label: 'Plan.' },
+      { key: 'methodology_evaluation', label: 'Metod.' },
+      { key: 'learning_evaluation', label: 'Aprend.' },
+      { key: 'management_evaluation', label: 'Gestão' },
+      { key: 'identity_evaluation', label: 'Ident.' }
+    ];
+    
+    const statusData = dimensions.map(dim => {
+      const count = observations.filter(obs => obs[dim.key] === statusFilter).length;
+      return { label: dim.label, value: count };
     });
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const statusData = months.map((m, i) => ({ label: m, value: statusTrend[i] || 0 })).filter((m, i) => i <= now.getMonth());
 
     return { total: totalData, period: periodData, status: statusData };
   }, [observations, totalFilter, periodRange, statusFilter]);
@@ -161,7 +163,11 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const totalCount = observations.length;
     const periodCount = chartData.period.reduce((a, b) => a + b.value, 0);
-    const statusCount = observations.filter(obs => [obs.planning_evaluation, obs.methodology_evaluation, obs.learning_evaluation, obs.management_evaluation, obs.identity_evaluation].some(e => e === statusFilter)).length;
+    // Soma total das avaliações que correspondem ao status selecionado nas 5 dimensões
+    const statusCount = observations.reduce((sum, obs) => {
+      const evals = [obs.planning_evaluation, obs.methodology_evaluation, obs.learning_evaluation, obs.management_evaluation, obs.identity_evaluation];
+      return sum + evals.filter(e => e === statusFilter).length;
+    }, 0);
     return { total: totalCount, period: periodCount, status: statusCount };
   }, [observations, chartData, statusFilter]);
 
@@ -231,22 +237,15 @@ export default function Dashboard() {
               <p className="h2" style={{ margin: 0, fontSize: '1.8rem', lineHeight: 1 }}>{stats.total}</p>
               <div style={{ height: '80px', flex: 1 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  {totalFilter === 'data' ? (
-                    <LineChart data={chartData.total}>
-                      <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3, fill: 'var(--primary)' }} />
-                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                    </LineChart>
-                  ) : (
-                    <BarChart data={chartData.total}>
-                      <Bar dataKey="value" fill="var(--primary-light)" radius={[4, 4, 0, 0]}>
-                        {chartData.total.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--primary-light)'} />
-                        ))}
-                      </Bar>
-                      <XAxis dataKey="label" hide />
-                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
-                    </BarChart>
-                  )}
+                  <BarChart data={chartData.total}>
+                    <Bar dataKey="value" fill="var(--primary-light)" radius={[4, 4, 0, 0]}>
+                      {chartData.total.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--primary-light)'} />
+                      ))}
+                    </Bar>
+                    <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
@@ -309,9 +308,13 @@ export default function Dashboard() {
               <div style={{ height: '80px', flex: 1 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData.status}>
-                    <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]} />
-                    <XAxis dataKey="label" hide />
-                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                    <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
+                      {chartData.status.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
+                      ))}
+                    </Bar>
+                    <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

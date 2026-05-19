@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select } from '../components/ui';
 import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings } from 'lucide-react';
@@ -597,32 +597,130 @@ export default function ObservationForm() {
     } finally { setLoading(false); }
   };
 
-  const selectedTeacher = teachers.find(t => t.id === formData.teacher_id);
+  // Agrupa professores duplicados pelo mesmo nome para exibir apenas uma vez no seletor
+  const uniqueTeachers = useMemo(() => {
+    const seen = new Set();
+    const result = [];
+    teachers.forEach(t => {
+      if (!seen.has(t.name)) {
+        seen.add(t.name);
+        result.push(t);
+      }
+    });
+    return result;
+  }, [teachers]);
+
+  // Deriva o nome do professor selecionado a partir do teacher_id
+  const selectedTeacherName = useMemo(() => {
+    if (!formData.teacher_id) return '';
+    const t = teachers.find(x => x.id === formData.teacher_id);
+    return t ? t.name : '';
+  }, [formData.teacher_id, teachers]);
+
+  // Busca todos os registros correspondentes ao nome do professor selecionado (ex: caso seja cadastrado com mais de uma disciplina)
+  const matchingTeacherRecords = useMemo(() => {
+    if (!selectedTeacherName) return [];
+    return teachers.filter(t => t.name === selectedTeacherName);
+  }, [selectedTeacherName, teachers]);
+
+  // Função auxiliar para determinar qual ID de cadastro do professor usar com base na série/disciplina selecionada
+  const findBestTeacherRecord = (records, seriesId, subjectId) => {
+    if (records.length <= 1) return records[0];
+    
+    // 1. Tenta achar o cadastro que atende à série E à disciplina (ou é regente)
+    const bothMatch = records.find(t => 
+      t.teacher_series?.some(ts => ts.series_id === seriesId) &&
+      (t.teacher_subjects?.some(ts => ts.subject_id === subjectId) || t.teacher_type === 'regente')
+    );
+    if (bothMatch) return bothMatch;
+
+    // 2. Tenta achar o cadastro que atende à disciplina
+    if (subjectId) {
+      const subjectMatch = records.find(t => 
+        t.teacher_subjects?.some(ts => ts.subject_id === subjectId)
+      );
+      if (subjectMatch) return subjectMatch;
+    }
+
+    // 3. Tenta achar o cadastro que atende à série
+    if (seriesId) {
+      const seriesMatch = records.find(t => 
+        t.teacher_series?.some(ts => ts.series_id === seriesId)
+      );
+      if (seriesMatch) return seriesMatch;
+    }
+
+    return records[0];
+  };
+
   let availableSeries = seriesList;
   let availableSubjects = subjects;
   
-  if (selectedTeacher) {
-    if (selectedTeacher.teacher_series?.length > 0) {
-      const allowedSeriesIds = selectedTeacher.teacher_series.map(ts => ts.series_id);
-      availableSeries = seriesList.filter(s => allowedSeriesIds.includes(s.id));
+  if (matchingTeacherRecords.length > 0) {
+    // 1. Filtrar registros de séries com base na disciplina selecionada (se houver) para evitar mostrar todas as séries juntas
+    let recordsForSeries = matchingTeacherRecords;
+    if (formData.subject_id) {
+      const subjectMatchedRecords = matchingTeacherRecords.filter(t => 
+        t.teacher_subjects?.some(ts => ts.subject_id === formData.subject_id) || t.teacher_type === 'regente'
+      );
+      if (subjectMatchedRecords.length > 0) {
+        recordsForSeries = subjectMatchedRecords;
+      }
+    }
+
+    // Coleta a união de todas as séries permitidas a partir dos registros filtrados
+    const allowedSeriesIds = new Set();
+    recordsForSeries.forEach(t => {
+      if (t.teacher_series?.length > 0) {
+        t.teacher_series.forEach(ts => allowedSeriesIds.add(ts.series_id));
+      }
+    });
+
+    if (allowedSeriesIds.size > 0) {
+      availableSeries = seriesList.filter(s => allowedSeriesIds.has(s.id));
     }
     
-    if (selectedTeacher.teacher_type === 'especialista') {
-      if (selectedTeacher.teacher_subjects?.length > 0) {
-        const allowedSubjectIds = selectedTeacher.teacher_subjects.map(ts => ts.subject_id);
-        availableSubjects = subjects.filter(s => allowedSubjectIds.includes(s.id));
-      } else {
-        availableSubjects = [];
-      }
-    } else {
-      const allowedSegments = Array.from(new Set(
-        (selectedTeacher.teacher_series || [])
-          .map(ts => seriesList.find(s => s.id === ts.series_id)?.segment_id)
-          .filter(Boolean)
-      ));
-      availableSubjects = subjects.filter(sub => 
-        sub.segment_subjects && sub.segment_subjects.some(ss => allowedSegments.includes(ss.segment_id))
+    // 2. Filtrar registros de disciplinas com base na série selecionada (se houver)
+    let recordsForSubjects = matchingTeacherRecords;
+    if (formData.series_id) {
+      const seriesMatchedRecords = matchingTeacherRecords.filter(t => 
+        t.teacher_series?.some(ts => ts.series_id === formData.series_id)
       );
+      if (seriesMatchedRecords.length > 0) {
+        recordsForSubjects = seriesMatchedRecords;
+      }
+    }
+
+    // Coleta a união de todas as disciplinas permitidas
+    const allowedSubjectIds = new Set();
+    let hasRegente = false;
+    
+    recordsForSubjects.forEach(t => {
+      if (t.teacher_type === 'regente') {
+        hasRegente = true;
+      }
+      if (t.teacher_subjects?.length > 0) {
+        t.teacher_subjects.forEach(ts => allowedSubjectIds.add(ts.subject_id));
+      }
+    });
+
+    if (hasRegente) {
+      const allowedSegments = new Set();
+      recordsForSubjects.forEach(t => {
+        if (t.teacher_series?.length > 0) {
+          t.teacher_series.forEach(ts => {
+            const seriesObj = seriesList.find(s => s.id === ts.series_id);
+            if (seriesObj?.segment_id) {
+              allowedSegments.add(seriesObj.segment_id);
+            }
+          });
+        }
+      });
+      availableSubjects = subjects.filter(sub => 
+        sub.segment_subjects && sub.segment_subjects.some(ss => allowedSegments.has(ss.segment_id))
+      );
+    } else {
+      availableSubjects = subjects.filter(s => allowedSubjectIds.has(s.id));
     }
   }
 
@@ -898,21 +996,32 @@ export default function ObservationForm() {
                 <label className="form-label">Professor(a)</label>
                 <select 
                   className="form-input"
-                  value={formData.teacher_id || ''}
+                  value={selectedTeacherName}
                   onChange={(e) => {
-                    const tId = e.target.value;
-                    const teacher = teachers.find(t => t.id === tId);
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      teacher_id: tId, 
-                      series_id: teacher?.teacher_series?.[0]?.series_id || '',
-                      subject_id: teacher?.teacher_subjects?.[0]?.subject_id || ''
-                    }));
+                    const name = e.target.value;
+                    const matches = teachers.filter(t => t.name === name);
+                    if (matches.length > 0) {
+                      // Define o cadastro inicial mas deixa série e disciplina vazias para permitir livre escolha
+                      const defaultTeacher = matches[0];
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        teacher_id: defaultTeacher.id, 
+                        series_id: '',
+                        subject_id: ''
+                      }));
+                    } else {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        teacher_id: '', 
+                        series_id: '',
+                        subject_id: ''
+                      }));
+                    }
                   }}
                   required
                 >
                   <option value="">Selecione o professor</option>
-                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {uniqueTeachers.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -937,7 +1046,35 @@ export default function ObservationForm() {
                 <select 
                   className="form-input"
                   value={formData.series_id || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, series_id: e.target.value }))}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    let finalTeacherId = formData.teacher_id;
+                    if (matchingTeacherRecords.length > 1) {
+                      const bestTeacher = findBestTeacherRecord(matchingTeacherRecords, sId, formData.subject_id);
+                      if (bestTeacher) finalTeacherId = bestTeacher.id;
+                    }
+                    
+                    // Reseta a disciplina se ela não pertencer à nova série selecionada
+                    let finalSubjectId = formData.subject_id;
+                    const nextMatchedRecords = matchingTeacherRecords.filter(t => 
+                      t.teacher_series?.some(ts => ts.series_id === sId)
+                    );
+                    const nextAllowedSubjectIds = new Set();
+                    nextMatchedRecords.forEach(t => {
+                      t.teacher_subjects?.forEach(ts => nextAllowedSubjectIds.add(ts.subject_id));
+                    });
+                    const isAnyRegente = nextMatchedRecords.some(t => t.teacher_type === 'regente');
+                    if (!isAnyRegente && finalSubjectId && !nextAllowedSubjectIds.has(finalSubjectId)) {
+                      finalSubjectId = '';
+                    }
+
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      series_id: sId,
+                      teacher_id: finalTeacherId,
+                      subject_id: finalSubjectId
+                    }));
+                  }}
                   required
                 >
                   <option value="">Selecione a série</option>
@@ -949,7 +1086,34 @@ export default function ObservationForm() {
                 <select 
                   className="form-input"
                   value={formData.subject_id || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, subject_id: e.target.value }))}
+                  onChange={(e) => {
+                    const subId = e.target.value;
+                    let finalTeacherId = formData.teacher_id;
+                    if (matchingTeacherRecords.length > 1) {
+                      const bestTeacher = findBestTeacherRecord(matchingTeacherRecords, formData.series_id, subId);
+                      if (bestTeacher) finalTeacherId = bestTeacher.id;
+                    }
+                    
+                    // Reseta a série se ela não pertencer à nova disciplina selecionada
+                    let finalSeriesId = formData.series_id;
+                    const nextMatchedRecords = matchingTeacherRecords.filter(t => 
+                      t.teacher_subjects?.some(ts => ts.subject_id === subId) || t.teacher_type === 'regente'
+                    );
+                    const nextAllowedSeriesIds = new Set();
+                    nextMatchedRecords.forEach(t => {
+                      t.teacher_series?.forEach(ts => nextAllowedSeriesIds.add(ts.series_id));
+                    });
+                    if (finalSeriesId && !nextAllowedSeriesIds.has(finalSeriesId)) {
+                      finalSeriesId = '';
+                    }
+
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      subject_id: subId,
+                      teacher_id: finalTeacherId,
+                      series_id: finalSeriesId
+                    }));
+                  }}
                   required
                 >
                   <option value="">Selecione a disciplina</option>
