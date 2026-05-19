@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin } from 'lucide-react';
 import ObservationDetails from './ObservationDetails';
 import { 
   ResponsiveContainer, 
@@ -36,6 +36,11 @@ export default function Dashboard() {
   // Compact Mode State (persisted in localStorage)
   const [isCompactMode, setIsCompactMode] = useState(() => {
     return localStorage.getItem('dashboard_compact_mode') === 'true';
+  });
+
+  // Pin State (persisted in localStorage)
+  const [isPinned, setIsPinned] = useState(() => {
+    return localStorage.getItem('dashboard_pinned') === 'true';
   });
 
   const fetchObservations = async () => {
@@ -211,12 +216,29 @@ export default function Dashboard() {
 
   return (
     <div className="container animate-fade-in" style={{ padding: 'var(--space-4) 0' }}>
+      {/* Title section (always scrolls) */}
       <div className="flex justify-between items-end mb-6 gap-4">
         <div>
           <h1 className="h1" style={{ margin: 0 }}>Dashboard</h1>
           <p className="text-xs text-muted font-medium">{selectedBimestre}</p>
         </div>
-        <div className="flex gap-2">
+      </div>
+
+      {/* Painel Sticky (Botões + Cards) */}
+      <div className={isPinned ? 'sticky-metrics-container' : ''}>
+        <div className="flex justify-end gap-2 mb-4">
+          <Button 
+            variant={isPinned ? "primary" : "secondary"} 
+            onClick={() => setIsPinned(prev => {
+              const next = !prev;
+              localStorage.setItem('dashboard_pinned', String(next));
+              return next;
+            })} 
+            style={{ padding: '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            <Pin size={14} style={{ transform: isPinned ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
+            {isPinned ? 'Desfixar' : 'Fixar Painel'}
+          </Button>
           <Button 
             variant="secondary" 
             onClick={() => setIsCompactMode(prev => {
@@ -233,113 +255,113 @@ export default function Dashboard() {
             <Calendar size={14} /> Atualizar
           </Button>
         </div>
-      </div>
 
-      {/* Stats Cards Grid */}
-      <div className="dashboard-grid">
-        {/* Total Card */}
-        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--primary)' }}>
-          <div className="flex justify-between items-start mb-2">
-            <div style={{ backgroundColor: 'var(--primary-light)', padding: '6px', borderRadius: '6px' }}>
-              <Calendar size={18} className="text-primary" />
+        {/* Stats Cards Grid */}
+        <div className="dashboard-grid" style={{ marginBottom: 0 }}>
+          {/* Total Card */}
+          <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--primary)' }}>
+            <div className="flex justify-between items-start mb-2">
+              <div style={{ backgroundColor: 'var(--primary-light)', padding: '6px', borderRadius: '6px' }}>
+                <Calendar size={18} className="text-primary" />
+              </div>
+              <select style={cardSelectStyle} value={totalFilter} onChange={(e) => setTotalFilter(e.target.value)}>
+                <option value="data">Por Data</option>
+                <option value="nome">Por Nome</option>
+                <option value="serie">Por Série</option>
+                <option value="turma">Por Turma</option>
+              </select>
             </div>
-            <select style={cardSelectStyle} value={totalFilter} onChange={(e) => setTotalFilter(e.target.value)}>
-              <option value="data">Por Data</option>
-              <option value="nome">Por Nome</option>
-              <option value="serie">Por Série</option>
-              <option value="turma">Por Turma</option>
-            </select>
-          </div>
-          <div className="flex-1 flex flex-col justify-between">
-            <p style={cardLabelStyle}>Total de Observações</p>
-            <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.total}</p>
-              <div className="chart-container" style={{ flex: 1 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.total}>
-                    <Bar dataKey="value" fill="var(--primary-light)" radius={[4, 4, 0, 0]}>
-                      {chartData.total.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--primary-light)'} />
-                      ))}
-                    </Bar>
-                    {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
-                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                  </BarChart>
-                </ResponsiveContainer>
+            <div className="flex-1 flex flex-col justify-between">
+              <p style={cardLabelStyle}>Total de Observações</p>
+              <div className="flex items-end justify-between gap-4 flex-1">
+                <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.total}</p>
+                <div className="chart-container" style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData.total}>
+                      <Bar dataKey="value" fill="var(--primary-light)" radius={[4, 4, 0, 0]}>
+                        {chartData.total.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--primary-light)'} />
+                        ))}
+                      </Bar>
+                      {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
+                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Period Card */}
-        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--success)' }}>
-          <div className="flex justify-between items-start mb-2">
-            <div style={{ backgroundColor: '#ecfdf5', padding: '6px', borderRadius: '6px' }}>
-              <TrendingUp size={18} style={{ color: 'var(--success)' }} />
+          {/* Period Card */}
+          <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--success)' }}>
+            <div className="flex justify-between items-start mb-2">
+              <div style={{ backgroundColor: '#ecfdf5', padding: '6px', borderRadius: '6px' }}>
+                <TrendingUp size={18} style={{ color: 'var(--success)' }} />
+              </div>
+              <select style={cardSelectStyle} value={periodRange} onChange={(e) => setPeriodRange(e.target.value)}>
+                <option value="semana">Nesta Semana</option>
+                <option value="mes">Neste Mês</option>
+                <option value="bimestre">Neste Bimestre</option>
+                <option value="semestre">Neste Semestre</option>
+                <option value="ano">Neste Ano</option>
+              </select>
             </div>
-            <select style={cardSelectStyle} value={periodRange} onChange={(e) => setPeriodRange(e.target.value)}>
-              <option value="semana">Nesta Semana</option>
-              <option value="mes">Neste Mês</option>
-              <option value="bimestre">Neste Bimestre</option>
-              <option value="semestre">Neste Semestre</option>
-              <option value="ano">Neste Ano</option>
-            </select>
-          </div>
-          <div className="flex-1 flex flex-col justify-between">
-            <p style={cardLabelStyle}>Tendência do Período</p>
-            <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.period}</p>
-              <div className="chart-container" style={{ flex: 1 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData.period}>
-                    <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
-                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+            <div className="flex-1 flex flex-col justify-between">
+              <p style={cardLabelStyle}>Tendência do Período</p>
+              <div className="flex items-end justify-between gap-4 flex-1">
+                <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.period}</p>
+                <div className="chart-container" style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData.period}>
+                      <defs>
+                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
+                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Status Card */}
-        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--warning)' }}>
-          <div className="flex justify-between items-start mb-2">
-            <div style={{ backgroundColor: '#fffbeb', padding: '6px', borderRadius: '6px' }}>
-              <Filter size={18} style={{ color: 'var(--warning)' }} />
+          {/* Status Card */}
+          <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--warning)' }}>
+            <div className="flex justify-between items-start mb-2">
+              <div style={{ backgroundColor: '#fffbeb', padding: '6px', borderRadius: '6px' }}>
+                <Filter size={18} style={{ color: 'var(--warning)' }} />
+              </div>
+              <select style={cardSelectStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="Atende plenamente">Plenamente</option>
+                <option value="Atende parcialmente">Parcialmente</option>
+                <option value="Não atende">Não Atende</option>
+                <option value="Não observado">Não Obs.</option>
+              </select>
             </div>
-            <select style={cardSelectStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="Atende plenamente">Plenamente</option>
-              <option value="Atende parcialmente">Parcialmente</option>
-              <option value="Não atende">Não Atende</option>
-              <option value="Não observado">Não Obs.</option>
-            </select>
-          </div>
-          <div className="flex-1 flex flex-col justify-between">
-            <p style={cardLabelStyle}>Frequência do Status</p>
-            <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.status}</p>
-              <div className="chart-container" style={{ flex: 1 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.status}>
-                    <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
-                      {chartData.status.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
-                      ))}
-                    </Bar>
-                    {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
-                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                  </BarChart>
-                </ResponsiveContainer>
+            <div className="flex-1 flex flex-col justify-between">
+              <p style={cardLabelStyle}>Frequência do Status</p>
+              <div className="flex items-end justify-between gap-4 flex-1">
+                <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.status}</p>
+                <div className="chart-container" style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData.status}>
+                      <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
+                        {chartData.status.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
+                        ))}
+                      </Bar>
+                      {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
+                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       {/* Recent Observations */}

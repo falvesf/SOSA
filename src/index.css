@@ -540,3 +540,33 @@ input, select, textarea {
     margin-top: 0 !important;
   }
 }
+
+/* Sticky metrics panel styling */
+.sticky-metrics-container {
+  position: sticky;
+  top: 0;
+  background-color: var(--background);
+  z-index: 40;
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  margin-left: -24px;
+  margin-right: -24px;
+  padding-left: 24px;
+  padding-right: 24px;
+  margin-bottom: var(--space-6);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-width: 768px) {
+  .sticky-metrics-container {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+}
