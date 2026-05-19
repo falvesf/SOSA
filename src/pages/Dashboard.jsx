@@ -236,9 +236,9 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards Grid */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="dashboard-grid">
         {/* Total Card */}
-        <Card className="card-compact overflow-hidden animate-fade-in" style={{ borderLeft: '4px solid var(--primary)', minHeight: isCompactMode ? '90px' : '180px', display: 'flex', flexDirection: 'column', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--primary)' }}>
           <div className="flex justify-between items-start mb-2">
             <div style={{ backgroundColor: 'var(--primary-light)', padding: '6px', borderRadius: '6px' }}>
               <Calendar size={18} className="text-primary" />
@@ -253,28 +253,26 @@ export default function Dashboard() {
           <div className="flex-1 flex flex-col justify-between">
             <p style={cardLabelStyle}>Total de Observações</p>
             <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, fontSize: isCompactMode ? '1.5rem' : '1.8rem', lineHeight: 1 }}>{stats.total}</p>
-              {!isCompactMode && (
-                <div style={{ height: '80px', flex: 1 }} className="animate-fade-in">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData.total}>
-                      <Bar dataKey="value" fill="var(--primary-light)" radius={[4, 4, 0, 0]}>
-                        {chartData.total.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--primary-light)'} />
-                        ))}
-                      </Bar>
-                      <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />
-                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.total}</p>
+              <div className="chart-container" style={{ flex: 1 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.total}>
+                    <Bar dataKey="value" fill="var(--primary-light)" radius={[4, 4, 0, 0]}>
+                      {chartData.total.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--primary-light)'} />
+                      ))}
+                    </Bar>
+                    {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
+                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </Card>
 
         {/* Period Card */}
-        <Card className="card-compact overflow-hidden animate-fade-in" style={{ borderLeft: '4px solid var(--success)', minHeight: isCompactMode ? '90px' : '180px', display: 'flex', flexDirection: 'column', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--success)' }}>
           <div className="flex justify-between items-start mb-2">
             <div style={{ backgroundColor: '#ecfdf5', padding: '6px', borderRadius: '6px' }}>
               <TrendingUp size={18} style={{ color: 'var(--success)' }} />
@@ -290,29 +288,27 @@ export default function Dashboard() {
           <div className="flex-1 flex flex-col justify-between">
             <p style={cardLabelStyle}>Tendência do Período</p>
             <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, fontSize: isCompactMode ? '1.5rem' : '1.8rem', lineHeight: 1 }}>{stats.period}</p>
-              {!isCompactMode && (
-                <div style={{ height: '80px', flex: 1 }} className="animate-fade-in">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData.period}>
-                      <defs>
-                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
-                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.period}</p>
+              <div className="chart-container" style={{ flex: 1 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData.period}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
+                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </Card>
 
         {/* Status Card */}
-        <Card className="card-compact overflow-hidden animate-fade-in" style={{ borderLeft: '4px solid var(--warning)', minHeight: isCompactMode ? '90px' : '180px', display: 'flex', flexDirection: 'column', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--warning)' }}>
           <div className="flex justify-between items-start mb-2">
             <div style={{ backgroundColor: '#fffbeb', padding: '6px', borderRadius: '6px' }}>
               <Filter size={18} style={{ color: 'var(--warning)' }} />
@@ -327,22 +323,20 @@ export default function Dashboard() {
           <div className="flex-1 flex flex-col justify-between">
             <p style={cardLabelStyle}>Frequência do Status</p>
             <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, fontSize: isCompactMode ? '1.5rem' : '1.8rem', lineHeight: 1 }}>{stats.status}</p>
-              {!isCompactMode && (
-                <div style={{ height: '80px', flex: 1 }} className="animate-fade-in">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData.status}>
-                      <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
-                        {chartData.status.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
-                        ))}
-                      </Bar>
-                      <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />
-                      <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.status}</p>
+              <div className="chart-container" style={{ flex: 1 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.status}>
+                    <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
+                      {chartData.status.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
+                      ))}
+                    </Bar>
+                    {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
+                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </Card>

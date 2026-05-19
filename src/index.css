@@ -472,3 +472,71 @@ input, select, textarea {
 .print-only {
   display: none;
 }
+
+/* Dashboard Metrics Responsive Cards Styles */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.metrics-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Card Heights: Normal Mode (Desktop) */
+.metrics-card.mode-normal {
+  min-height: 180px;
+}
+.metrics-card.mode-normal .chart-container {
+  height: 80px;
+}
+
+/* Card Heights: Compact Mode (Desktop) */
+.metrics-card.mode-compact {
+  min-height: 120px;
+}
+.metrics-card.mode-compact .chart-container {
+  height: 45px;
+}
+
+/* Mobile Responsiveness (< 768px) */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important; /* Cada card em uma linha */
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+  
+  /* Normal Mode Mobile */
+  .metrics-card.mode-normal {
+    min-height: 115px !important;
+    padding: var(--space-3) !important;
+  }
+  .metrics-card.mode-normal .chart-container {
+    height: 45px !important;
+  }
+  .metrics-card.mode-normal .h2 {
+    font-size: 1.4rem !important;
+  }
+
+  /* Compact Mode Mobile */
+  .metrics-card.mode-compact {
+    min-height: 85px !important;
+    padding: var(--space-2) var(--space-3) !important;
+  }
+  .metrics-card.mode-compact .chart-container {
+    height: 25px !important;
+  }
+  .metrics-card.mode-compact .h2 {
+    font-size: 1.2rem !important;
+  }
+  
+  .metrics-card .flex-1.flex.flex-col {
+    margin-top: 0 !important;
+  }
+}
