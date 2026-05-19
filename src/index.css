@@ -468,6 +468,12 @@ input, select, textarea {
     background-color: white !important;
   }
 
+  .devolutiva-section,
+  .signature-container {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
   /* Font and Color Fixes */
   .h1, .h2, .h3, h4 { color: #000 !important; }
   p, span, td, th, label { color: #000 !important; }

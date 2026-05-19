@@ -406,43 +406,44 @@ export default function ObservationDetails({ observation }) {
         </Card>
       </div>
 
-      {/* 8-10. SÍNTESE E DEVOLUTIVA - FORCE PAGE BREAK */}
-      <div className="page-break" />
-      <DetailSection title={<><ClipboardList size={20} className="no-print" /> Síntese e Devolutiva</>}>
-        <div className="grid grid-cols-1 gap-4">
-          <div style={{ backgroundColor: '#fff', padding: '12px', borderRadius: '4px', border: '1px solid #ddd', borderLeft: '4px solid #0ea5e9' }}>
-            <label className="text-xs font-bold uppercase block mb-1" style={{ color: '#0369a1' }}>8. Pontos Fortes</label>
-            <p className="text-sm">{observation.strong_points || 'Nenhum registro.'}</p>
-          </div>
-          <div style={{ backgroundColor: '#fff', padding: '12px', borderRadius: '4px', border: '1px solid #ddd', borderLeft: '4px solid #f97316' }}>
-            <label className="text-xs font-bold uppercase block mb-1" style={{ color: '#c2410c' }}>9. Oportunidades de Aprimoramento</label>
-            <p className="text-sm">{observation.improvement_opportunities || 'Nenhum registro.'}</p>
-          </div>
-          <div style={{ padding: '15px', border: '1px solid #eee', borderRadius: '8px' }}>
-            <h4 className="font-bold text-sm mb-3">10. Devolutiva ao(à) Professor(a)</h4>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="text-xs font-bold text-muted uppercase block mb-1">Síntese da Observação</label>
-                <p className="text-sm">{observation.observation_synthesis || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-muted uppercase block mb-1">Orientações Pedagógicas</label>
-                <p className="text-sm">{observation.pedagogical_guidelines || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-muted uppercase block mb-1">Combinados e Encaminhamentos</label>
-                <p className="text-sm">{observation.forwarding || 'N/A'}</p>
+      {/* 8-10. SÍNTESE E DEVOLUTIVA */}
+      <div className="devolutiva-section">
+        <DetailSection title={<><ClipboardList size={20} className="no-print" /> Síntese e Devolutiva</>}>
+          <div className="grid grid-cols-1 gap-4">
+            <div style={{ backgroundColor: '#fff', padding: '12px', borderRadius: '4px', border: '1px solid #ddd', borderLeft: '4px solid #0ea5e9' }}>
+              <label className="text-xs font-bold uppercase block mb-1" style={{ color: '#0369a1' }}>8. Pontos Fortes</label>
+              <p className="text-sm">{observation.strong_points || 'Nenhum registro.'}</p>
+            </div>
+            <div style={{ backgroundColor: '#fff', padding: '12px', borderRadius: '4px', border: '1px solid #ddd', borderLeft: '4px solid #f97316' }}>
+              <label className="text-xs font-bold uppercase block mb-1" style={{ color: '#c2410c' }}>9. Oportunidades de Aprimoramento</label>
+              <p className="text-sm">{observation.improvement_opportunities || 'Nenhum registro.'}</p>
+            </div>
+            <div style={{ padding: '15px', border: '1px solid #eee', borderRadius: '8px' }}>
+              <h4 className="font-bold text-sm mb-3">10. Devolutiva ao(à) Professor(a)</h4>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-muted uppercase block mb-1">Síntese da Observação</label>
+                  <p className="text-sm">{observation.observation_synthesis || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted uppercase block mb-1">Orientações Pedagógicas</label>
+                  <p className="text-sm">{observation.pedagogical_guidelines || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted uppercase block mb-1">Combinados e Encaminhamentos</label>
+                  <p className="text-sm">{observation.forwarding || 'N/A'}</p>
+                </div>
               </div>
             </div>
+            <div className="flex items-center gap-2" style={{ padding: 'var(--space-2)' }}>
+              <CheckCircle2 size={16} color={observation.teacher_aware ? 'var(--success)' : 'var(--text-tertiary)'} />
+              <span className="text-xs font-bold">
+                {observation.teacher_aware ? 'Professor(a) ciente da devolutiva' : 'Professor(a) NÃO ciente da devolutiva'}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2" style={{ padding: 'var(--space-2)' }}>
-            <CheckCircle2 size={16} color={observation.teacher_aware ? 'var(--success)' : 'var(--text-tertiary)'} />
-            <span className="text-xs font-bold">
-              {observation.teacher_aware ? 'Professor(a) ciente da devolutiva' : 'Professor(a) NÃO ciente da devolutiva'}
-            </span>
-          </div>
-        </div>
-      </DetailSection>
+        </DetailSection>
+      </div>
     </>
   );
 
@@ -895,7 +896,7 @@ export default function ObservationDetails({ observation }) {
 
       {/* ÁREA DE ASSINATURAS (Apenas para Modelo SOSA) */}
       {reportModel === 'sosa' && (
-        <div className="print-only signature-container" style={{ marginTop: '100px', textAlign: 'center' }}>
+        <div className="print-only signature-container" style={{ marginTop: '40px', textAlign: 'center' }}>
           <div style={{ width: '250px', borderTop: '1px solid #000', paddingTop: '15px' }}>
             <p style={{ fontSize: '13px', fontWeight: 'bold', margin: '0 0 4px 0' }}>{userName || 'Coordenação Pedagógica'}</p>
             <p style={{ fontSize: '11px', color: '#444', margin: 0 }}>Coordenação Pedagógica</p>
