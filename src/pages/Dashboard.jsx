@@ -227,7 +227,7 @@ export default function Dashboard() {
             style={{ padding: '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
           >
             {isCompactMode ? <BarChart3 size={14} /> : <Eye size={14} />}
-            {isCompactMode ? 'Ver Gráficos' : 'Modo Compacto'}
+            {isCompactMode ? 'Modo Expandido' : 'Modo Compacto'}
           </Button>
           <Button variant="secondary" onClick={fetchObservations} style={{ padding: '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }} >
             <Calendar size={14} /> Atualizar
