@@ -23,31 +23,56 @@ export function SyncProvider({ children }) {
   const syncItem = async (item) => {
     const { payload } = item;
     
-    // Check if it's an insert or update
-    const isNew = payload.is_new_offline || !payload.id || String(payload.id).startsWith('offline_');
-    
-    if (isNew) {
-      // 1. Idempotency Check: see if a record with the same unique attributes already exists in Supabase.
-      // We only use guaranteed non-null fields to avoid SQL NULL = NULL comparison failures.
-      if (payload.teacher_id && payload.visit_date && payload.bimestre) {
-        const { data: existing, error: findError } = await supabase
+    // 1. Database Check: Check if a record with this exact ID already exists in Supabase
+    let existsInDatabase = false;
+    if (payload.id && !String(payload.id).startsWith('offline_')) {
+      try {
+        const { data, error } = await supabase
           .from('observations')
           .select('id')
+          .eq('id', payload.id)
+          .maybeSingle();
+        if (!error && data) {
+          existsInDatabase = true;
+        }
+      } catch (err) {
+        console.warn('Error checking if record exists in database:', err);
+      }
+    }
+
+    // Clean payload for database execution by removing client-only relation fields
+    const cleanPayload = { ...payload };
+    delete cleanPayload.is_new_offline;
+    delete cleanPayload.teachers;
+    delete cleanPayload.subjects;
+    delete cleanPayload.series;
+    delete cleanPayload.segments;
+
+    // Determine if it is a new record or an edit
+    const isNew = !existsInDatabase && (payload.is_new_offline || !payload.id || String(payload.id).startsWith('offline_'));
+    
+    if (isNew) {
+      // 2. Idempotency Check: see if a record with the same unique attributes already exists in Supabase.
+      // We strip the time portion from both the payload date and database dates to ensure timezone robustness.
+      if (payload.teacher_id && payload.visit_date && payload.bimestre) {
+        const dateStr = String(payload.visit_date).substring(0, 10);
+        const { data: existing, error: findError } = await supabase
+          .from('observations')
+          .select('id, visit_date')
           .eq('teacher_id', payload.teacher_id)
-          .eq('visit_date', payload.visit_date)
-          .eq('bimestre', payload.bimestre)
-          .limit(1);
+          .eq('bimestre', payload.bimestre);
           
         if (!findError && existing && existing.length > 0) {
-          console.log(`Observation already exists in Supabase. Skipping duplicate insert.`);
-          return; // Already synchronized
+          const duplicate = existing.find(obs => String(obs.visit_date).substring(0, 10) === dateStr);
+          if (duplicate) {
+            console.log(`Observation already exists in Supabase (resolved by date mismatch logic). Skipping duplicate insert.`);
+            return; // Already synchronized
+          }
         }
       }
 
-      // 2. Perform insert. If it was generated offline, we keep its client-side generated UUID!
+      // 3. Perform insert. If it was generated offline, we keep its client-side generated UUID!
       // This guarantees that PostgreSQL will reject any duplicate insertions with a unique constraint error (23505)
-      const cleanPayload = { ...payload };
-      delete cleanPayload.is_new_offline;
       
       // If the ID was a temporary string like "offline_...", remove it so Supabase generates a real UUID.
       // If it is a real UUID generated client-side, keep it!
@@ -66,7 +91,7 @@ export function SyncProvider({ children }) {
       }
     } else {
       // It is an edit of an existing record, update by ID
-      const { error } = await supabase.from('observations').update(payload).eq('id', payload.id);
+      const { error } = await supabase.from('observations').update(cleanPayload).eq('id', payload.id);
       if (error) throw error;
     }
   };

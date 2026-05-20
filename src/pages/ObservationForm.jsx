@@ -6,7 +6,7 @@ import { useSchool } from '../contexts/SchoolContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui';
 import { useSync } from '../contexts/SyncContext';
-import { cacheMetadata, getCachedMetadata, getQueue, withTimeout } from '../lib/offlineStore';
+import { cacheMetadata, getCachedMetadata, getQueue, withTimeout, findCachedObservation } from '../lib/offlineStore';
 
 const evaluationOptions = [
   { value: 'Atende plenamente', label: 'Atende plenamente' },
@@ -203,47 +203,74 @@ export default function ObservationForm() {
     if (!id) return;
     async function fetchObservation() {
       setFetching(true);
-      if (String(id).startsWith('offline_')) {
-        const queue = await getQueue();
-        const item = queue.find(q => q.id === id);
-        if (item) {
-          const data = item.payload;
-          setFormData({
-            ...data,
-            visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
-            revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
-            revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
-            visit_objectives: data.visit_objectives || [],
-            scores_v2: data.scores_v2 || {},
-            scores_v3: data.scores_v3 || {},
-            evaluations_v2: data.evaluations_v2 || {},
-            evaluations_v3: data.evaluations_v3 || {},
-            comments_v2: data.comments_v2 || {},
-            comments_v3: data.comments_v3 || {}
-          });
-          if (data.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
-          else if (data.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
-          else { setDbVisitCount(1); setActiveTab(1); }
-        }
+      
+      // Always look in the local offline queue first (handles both UUIDs and offline_ prefixed IDs)
+      const queue = await getQueue();
+      const item = queue.find(q => q.id === id || (q.payload && q.payload.id === id));
+      
+      if (item) {
+        const data = item.payload;
+        setFormData({
+          ...data,
+          visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
+          revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
+          revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
+          visit_objectives: data.visit_objectives || [],
+          scores_v2: data.scores_v2 || {},
+          scores_v3: data.scores_v3 || {},
+          evaluations_v2: data.evaluations_v2 || {},
+          evaluations_v3: data.evaluations_v3 || {},
+          comments_v2: data.comments_v2 || {},
+          comments_v3: data.comments_v3 || {}
+        });
+        if (data.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
+        else if (data.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
+        else { setDbVisitCount(1); setActiveTab(1); }
       } else {
-        const { data, error } = await supabase.from('observations').select('*').eq('id', id).single();
-        if (data && !error) {
+        // If not found locally in the offline queue, check if it's cached in IndexedDB metadata observations
+        const cachedItem = await findCachedObservation(id);
+        if (cachedItem) {
           setFormData({
-            ...data,
-            visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
-            revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
-            revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
-            visit_objectives: data.visit_objectives || [],
-            scores_v2: data.scores_v2 || {},
-            scores_v3: data.scores_v3 || {},
-            evaluations_v2: data.evaluations_v2 || {},
-            evaluations_v3: data.evaluations_v3 || {},
-            comments_v2: data.comments_v2 || {},
-            comments_v3: data.comments_v3 || {}
+            ...cachedItem,
+            visit_date: cachedItem.visit_date ? String(cachedItem.visit_date).substring(0, 10) : '',
+            revisit_date_1: cachedItem.revisit_date_1 ? String(cachedItem.revisit_date_1).substring(0, 10) : '',
+            revisit_date_2: cachedItem.revisit_date_2 ? String(cachedItem.revisit_date_2).substring(0, 10) : '',
+            visit_objectives: cachedItem.visit_objectives || [],
+            scores_v2: cachedItem.scores_v2 || {},
+            scores_v3: cachedItem.scores_v3 || {},
+            evaluations_v2: cachedItem.evaluations_v2 || {},
+            evaluations_v3: cachedItem.evaluations_v3 || {},
+            comments_v2: cachedItem.comments_v2 || {},
+            comments_v3: cachedItem.comments_v3 || {}
           });
-          if (data.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
-          else if (data.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
+          if (cachedItem.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
+          else if (cachedItem.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
           else { setDbVisitCount(1); setActiveTab(1); }
+        } else {
+          // If not found in cache and we are online, query Supabase
+          try {
+            const { data, error } = await supabase.from('observations').select('*').eq('id', id).single();
+            if (data && !error) {
+              setFormData({
+                ...data,
+                visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
+                revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
+                revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
+                visit_objectives: data.visit_objectives || [],
+                scores_v2: data.scores_v2 || {},
+                scores_v3: data.scores_v3 || {},
+                evaluations_v2: data.evaluations_v2 || {},
+                evaluations_v3: data.evaluations_v3 || {},
+                comments_v2: data.comments_v2 || {},
+                comments_v3: data.comments_v3 || {}
+              });
+              if (data.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
+              else if (data.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
+              else { setDbVisitCount(1); setActiveTab(1); }
+            }
+          } catch (err) {
+            console.error('Failed to fetch from Supabase:', err);
+          }
         }
       }
       setFetching(false);
@@ -661,7 +688,7 @@ export default function ObservationForm() {
 
       const selectedSeriesObj = seriesList.find(s => s.id === formData.series_id);
       const segment_id = selectedSeriesObj ? selectedSeriesObj.segment_id : null;
-      const { id: _id, created_at, updated_at, ...cleanData } = formData;
+      const { id: _id, created_at, updated_at, teachers: _unused_t, subjects: _unused_s, series: _unused_ser, segments: _unused_seg, ...cleanData } = formData;
       const payload = { 
         ...cleanData, 
         school_id: selectedSchoolId, 
@@ -675,6 +702,7 @@ export default function ObservationForm() {
 
       if (id) {
         payload.id = id;
+        delete payload.is_new_offline; // CRITICAL: Ensure it is never treated as a new offline insert!
       } else {
         payload.id = generateUUID();
         payload.is_new_offline = true;

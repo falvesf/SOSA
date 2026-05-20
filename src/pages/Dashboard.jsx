@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, ConfirmModal, Toast } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown } from 'lucide-react';
 import ObservationDetails from './ObservationDetails';
 import { useSync } from '../contexts/SyncContext';
 import { removeQueueItem, cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
@@ -31,12 +31,14 @@ export default function Dashboard() {
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [deleteIsOffline, setDeleteIsOffline] = useState(false);
   const [toast, setToast] = useState(null);
 
   // Card Selectors State
-  const [totalFilter, setTotalFilter] = useState('data'); // data, nome, serie, turma
+  const totalFilter = 'data';
   const [periodRange, setPeriodRange] = useState('mes'); // semana, mes, bimestre, semestre, ano
   const [statusFilter, setStatusFilter] = useState('Atende plenamente');
+  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
 
   // Compact Mode State (persisted in localStorage)
   const [isCompactMode, setIsCompactMode] = useState(() => {
@@ -126,7 +128,10 @@ export default function Dashboard() {
   }, [offlineQueue, selectedSchoolId, selectedBimestre]);
 
   const allObservations = useMemo(() => {
-    return [...localOfflineObs, ...observations];
+    // If an offline edit exists in the queue for a record, hide the cached online version in the UI
+    const offlineIds = new Set(localOfflineObs.map(obs => obs.id));
+    const filteredOnline = observations.filter(obs => !offlineIds.has(obs.id));
+    return [...localOfflineObs, ...filteredOnline];
   }, [localOfflineObs, observations]);
 
   const chartData = useMemo(() => {
@@ -236,26 +241,95 @@ export default function Dashboard() {
     return { total: totalCount, period: periodCount, status: statusCount };
   }, [allObservations, chartData, statusFilter]);
 
+  const requestSort = (key) => {
+    setSortConfig(prev => {
+      let direction = 'asc';
+      if (prev.key === key && prev.direction === 'asc') {
+        direction = 'desc';
+      }
+      return { key, direction };
+    });
+  };
+
+  const renderHeader = (key, label) => {
+    const isActive = sortConfig.key === key;
+    return (
+      <th 
+        className="text-tiny cursor-pointer select-none" 
+        onClick={() => requestSort(key)}
+        style={{ padding: '12px 16px' }}
+      >
+        <div className="flex items-center gap-1 hover:text-primary transition-colors">
+          <span>{label}</span>
+          <ArrowUpDown 
+            size={12} 
+            className={isActive ? "text-primary" : "text-muted"} 
+            style={{ 
+              opacity: isActive ? 1 : 0.4, 
+              transform: isActive && sortConfig.direction === 'desc' ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.2s, opacity 0.2s'
+            }} 
+          />
+        </div>
+      </th>
+    );
+  };
+
   const sortedObservations = useMemo(() => {
     const sorted = [...allObservations];
-    if (totalFilter === 'nome') sorted.sort((a, b) => (a.teachers?.name || '').localeCompare(b.teachers?.name || ''));
-    else if (totalFilter === 'serie') sorted.sort((a, b) => (a.series?.name || '').localeCompare(b.series?.name || ''));
-    else sorted.sort((a, b) => new Date(b.visit_date) - new Date(a.visit_date));
+    sorted.sort((a, b) => {
+      let valA = '';
+      let valB = '';
+      
+      if (sortConfig.key === 'date') {
+        valA = a.visit_date || '';
+        valB = b.visit_date || '';
+        if (valA === valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+        return sortConfig.direction === 'asc' 
+          ? new Date(valA) - new Date(valB)
+          : new Date(valB) - new Date(valA);
+      }
+      
+      if (sortConfig.key === 'teacher') {
+        valA = a.teachers?.name || '';
+        valB = b.teachers?.name || '';
+      } else if (sortConfig.key === 'series') {
+        valA = a.series?.name || '';
+        valB = b.series?.name || '';
+      } else if (sortConfig.key === 'subject') {
+        valA = a.subjects?.name || '';
+        valB = b.subjects?.name || '';
+      }
+      
+      if (sortConfig.direction === 'asc') {
+        return valA.localeCompare(valB, 'pt-BR');
+      } else {
+        return valB.localeCompare(valA, 'pt-BR');
+      }
+    });
     return sorted;
-  }, [allObservations, totalFilter]);
+  }, [allObservations, sortConfig]);
 
-  const handleDelete = (id) => {
+  const handleDelete = (id, isOffline = false) => {
     setDeleteConfirmId(id);
+    setDeleteIsOffline(isOffline);
   };
 
   const confirmDelete = async () => {
     if (!deleteConfirmId) return;
     const idToDelete = deleteConfirmId;
+    const isOffline = deleteIsOffline;
     setDeleteConfirmId(null);
+    setDeleteIsOffline(false);
     setLoading(true);
     try {
-      if (String(idToDelete).startsWith('offline_')) {
-        await removeQueueItem(idToDelete);
+      if (isOffline) {
+        // Find the actual queue item ID
+        const queueItem = offlineQueue.find(q => q.id === idToDelete || (q.payload && q.payload.id === idToDelete));
+        const targetId = queueItem ? queueItem.id : idToDelete;
+        await removeQueueItem(targetId);
         await loadQueue();
         setToast({ message: 'Observação offline excluída com sucesso!' });
       } else {
@@ -333,12 +407,7 @@ export default function Dashboard() {
             <div style={{ backgroundColor: 'var(--primary-light)', padding: '6px', borderRadius: '6px' }}>
               <Calendar size={18} className="text-primary" />
             </div>
-            <select style={cardSelectStyle} value={totalFilter} onChange={(e) => setTotalFilter(e.target.value)}>
-              <option value="data">Por Data</option>
-              <option value="nome">Por Nome</option>
-              <option value="serie">Por Série</option>
-              <option value="turma">Por Turma</option>
-            </select>
+            <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '600' }}>Por Data</span>
           </div>
           <div className="flex-1 flex flex-col justify-between">
             <p style={cardLabelStyle}>Total de Observações</p>
@@ -347,13 +416,21 @@ export default function Dashboard() {
               <div className="chart-container" style={{ flex: 1 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData.total}>
-                    <Bar dataKey="value" fill="var(--primary-light)" radius={[4, 4, 0, 0]}>
-                      {chartData.total.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--primary-light)'} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="value" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                     {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
-                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Quantidade']}
+                      contentStyle={{ 
+                        fontSize: '10px', 
+                        borderRadius: '8px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        backgroundColor: '#ffffff',
+                        color: 'var(--text-primary)'
+                      }} 
+                      itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
+                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -389,7 +466,19 @@ export default function Dashboard() {
                       </linearGradient>
                     </defs>
                     <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
-                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Quantidade']}
+                      contentStyle={{ 
+                        fontSize: '10px', 
+                        borderRadius: '8px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        backgroundColor: '#ffffff',
+                        color: 'var(--text-primary)'
+                      }} 
+                      itemStyle={{ color: 'var(--success)', fontWeight: 'bold' }}
+                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -423,7 +512,19 @@ export default function Dashboard() {
                       ))}
                     </Bar>
                     {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
-                    <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Quantidade']}
+                      contentStyle={{ 
+                        fontSize: '10px', 
+                        borderRadius: '8px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        backgroundColor: '#ffffff',
+                        color: 'var(--text-primary)'
+                      }} 
+                      itemStyle={{ color: 'var(--warning)', fontWeight: 'bold' }}
+                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -447,10 +548,10 @@ export default function Dashboard() {
             <table className="table" style={{ minWidth: '600px' }}>
               <thead>
                 <tr>
-                  <th className="text-tiny">Data</th>
-                  <th className="text-tiny">Professor</th>
-                  <th className="text-tiny">Série / Turma</th>
-                  <th className="text-tiny">Disciplina</th>
+                  {renderHeader('date', 'Data')}
+                  {renderHeader('teacher', 'Professor')}
+                  {renderHeader('series', 'Série / Turma')}
+                  {renderHeader('subject', 'Disciplina')}
                   <th className="text-tiny text-right" style={{ position: 'sticky', right: 0, backgroundColor: 'var(--surface-hover)', zIndex: 20 }}>Ações</th>
                 </tr>
               </thead>
@@ -498,7 +599,7 @@ export default function Dashboard() {
                         <Button variant="secondary" style={{ padding: '4px' }} onClick={() => navigate(`/observacao/editar/${obs.id}`)}>
                           <Edit size={14} />
                         </Button>
-                        <Button variant="danger" style={{ padding: '4px' }} onClick={() => handleDelete(obs.id)}>
+                        <Button variant="danger" style={{ padding: '4px' }} onClick={() => handleDelete(obs.id, obs.isOffline)}>
                           <Trash2 size={14} />
                         </Button>
                       </div>

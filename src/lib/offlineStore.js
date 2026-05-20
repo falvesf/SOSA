@@ -102,3 +102,32 @@ export const withTimeout = (promise, ms = 2500) => {
     clearTimeout(timeoutId);
   });
 };
+
+// Scan the cached metadata observations to find an already synchronized observation offline
+export const findCachedObservation = async (id) => {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(METADATA_STORE, 'readonly');
+      const store = tx.objectStore(METADATA_STORE);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const allCaches = request.result || [];
+        for (const cacheItem of allCaches) {
+          if (Array.isArray(cacheItem.data)) {
+            const found = cacheItem.data.find(obs => obs.id === id);
+            if (found) {
+              resolve(found);
+              return;
+            }
+          }
+        }
+        resolve(null);
+      };
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (error) {
+    console.error('Error finding cached observation:', error);
+    return null;
+  }
+};
