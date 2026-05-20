@@ -172,7 +172,13 @@ export default function ObservationDetails({ observation }) {
           </div>
           <div className="grid-cols-2">
             <label className="text-xs font-bold text-muted uppercase block">Tipo de Visita</label>
-            <p className="text-sm font-medium">{observation.visit_type === 'Outro' ? observation.visit_type_other : observation.visit_type}</p>
+            <p className="text-sm font-medium">
+              {(() => {
+                const types = observation.visit_type ? String(observation.visit_type).split(', ') : [];
+                const formatted = types.map(t => t === 'Outro' ? (observation.visit_type_other ? `Outro (${observation.visit_type_other})` : 'Outro') : t).join(', ');
+                return formatted || 'N/A';
+              })()}
+            </p>
           </div>
         </div>
         
@@ -542,7 +548,11 @@ export default function ObservationDetails({ observation }) {
     const visitCount = observation.revisit_date_2 ? 3 : (observation.revisit_date_1 ? 2 : 1);
     const pages = [];
 
-    const isChecked = (val, target) => val === target ? '(X)' : '( )';
+    const isChecked = (val, target) => {
+      if (!val) return '( )';
+      const values = String(val).split(', ').map(v => v.trim());
+      return values.includes(target) ? '(X)' : '( )';
+    };
     
     // NEW: Smart colored markers for rubric grid only
     const renderScoreMarkers = (field, score, currentPage) => {
@@ -638,7 +648,7 @@ export default function ObservationDetails({ observation }) {
                   <span style={{ marginLeft: '10px' }}>{isChecked(data.type, 'Formativa')} Formativa</span>
                   <span style={{ marginLeft: '10px' }}>{isChecked(data.type, 'Acompanhamento')} Acompanhamento</span>
                   <span style={{ marginLeft: '10px' }}>{isChecked(data.type, 'Devolutiva')} Devolutiva</span>
-                  <span style={{ marginLeft: '10px' }}>{data.type === 'Outro' ? `(X) Outro: ${data.type_other}` : '( ) Outro: __________'}</span>
+                  <span style={{ marginLeft: '10px' }}>{data.type && String(data.type).split(', ').map(v => v.trim()).includes('Outro') ? `(X) Outro: ${data.type_other || '__________'}` : '( ) Outro: __________'}</span>
                 </td>
               </tr>
             </tbody>

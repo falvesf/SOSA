@@ -723,7 +723,9 @@ export default function ObservationForm() {
         setSuccess(true);
         window.scrollTo(0,0);
       } else {
-        const { error } = id ? await supabase.from('observations').update(payload).eq('id', id) : await supabase.from('observations').insert([payload]);
+        const dbPayload = { ...payload };
+        delete dbPayload.is_new_offline;
+        const { error } = id ? await supabase.from('observations').update(dbPayload).eq('id', id) : await supabase.from('observations').insert([dbPayload]);
         
         if (error) {
           if (error.message && (error.message.includes('fetch') || error.message.includes('network'))) {
@@ -1293,28 +1295,47 @@ export default function ObservationForm() {
             <div className="form-group mt-4">
               <label className="form-label">Tipo de Visita</label>
               <div className="flex flex-wrap gap-4 mt-2">
-                {['Formativa', 'Acompanhamento', 'Devolutiva', 'Outro'].map(type => (
-                  <label key={type} className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="visit_type" 
-                      className="radio" 
-                      checked={getEvaluation('visit_type') === type}
-                      onChange={() => setEvaluation('visit_type', type)}
-                    />
-                    <span className="text-sm">{type}</span>
-                  </label>
-                ))}
+                {['Formativa', 'Acompanhamento', 'Devolutiva', 'Outro'].map(type => {
+                  const currentValue = getEvaluation('visit_type') || '';
+                  const selectedTypes = currentValue ? currentValue.split(', ').map(t => t.trim()) : [];
+                  const isChecked = selectedTypes.includes(type);
+
+                  return (
+                    <label key={type} className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        name="visit_type" 
+                        className="checkbox" 
+                        checked={isChecked}
+                        onChange={(e) => {
+                          let nextTypes;
+                          if (e.target.checked) {
+                            nextTypes = [...selectedTypes, type];
+                          } else {
+                            nextTypes = selectedTypes.filter(t => t !== type);
+                          }
+                          setEvaluation('visit_type', nextTypes.join(', '));
+                        }}
+                      />
+                      <span className="text-sm">{type}</span>
+                    </label>
+                  );
+                })}
               </div>
-              {getEvaluation('visit_type') === 'Outro' && (
-                <input 
-                  type="text" 
-                  className="form-input mt-2" 
-                  placeholder="Especifique o tipo..."
-                  value={getEvaluation('visit_type_other') || ''}
-                  onChange={(e) => setEvaluation('visit_type_other', e.target.value)}
-                />
-              )}
+              {(() => {
+                const currentValue = getEvaluation('visit_type') || '';
+                const selectedTypes = currentValue ? currentValue.split(', ').map(t => t.trim()) : [];
+                const hasOutro = selectedTypes.includes('Outro');
+                return hasOutro && (
+                  <input 
+                    type="text" 
+                    className="form-input mt-2" 
+                    placeholder="Especifique o tipo..."
+                    value={getEvaluation('visit_type_other') || ''}
+                    onChange={(e) => setEvaluation('visit_type_other', e.target.value)}
+                  />
+                );
+              })()}
             </div>
           </Card>
 
