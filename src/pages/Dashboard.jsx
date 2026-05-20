@@ -141,8 +141,12 @@ export default function Dashboard() {
         counts[date] = (counts[date] || 0) + 1;
       });
       totalData = Object.entries(counts)
-        .map(([date, count]) => ({ label: date.split('-').reverse().slice(0, 2).join('/'), value: count }))
-        .sort((a, b) => a.label.localeCompare(b.label));
+        .map(([date, count]) => ({ 
+          dateKey: date,
+          label: date ? date.split('-').reverse().slice(0, 2).join('/') : 'N/A', 
+          value: count 
+        }))
+        .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
     } else if (totalFilter === 'nome') {
       const counts = {};
       allObservations.forEach(obs => {

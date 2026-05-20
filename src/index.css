@@ -700,3 +700,194 @@ input, select, textarea {
 .animate-pulse {
   animation: pulse-opacity 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* ==========================================================================
+   PREMIUM LOGIN PAGE GLASSMORPHISM DESIGN SYSTEM
+   ========================================================================== */
+.login-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100vw;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #020617 100%);
+  overflow: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+  padding: var(--space-4);
+}
+
+/* Background animated blur orbs */
+.login-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.15;
+  z-index: 1;
+  pointer-events: none;
+  animation: float-orb 10s ease-in-out infinite alternate;
+}
+
+.login-orb-1 {
+  width: 400px;
+  height: 400px;
+  background-color: var(--primary);
+  top: -10%;
+  left: -10%;
+}
+
+.login-orb-2 {
+  width: 500px;
+  height: 500px;
+  background-color: var(--accent);
+  bottom: -10%;
+  right: -10%;
+  animation-delay: -5s;
+}
+
+@keyframes float-orb {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, 40px) scale(1.1); }
+}
+
+/* High-fidelity glassmorphism card */
+.login-card {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 440px;
+  background: rgba(30, 41, 59, 0.45);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: var(--space-8) var(--space-8) var(--space-6) var(--space-8);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 
+              inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Brand header */
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.login-logo-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  border-radius: 18px;
+  color: white;
+  margin-bottom: var(--space-4);
+  box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+}
+
+.login-logo-icon {
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.login-title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  background: linear-gradient(to right, #ffffff, #c7d2fe);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+}
+
+.login-subtitle {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin: var(--space-1) 0 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.login-divider {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.08), rgba(255,255,255,0));
+  margin: var(--space-6) 0;
+}
+
+/* Welcome block */
+.login-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.login-welcome-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: var(--space-2);
+}
+
+.login-welcome-desc {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin-bottom: var(--space-6);
+}
+
+/* High-fidelity Google button conforming to Google Brand Guidelines */
+.google-signin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+  outline: none;
+}
+
+.google-signin-btn:hover {
+  background-color: #f8f9fa;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.google-signin-btn:active {
+  background-color: #f1f3f4;
+  transform: scale(0.98);
+}
+
+.google-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+}
+
+.google-icon {
+  display: block;
+}
+
+.google-signin-btn-text {
+  font-family: 'Roboto', 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: #3c4043;
+}
+
+/* Footer note */
+.login-footer {
+  text-align: center;
+  margin-top: var(--space-6);
+  font-size: 0.7rem;
+  color: #64748b;
+  line-height: 1.4;
+}
