@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Input, Select } from '../components/ui';
+import { Card, Button, Input, Select, Toast } from '../components/ui';
 import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui';
+import { useSync } from '../contexts/SyncContext';
+import { cacheMetadata, getCachedMetadata, getQueue, withTimeout } from '../lib/offlineStore';
 
 const evaluationOptions = [
   { value: 'Atende plenamente', label: 'Atende plenamente' },
@@ -76,8 +78,19 @@ const initialFormState = {
   comments_v3: {}
 };
 
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export default function ObservationForm() {
   const { selectedSchoolId, selectedBimestre } = useSchool();
+  const { isOnline, addToOfflineQueue } = useSync();
   const { id } = useParams();
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
@@ -96,6 +109,7 @@ export default function ObservationForm() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [visitToDelete, setVisitToDelete] = useState(null);
   const [lastId, setLastId] = useState(id);
+  const [toast, setToast] = useState(null);
 
   // Scroll to top on mount or id change
   useEffect(() => {
@@ -141,14 +155,45 @@ export default function ObservationForm() {
   useEffect(() => {
     if (!selectedSchoolId) return;
     async function loadData() {
-      const [{ data: tData }, { data: sData }, { data: subData }] = await Promise.all([
-        supabase.from('teachers').select('*, teacher_series(series_id), teacher_subjects(subject_id)').eq('school_id', selectedSchoolId).order('name'),
-        supabase.from('series').select('id, name, segment_id, segments!inner(name)').eq('school_id', selectedSchoolId).order('name'),
-        supabase.from('subjects').select('id, name, segment_subjects(segment_id)').eq('school_id', selectedSchoolId).order('name')
-      ]);
-      if (tData) setTeachers(tData);
-      if (sData) setSeriesList(sData);
-      if (subData) setSubjects(subData);
+      let tList = [];
+      let sList = [];
+      let subList = [];
+      try {
+        if (!navigator.onLine) {
+          throw new Error('Device is offline');
+        }
+
+        const [tRes, sRes, subRes] = await withTimeout(Promise.all([
+          supabase.from('teachers').select('*, teacher_series(series_id), teacher_subjects(subject_id)').eq('school_id', selectedSchoolId).order('name'),
+          supabase.from('series').select('id, name, segment_id, segments!inner(name)').eq('school_id', selectedSchoolId).order('name'),
+          supabase.from('subjects').select('id, name, segment_subjects(segment_id)').eq('school_id', selectedSchoolId).order('name')
+        ]), 2000);
+
+        if (tRes.error || sRes.error || subRes.error) {
+          throw new Error('Supabase metadata fetch error');
+        }
+
+        tList = tRes.data || [];
+        sList = sRes.data || [];
+        subList = subRes.data || [];
+
+        // Cache the metadata for this school ID
+        await cacheMetadata(`teachers_${selectedSchoolId}`, tList);
+        await cacheMetadata(`series_${selectedSchoolId}`, sList);
+        await cacheMetadata(`subjects_${selectedSchoolId}`, subList);
+      } catch (fetchError) {
+        console.warn('Failed to fetch observation form metadata from Supabase, loading from cache:', fetchError);
+        const cachedT = await getCachedMetadata(`teachers_${selectedSchoolId}`);
+        const cachedS = await getCachedMetadata(`series_${selectedSchoolId}`);
+        const cachedSub = await getCachedMetadata(`subjects_${selectedSchoolId}`);
+
+        if (cachedT) tList = cachedT;
+        if (cachedS) sList = cachedS;
+        if (cachedSub) subList = cachedSub;
+      }
+      setTeachers(tList);
+      setSeriesList(sList);
+      setSubjects(subList);
     }
     loadData();
   }, [selectedSchoolId]);
@@ -158,24 +203,48 @@ export default function ObservationForm() {
     if (!id) return;
     async function fetchObservation() {
       setFetching(true);
-      const { data, error } = await supabase.from('observations').select('*').eq('id', id).single();
-      if (data && !error) {
-        setFormData({
-          ...data,
-          visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
-          revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
-          revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
-          visit_objectives: data.visit_objectives || [],
-          scores_v2: data.scores_v2 || {},
-          scores_v3: data.scores_v3 || {},
-          evaluations_v2: data.evaluations_v2 || {},
-          evaluations_v3: data.evaluations_v3 || {},
-          comments_v2: data.comments_v2 || {},
-          comments_v3: data.comments_v3 || {}
-        });
-        if (data.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
-        else if (data.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
-        else { setDbVisitCount(1); setActiveTab(1); }
+      if (String(id).startsWith('offline_')) {
+        const queue = await getQueue();
+        const item = queue.find(q => q.id === id);
+        if (item) {
+          const data = item.payload;
+          setFormData({
+            ...data,
+            visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
+            revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
+            revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
+            visit_objectives: data.visit_objectives || [],
+            scores_v2: data.scores_v2 || {},
+            scores_v3: data.scores_v3 || {},
+            evaluations_v2: data.evaluations_v2 || {},
+            evaluations_v3: data.evaluations_v3 || {},
+            comments_v2: data.comments_v2 || {},
+            comments_v3: data.comments_v3 || {}
+          });
+          if (data.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
+          else if (data.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
+          else { setDbVisitCount(1); setActiveTab(1); }
+        }
+      } else {
+        const { data, error } = await supabase.from('observations').select('*').eq('id', id).single();
+        if (data && !error) {
+          setFormData({
+            ...data,
+            visit_date: data.visit_date ? String(data.visit_date).substring(0, 10) : '',
+            revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
+            revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
+            visit_objectives: data.visit_objectives || [],
+            scores_v2: data.scores_v2 || {},
+            scores_v3: data.scores_v3 || {},
+            evaluations_v2: data.evaluations_v2 || {},
+            evaluations_v3: data.evaluations_v3 || {},
+            comments_v2: data.comments_v2 || {},
+            comments_v3: data.comments_v3 || {}
+          });
+          if (data.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
+          else if (data.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
+          else { setDbVisitCount(1); setActiveTab(1); }
+        }
       }
       setFetching(false);
     }
@@ -342,9 +411,10 @@ export default function ObservationForm() {
       setFormData(prev => ({ ...prev, ...updateData }));
       setDbVisitCount(visitToDelete - 1);
       setActiveTab(visitToDelete - 1);
+      setToast({ message: 'Revisita excluída com sucesso!' });
     } catch (error) {
       console.error('Error deleting revisit:', error);
-      alert('Erro ao excluir revisita');
+      setToast({ message: 'Erro ao excluir revisita.', type: 'error' });
     } finally {
       setLoading(false);
       setShowDeleteModal(false);
@@ -581,19 +651,80 @@ export default function ObservationForm() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      let userId = null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id;
+      } catch (authErr) {
+        console.warn('Failed to get session during offline submit:', authErr);
+      }
+
       const selectedSeriesObj = seriesList.find(s => s.id === formData.series_id);
       const segment_id = selectedSeriesObj ? selectedSeriesObj.segment_id : null;
       const { id: _id, created_at, updated_at, ...cleanData } = formData;
-      const payload = { ...cleanData, school_id: selectedSchoolId, segment_id, user_id: user?.id, visit_date: cleanData.visit_date || null, revisit_date_1: cleanData.revisit_date_1 || null, revisit_date_2: cleanData.revisit_date_2 || null, bimestre: selectedBimestre };
-      const { error } = id ? await supabase.from('observations').update(payload).eq('id', id) : await supabase.from('observations').insert([payload]);
-      if (error) throw error;
-      setIsDirty(false);
-      setSuccess(true);
-      window.scrollTo(0,0);
+      const payload = { 
+        ...cleanData, 
+        school_id: selectedSchoolId, 
+        segment_id, 
+        user_id: userId, 
+        visit_date: cleanData.visit_date || null, 
+        revisit_date_1: cleanData.revisit_date_1 || null, 
+        revisit_date_2: cleanData.revisit_date_2 || null, 
+        bimestre: selectedBimestre 
+      };
+
+      if (id) {
+        payload.id = id;
+      } else {
+        payload.id = generateUUID();
+        payload.is_new_offline = true;
+      }
+
+      if (!isOnline) {
+        const teacherObj = teachers.find(t => t.id === formData.teacher_id);
+        const subjectObj = subjects.find(s => s.id === formData.subject_id);
+        const seriesObj = seriesList.find(s => s.id === formData.series_id);
+
+        await addToOfflineQueue(payload, {
+          teacherName: teacherObj ? teacherObj.name : 'N/A',
+          subjectName: subjectObj ? subjectObj.name : 'N/A',
+          seriesName: seriesObj ? seriesObj.name : 'N/A'
+        });
+
+        setIsDirty(false);
+        setSuccess(true);
+        window.scrollTo(0,0);
+      } else {
+        const { error } = id ? await supabase.from('observations').update(payload).eq('id', id) : await supabase.from('observations').insert([payload]);
+        
+        if (error) {
+          if (error.message && (error.message.includes('fetch') || error.message.includes('network'))) {
+            console.warn('Network error during save, falling back to offline queue');
+            const teacherObj = teachers.find(t => t.id === formData.teacher_id);
+            const subjectObj = subjects.find(s => s.id === formData.subject_id);
+            const seriesObj = seriesList.find(s => s.id === formData.series_id);
+
+            await addToOfflineQueue(payload, {
+              teacherName: teacherObj ? teacherObj.name : 'N/A',
+              subjectName: subjectObj ? subjectObj.name : 'N/A',
+              seriesName: seriesObj ? seriesObj.name : 'N/A'
+            });
+
+            setIsDirty(false);
+            setSuccess(true);
+            window.scrollTo(0,0);
+          } else {
+            throw error;
+          }
+        } else {
+          setIsDirty(false);
+          setSuccess(true);
+          window.scrollTo(0,0);
+        }
+      }
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Erro ao salvar formulário.');
+      setToast({ message: 'Erro ao salvar formulário.', type: 'error' });
     } finally { setLoading(false); }
   };
 
@@ -716,11 +847,20 @@ export default function ObservationForm() {
           });
         }
       });
-      availableSubjects = subjects.filter(sub => 
-        sub.segment_subjects && sub.segment_subjects.some(ss => allowedSegments.has(ss.segment_id))
-      );
+      availableSubjects = subjects.filter(sub => {
+        if (!sub.segment_subjects || sub.segment_subjects.length === 0) {
+          return true; // Safe fallback if mapping data is missing or not fetched yet
+        }
+        return sub.segment_subjects.some(ss => allowedSegments.has(ss.segment_id));
+      });
     } else {
       availableSubjects = subjects.filter(s => allowedSubjectIds.has(s.id));
+    }
+
+    // Ultra-defensive fallback: if the filtered list is empty but we have subjects, show all of them
+    // so that the user is never locked out of submitting the form due to a missing mapping.
+    if (availableSubjects.length === 0 && subjects.length > 0) {
+      availableSubjects = subjects;
     }
   }
 
@@ -1400,6 +1540,8 @@ export default function ObservationForm() {
             </div>
           </div>
         </Modal>
+
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </form>
     </div>
   );

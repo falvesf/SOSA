@@ -7,11 +7,13 @@ import Instructions from './pages/Instructions'
 import ObservationForm from './pages/ObservationForm'
 import { SchoolProvider, useSchool } from './contexts/SchoolContext'
 import Dashboard from './pages/Dashboard'
+import { SyncProvider, useSync } from './contexts/SyncContext'
 
 import { Menu, X as CloseIcon } from 'lucide-react'
 
 function Layout({ children, onLogout }) {
   const { schools, selectedSchoolId, setSelectedSchoolId, selectedBimestre, updateBimestre, loading } = useSchool()
+  const { isOnline } = useSync()
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -52,7 +54,19 @@ function Layout({ children, onLogout }) {
           backgroundColor: 'white', borderBottom: '1px solid var(--border)', zIndex: 100,
           width: '100%', justifyContent: 'space-between'
         }}>
-          <h2 className="h3" style={{ color: 'var(--primary)', margin: 0, fontSize: '1.25rem' }}>SOSA</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 className="h3" style={{ color: 'var(--primary)', margin: 0, fontSize: '1.25rem' }}>SOSA</h2>
+            {!isOnline && (
+              <div className="offline-badge-container">
+                <span className="offline-badge" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                  Sem conexão {"->"} registro local
+                  <span className="offline-tooltip">
+                    No modo offline o sistema gravará as observações em um arquivo local seguro. Assim que uma conexão de internet for estabelecida, os dados serão sincronizados automaticamente com o banco de dados.
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
@@ -96,7 +110,18 @@ function Layout({ children, onLogout }) {
               </button>
             )}
           </div>
-          <span className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-3)', marginTop: '2px' }}>Observação em Sala</span>
+          <span className="text-xs text-muted" style={{ display: 'block', marginBottom: '4px', marginTop: '2px' }}>Observação em Sala</span>
+          
+          {!isOnline && (
+            <div className="offline-badge-container" style={{ margin: '4px 0 8px 0' }}>
+              <span className="offline-badge">
+                Sem conexão {"->"} registro local
+                <span className="offline-tooltip">
+                  No modo offline o sistema gravará as observações em um arquivo local seguro. Assim que uma conexão de internet for estabelecida, os dados serão sincronizados automaticamente com o banco de dados.
+                </span>
+              </span>
+            </div>
+          )}
           
           <div className="flex flex-col gap-2">
             {!loading && schools.length > 0 && (
@@ -228,18 +253,20 @@ function App() {
   }
 
   return (
-    <SchoolProvider>
-      <Layout onLogout={() => supabase.auth.signOut()}>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/observacao" element={<ObservationForm />} />
-          <Route path="/observacao/editar/:id" element={<ObservationForm />} />
-          <Route path="/cadastros" element={<Registries />} />
-          <Route path="/instrucoes" element={<Instructions />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
-    </SchoolProvider>
+    <SyncProvider>
+      <SchoolProvider>
+        <Layout onLogout={() => supabase.auth.signOut()}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/observacao" element={<ObservationForm />} />
+            <Route path="/observacao/editar/:id" element={<ObservationForm />} />
+            <Route path="/cadastros" element={<Registries />} />
+            <Route path="/instrucoes" element={<Instructions />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </SchoolProvider>
+    </SyncProvider>
   )
 }
 

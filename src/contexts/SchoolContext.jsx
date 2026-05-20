@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
 
 const SchoolContext = createContext();
 
@@ -13,26 +14,43 @@ export function SchoolProvider({ children }) {
     async function init() {
       try {
         // Fetch User Metadata for Bimestre preference
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.user_metadata?.preferred_bimestre) {
-          setSelectedBimestre(session.user.user_metadata.preferred_bimestre);
-          localStorage.setItem('sosa_selected_bimestre', session.user.user_metadata.preferred_bimestre);
+        if (navigator.onLine) {
+          const { data: { session } } = await withTimeout(supabase.auth.getSession(), 1500).catch(() => ({ data: { session: null } }));
+          if (session?.user?.user_metadata?.preferred_bimestre) {
+            setSelectedBimestre(session.user.user_metadata.preferred_bimestre);
+            localStorage.setItem('sosa_selected_bimestre', session.user.user_metadata.preferred_bimestre);
+          }
         }
 
-        const { data, error } = await supabase.from('schools').select('*').order('name');
-        if (error) throw error;
+        let schoolsData = [];
+        try {
+          if (!navigator.onLine) {
+            throw new Error('Device is offline');
+          }
+          const { data, error } = await withTimeout(supabase.from('schools').select('*').order('name'), 2000);
+          if (error) throw error;
+          schoolsData = data || [];
+          // Cache the schools list locally
+          await cacheMetadata('schools', schoolsData);
+        } catch (fetchError) {
+          console.warn('Failed to fetch schools from Supabase, loading from offline cache:', fetchError);
+          const cachedSchools = await getCachedMetadata('schools');
+          if (cachedSchools) {
+            schoolsData = cachedSchools;
+          }
+        }
         
-        setSchools(data || []);
+        setSchools(schoolsData);
         
-        if (data && data.length > 0) {
-          if (data.length === 1) {
-            setSelectedSchoolId(data[0].id);
+        if (schoolsData && schoolsData.length > 0) {
+          if (schoolsData.length === 1) {
+            setSelectedSchoolId(schoolsData[0].id);
           } else {
             const savedSchoolId = localStorage.getItem('sosa_preferred_school_id');
-            if (savedSchoolId && data.find(s => s.id === savedSchoolId)) {
+            if (savedSchoolId && schoolsData.find(s => s.id === savedSchoolId)) {
               setSelectedSchoolId(savedSchoolId);
             } else {
-              setSelectedSchoolId(data[0].id);
+              setSelectedSchoolId(schoolsData[0].id);
             }
           }
         }

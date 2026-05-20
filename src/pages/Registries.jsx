@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, Modal, ConfirmModal, Toast } from '../components/ui';
-import { Trash2, Plus, Edit2, X, Book } from 'lucide-react';
+import { Trash2, Plus, Edit2, X, Book, CloudOff } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
+import { useSync } from '../contexts/SyncContext';
+import { cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
 
 export default function Registries() {
   const [activeTab, setActiveTab] = useState('schools'); // schools, series, subjects, teachers
   const { selectedSchoolId } = useSchool();
+  const { isOnline } = useSync();
 
   return (
     <div className="container" style={{ padding: 'var(--space-6) 0' }}>
@@ -19,6 +22,26 @@ export default function Registries() {
           <Button variant={activeTab === 'teachers' ? 'primary' : 'secondary'} onClick={() => setActiveTab('teachers')}>Professores</Button>
         </div>
       </div>
+
+      {!isOnline && (
+        <div style={{
+          backgroundColor: '#fee2e2',
+          border: '1px solid #fca5a5',
+          borderRadius: 'var(--radius-md)',
+          padding: '12px 16px',
+          marginBottom: 'var(--space-4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          color: '#991b1b',
+          fontSize: '13px'
+        }}>
+          <CloudOff size={18} className="text-danger animate-pulse" />
+          <div>
+            <strong>Modo Offline Ativo:</strong> Você está visualizando dados salvos localmente. A criação e alteração de cadastros estão temporariamente desabilitadas até que a conexão seja restabelecida.
+          </div>
+        </div>
+      )}
 
       <Card className="animate-fade-in">
         {activeTab === 'schools' && <SchoolsCrud />}
@@ -42,17 +65,29 @@ function SchoolsCrud() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const { isOnline } = useSync();
 
   const fetchSchools = async () => {
-    const { data } = await supabase.from('schools').select('*').order('name');
-    if (data) setSchools(data);
+    try {
+      if (!navigator.onLine) {
+        throw new Error('Device is offline');
+      }
+      const { data, error } = await withTimeout(supabase.from('schools').select('*').order('name'), 2000);
+      if (error) throw error;
+      setSchools(data || []);
+      await cacheMetadata('schools', data || []);
+    } catch (err) {
+      console.warn('Failed to fetch schools, loading from cache:', err);
+      const cached = await getCachedMetadata('schools');
+      if (cached) setSchools(cached);
+    }
   };
 
   useEffect(() => { fetchSchools(); }, []);
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !code.trim() || saving) return;
+    if (!name.trim() || !code.trim() || saving || !isOnline) return;
     
     setSaving(true);
     const { data, error } = await supabase.from('schools').insert([{ code, name }]).select();
@@ -82,7 +117,7 @@ function SchoolsCrud() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editingItem.name.trim() || !editingItem.code.trim() || saving) return;
+    if (!editingItem.name.trim() || !editingItem.code.trim() || saving || !isOnline) return;
     
     setSaving(true);
     const { error } = await supabase.from('schools').update({ code: editingItem.code, name: editingItem.name }).eq('id', editingItem.id);
@@ -98,7 +133,7 @@ function SchoolsCrud() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !isOnline) return;
     const { error } = await supabase.from('schools').delete().eq('id', deleteConfirm);
     if (!error) {
       fetchSchools();
@@ -113,9 +148,9 @@ function SchoolsCrud() {
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Unidades Escolares</h2>
       <form onSubmit={handleAdd} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ flex: 1 }}><Input placeholder="Código da Unidade (ex: 001)" value={code} onChange={e => setCode(e.target.value)} required disabled={saving} /></div>
-        <div style={{ flex: 2 }}><Input placeholder="Nome da Unidade" value={name} onChange={e => setName(e.target.value)} required disabled={saving} /></div>
-        <Button type="submit" variant="primary" disabled={saving}>
+        <div style={{ flex: 1 }}><Input placeholder="Código da Unidade (ex: 001)" value={code} onChange={e => setCode(e.target.value)} required disabled={saving || !isOnline} /></div>
+        <div style={{ flex: 2 }}><Input placeholder="Nome da Unidade" value={name} onChange={e => setName(e.target.value)} required disabled={saving || !isOnline} /></div>
+        <Button type="submit" variant="primary" disabled={saving || !isOnline}>
           {saving ? 'Adicionando...' : <><Plus size={18} /> Adicionar</>}
         </Button>
       </form>
@@ -132,10 +167,10 @@ function SchoolsCrud() {
                 <td>{s.name}</td>
                 <td>
                   <div className="flex gap-2 justify-end">
-                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })}>
+                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })} disabled={!isOnline}>
                       <Edit2 size={16} />
                     </Button>
-                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(s.id)}>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(s.id)} disabled={!isOnline}>
                       <Trash2 size={16} />
                     </Button>
                   </div>
@@ -189,20 +224,44 @@ function SeriesCrud({ schoolId }) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { type, id }
+  const { isOnline } = useSync();
 
   const fetchData = async () => {
-    const { data: segData } = await supabase.from('segments').select('*').eq('school_id', schoolId).order('name');
-    if (segData) setSegments(segData);
-    
-    const { data: serData } = await supabase.from('series').select('*, segments(name)').eq('school_id', schoolId).order('name');
-    if (serData) setSeries(serData);
+    try {
+      if (!navigator.onLine) {
+        throw new Error('Device is offline');
+      }
+      const [segRes, serRes] = await withTimeout(Promise.all([
+        supabase.from('segments').select('*').eq('school_id', schoolId).order('name'),
+        supabase.from('series').select('*, segments(name)').eq('school_id', schoolId).order('name')
+      ]), 2000);
+
+      if (segRes.error || serRes.error) {
+        throw new Error('Supabase segments/series fetch error');
+      }
+
+      const segData = segRes.data || [];
+      const serData = serRes.data || [];
+
+      setSegments(segData);
+      setSeries(serData);
+
+      await cacheMetadata(`segments_${schoolId}`, segData);
+      await cacheMetadata(`series_${schoolId}`, serData);
+    } catch (err) {
+      console.warn('Failed to fetch segments/series, loading from cache:', err);
+      const cachedSeg = await getCachedMetadata(`segments_${schoolId}`);
+      const cachedSer = await getCachedMetadata(`series_${schoolId}`);
+      if (cachedSeg) setSegments(cachedSeg);
+      if (cachedSer) setSeries(cachedSer);
+    }
   };
 
   useEffect(() => { fetchData(); }, [schoolId]);
 
   const handleAddSegment = async (e) => {
     e.preventDefault();
-    if (!segmentName.trim() || saving) return;
+    if (!segmentName.trim() || saving || !isOnline) return;
     
     setSaving(true);
     const { data, error } = await supabase.from('segments').insert([{ name: segmentName, school_id: schoolId }]).select();
@@ -230,7 +289,7 @@ function SeriesCrud({ schoolId }) {
 
   const handleEditSegmentSubmit = async (e) => {
     e.preventDefault();
-    if (!editingSegment.name.trim() || saving) return;
+    if (!editingSegment.name.trim() || saving || !isOnline) return;
     
     setSaving(true);
     const { error } = await supabase.from('segments').update({ name: editingSegment.name }).eq('id', editingSegment.id);
@@ -246,7 +305,7 @@ function SeriesCrud({ schoolId }) {
 
   const handleAddSeries = async (e) => {
     e.preventDefault();
-    if (!seriesName.trim() || !segmentId || saving) return;
+    if (!seriesName.trim() || !segmentId || saving || !isOnline) return;
     
     setSaving(true);
     const { data, error } = await supabase.from('series').insert([{ name: seriesName, segment_id: segmentId, school_id: schoolId }]).select();
@@ -275,7 +334,7 @@ function SeriesCrud({ schoolId }) {
 
   const handleEditSeriesSubmit = async (e) => {
     e.preventDefault();
-    if (!editingSeries.name.trim() || !editingSeries.segment_id || saving) return;
+    if (!editingSeries.name.trim() || !editingSeries.segment_id || saving || !isOnline) return;
     
     setSaving(true);
     const { error } = await supabase.from('series').update({ name: editingSeries.name, segment_id: editingSeries.segment_id }).eq('id', editingSeries.id);
@@ -290,7 +349,7 @@ function SeriesCrud({ schoolId }) {
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !isOnline) return;
     const { type, id } = deleteConfirm;
     
     let error;
@@ -320,8 +379,8 @@ function SeriesCrud({ schoolId }) {
         <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-4)' }}>Crie categorias para agrupar suas séries (ex: Fundamental I, Educação Infantil).</p>
         
         <form onSubmit={handleAddSegment} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-4)' }}>
-          <div style={{ flex: 1 }}><Input placeholder="Nome da nova turma/segmento..." value={segmentName} onChange={e => setSegmentName(e.target.value)} required disabled={saving} /></div>
-          <Button type="submit" variant="primary" disabled={saving}>
+          <div style={{ flex: 1 }}><Input placeholder="Nome da nova turma/segmento..." value={segmentName} onChange={e => setSegmentName(e.target.value)} required disabled={saving || !isOnline} /></div>
+          <Button type="submit" variant="primary" disabled={saving || !isOnline}>
             {saving ? 'Adicionando...' : 'Adicionar Turma'}
           </Button>
         </form>
@@ -337,10 +396,10 @@ function SeriesCrud({ schoolId }) {
                   <td>{s.name}</td>
                   <td>
                     <div className="flex gap-2 justify-end">
-                      <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingSegment({ ...s })}>
+                      <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingSegment({ ...s })} disabled={!isOnline}>
                         <Edit2 size={16} />
                       </Button>
-                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm({ type: 'segment', id: s.id })}>
+                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm({ type: 'segment', id: s.id })} disabled={!isOnline}>
                         <Trash2 size={16} />
                       </Button>
                     </div>
@@ -359,7 +418,7 @@ function SeriesCrud({ schoolId }) {
         
         <form onSubmit={handleAddSeries} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
           <div style={{ flex: 1 }}>
-            <Input placeholder="Nome da Série (ex: 1º Ano A)" value={seriesName} onChange={e => setSeriesName(e.target.value)} required disabled={saving} />
+            <Input placeholder="Nome da Série (ex: 1º Ano A)" value={seriesName} onChange={e => setSeriesName(e.target.value)} required disabled={saving || !isOnline} />
           </div>
           <div style={{ flex: 1 }}>
             <Select 
@@ -367,10 +426,10 @@ function SeriesCrud({ schoolId }) {
               onChange={e => setSegmentId(e.target.value)} 
               options={segments.map(s => ({ value: s.id, label: s.name }))}
               required
-              disabled={saving}
+              disabled={saving || !isOnline}
             />
           </div>
-          <Button type="submit" variant="primary" disabled={saving}>
+          <Button type="submit" variant="primary" disabled={saving || !isOnline}>
             {saving ? 'Adicionando...' : 'Adicionar Série'}
           </Button>
         </form>
@@ -393,10 +452,10 @@ function SeriesCrud({ schoolId }) {
                         <td style={{ borderTop: 'none' }}>{s.name}</td>
                         <td style={{ width: '100px', borderTop: 'none', textAlign: 'right' }}>
                           <div className="flex gap-2 justify-end">
-                            <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingSeries({ ...s })}>
+                            <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingSeries({ ...s })} disabled={!isOnline}>
                               <Edit2 size={16} />
                             </Button>
-                            <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm({ type: 'series', id: s.id })}>
+                            <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm({ type: 'series', id: s.id })} disabled={!isOnline}>
                               <Trash2 size={16} />
                             </Button>
                           </div>
@@ -478,22 +537,47 @@ function SubjectsCrud({ schoolId }) {
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { type, subjectId, segId }
 
-  const fetchData = async () => {
-    const { data: subData } = await supabase.from('subjects').select(`
-      *,
-      segment_subjects ( segment_id, segments ( name ) )
-    `).eq('school_id', schoolId).order('name');
-    if (subData) setSubjects(subData);
+  const { isOnline } = useSync();
 
-    const { data: segData } = await supabase.from('segments').select('*').eq('school_id', schoolId).order('name');
-    if (segData) setSegments(segData);
+  const fetchData = async () => {
+    try {
+      if (!navigator.onLine) {
+        throw new Error('Device is offline');
+      }
+      const [subRes, segRes] = await withTimeout(Promise.all([
+        supabase.from('subjects').select(`
+          *,
+          segment_subjects ( segment_id, segments ( name ) )
+        `).eq('school_id', schoolId).order('name'),
+        supabase.from('segments').select('*').eq('school_id', schoolId).order('name')
+      ]), 2000);
+
+      if (subRes.error || segRes.error) {
+        throw new Error('Supabase subjects fetch error');
+      }
+
+      const subData = subRes.data || [];
+      const segData = segRes.data || [];
+
+      setSubjects(subData);
+      setSegments(segData);
+
+      await cacheMetadata(`subjects_crud_${schoolId}`, subData);
+      await cacheMetadata(`segments_${schoolId}`, segData);
+    } catch (err) {
+      console.warn('Failed to fetch subjects, loading from cache:', err);
+      const cachedSub = await getCachedMetadata(`subjects_crud_${schoolId}`);
+      const cachedSeg = await getCachedMetadata(`segments_${schoolId}`);
+      if (cachedSub) setSubjects(cachedSub);
+      if (cachedSeg) setSegments(cachedSeg);
+    }
   };
 
   useEffect(() => { fetchData(); }, [schoolId]);
 
   const handleQuickAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !segmentId || saving) return;
+    if (!name.trim() || !segmentId || saving || !isOnline) return;
     
     setSaving(true);
     // Check if subject exists (case-insensitive) in this school
@@ -539,7 +623,7 @@ function SubjectsCrud({ schoolId }) {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editingItem.name.trim() || saving) return;
+    if (!editingItem.name.trim() || saving || !isOnline) return;
     
     setSaving(true);
     // Update subject name
@@ -561,7 +645,7 @@ function SubjectsCrud({ schoolId }) {
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !isOnline) return;
     const { type, subjectId, segId } = deleteConfirm;
     
     if (type === 'mapping') {
@@ -608,13 +692,13 @@ function SubjectsCrud({ schoolId }) {
               onChange={e => setSegmentId(e.target.value)} 
               options={segments.map(s => ({ value: s.id, label: s.name }))}
               required
-              disabled={saving}
+              disabled={saving || !isOnline}
             />
           </div>
           <div style={{ flex: 2, minWidth: '200px' }}>
-            <Input label="Nome da disciplina" placeholder="Ex: Robótica" value={name} onChange={e => setName(e.target.value)} required disabled={saving} />
+            <Input label="Nome da disciplina" placeholder="Ex: Robótica" value={name} onChange={e => setName(e.target.value)} required disabled={saving || !isOnline} />
           </div>
-          <Button type="submit" variant="primary" style={{ height: '42px', marginBottom: '1px' }} disabled={saving}>
+          <Button type="submit" variant="primary" style={{ height: '42px', marginBottom: '1px' }} disabled={saving || !isOnline}>
             {saving ? 'Adicionando...' : '+ Adicionar'}
           </Button>
         </form>
@@ -636,10 +720,20 @@ function SubjectsCrud({ schoolId }) {
               <div className="flex flex-wrap gap-2">
                 {segSubjects.map(sub => (
                   <div key={sub.id} id={`subject-${sub.id}-${seg.id}`} className="flex items-center" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '4px 12px', fontSize: '0.85rem', color: '#475569', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', transition: 'all 0.5s' }}>
-                    <span style={{ cursor: 'pointer', marginRight: '8px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => startEdit(sub)} title="Editar Disciplina">
+                    <span 
+                      style={{ cursor: isOnline ? 'pointer' : 'default', marginRight: '8px', display: 'flex', alignItems: 'center', gap: '4px' }} 
+                      onClick={() => isOnline && startEdit(sub)} 
+                      title={isOnline ? "Editar Disciplina" : "Edição desativada offline"}
+                    >
                       {sub.name}
                     </span>
-                    <button type="button" onClick={() => setDeleteConfirm({ type: 'mapping', subjectId: sub.id, segId: seg.id })} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#94a3b8', borderRadius: '50%' }} title="Remover desta Turma">
+                    <button 
+                      type="button" 
+                      onClick={() => setDeleteConfirm({ type: 'mapping', subjectId: sub.id, segId: seg.id })} 
+                      style={{ background: 'none', border: 'none', cursor: isOnline ? 'pointer' : 'default', display: 'flex', alignItems: 'center', padding: '2px', color: isOnline ? '#94a3b8' : '#cbd5e1', borderRadius: '50%' }} 
+                      disabled={!isOnline}
+                      title={isOnline ? "Remover desta Turma" : "Exclusão desativada offline"}
+                    >
                       <X size={14} />
                     </button>
                   </div>
@@ -658,10 +752,20 @@ function SubjectsCrud({ schoolId }) {
             <div className="flex flex-wrap gap-2">
               {orphanedSubjects.map(sub => (
                 <div key={sub.id} className="flex items-center" style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '16px', padding: '4px 12px', fontSize: '0.85rem', color: '#64748b' }}>
-                  <span style={{ cursor: 'pointer', marginRight: '8px' }} onClick={() => startEdit(sub)} title="Editar Disciplina">
+                  <span 
+                    style={{ cursor: isOnline ? 'pointer' : 'default', marginRight: '8px' }} 
+                    onClick={() => isOnline && startEdit(sub)} 
+                    title={isOnline ? "Editar Disciplina" : "Edição desativada offline"}
+                  >
                     {sub.name}
                   </span>
-                  <button type="button" onClick={() => setDeleteConfirm({ type: 'full', subjectId: sub.id })} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#ef4444' }} title="Excluir Permanentemente">
+                  <button 
+                    type="button" 
+                    onClick={() => setDeleteConfirm({ type: 'full', subjectId: sub.id })} 
+                    style={{ background: 'none', border: 'none', cursor: isOnline ? 'pointer' : 'default', display: 'flex', alignItems: 'center', padding: '2px', color: isOnline ? '#ef4444' : '#cbd5e1' }} 
+                    disabled={!isOnline}
+                    title={isOnline ? "Excluir Permanentemente" : "Exclusão desativada offline"}
+                  >
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -734,26 +838,55 @@ function TeachersCrud({ schoolId }) {
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+  const { isOnline } = useSync();
+
   const fetchData = async () => {
-    const { data: tData } = await supabase.from('teachers').select(`
-      *,
-      teacher_series ( series_id, series (name, segments(name)) ),
-      teacher_subjects ( subject_id, subjects (name) )
-    `).eq('school_id', schoolId).order('name');
-    if (tData) setTeachers(tData);
+    try {
+      if (!navigator.onLine) {
+        throw new Error('Device is offline');
+      }
+      const [tRes, serRes, subRes] = await withTimeout(Promise.all([
+        supabase.from('teachers').select(`
+          *,
+          teacher_series ( series_id, series (name, segments(name)) ),
+          teacher_subjects ( subject_id, subjects (name) )
+        `).eq('school_id', schoolId).order('name'),
+        supabase.from('series').select('*, segments(name)').eq('school_id', schoolId).order('name'),
+        supabase.from('subjects').select('id, name, segment_subjects(segment_id)').eq('school_id', schoolId).order('name')
+      ]), 2000);
 
-    const { data: serData } = await supabase.from('series').select('*, segments(name)').eq('school_id', schoolId).order('name');
-    if (serData) setSeries(serData);
+      if (tRes.error || serRes.error || subRes.error) {
+        throw new Error('Supabase teachers fetch error');
+      }
 
-    const { data: subData } = await supabase.from('subjects').select('*').eq('school_id', schoolId).order('name');
-    if (subData) setSubjects(subData);
+      const tData = tRes.data || [];
+      const serData = serRes.data || [];
+      const subData = subRes.data || [];
+
+      setTeachers(tData);
+      setSeries(serData);
+      setSubjects(subData);
+
+      await cacheMetadata(`teachers_crud_${schoolId}`, tData);
+      await cacheMetadata(`series_${schoolId}`, serData);
+      await cacheMetadata(`subjects_${schoolId}`, subData);
+    } catch (err) {
+      console.warn('Failed to fetch teachers, loading from cache:', err);
+      const cachedT = await getCachedMetadata(`teachers_crud_${schoolId}`);
+      const cachedSer = await getCachedMetadata(`series_${schoolId}`);
+      const cachedSub = await getCachedMetadata(`subjects_${schoolId}`);
+
+      if (cachedT) setTeachers(cachedT);
+      if (cachedSer) setSeries(cachedSer);
+      if (cachedSub) setSubjects(cachedSub);
+    }
   };
 
   useEffect(() => { fetchData(); }, [schoolId]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!name.trim() || saving) return;
+    if (!name.trim() || saving || !isOnline) return;
     
     setSaving(true);
     const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email: email || null, teacher_type: teacherType, school_id: schoolId }]).select().single();
@@ -799,7 +932,7 @@ function TeachersCrud({ schoolId }) {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editingItem.name.trim() || saving) return;
+    if (!editingItem.name.trim() || saving || !isOnline) return;
     
     setSaving(true);
     const { error } = await supabase.from('teachers').update({ 
@@ -846,7 +979,7 @@ function TeachersCrud({ schoolId }) {
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !isOnline) return;
     const { error } = await supabase.from('teachers').delete().eq('id', deleteConfirm);
     if (!error) {
       fetchData();
@@ -907,18 +1040,18 @@ function TeachersCrud({ schoolId }) {
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Professores</h2>
       <form onSubmit={handleAdd} className="flex flex-col gap-4" style={{ marginBottom: 'var(--space-6)' }}>
         <div className="flex gap-4 items-center flex-wrap">
-          <div style={{ flex: '1 1 200px' }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required disabled={saving} /></div>
-          <div style={{ flex: '1 1 200px' }}><Input type="email" placeholder="E-mail (opcional)" value={email} onChange={e => setEmail(e.target.value)} disabled={saving} /></div>
+          <div style={{ flex: '1 1 200px' }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required disabled={saving || !isOnline} /></div>
+          <div style={{ flex: '1 1 200px' }}><Input type="email" placeholder="E-mail (opcional)" value={email} onChange={e => setEmail(e.target.value)} disabled={saving || !isOnline} /></div>
         </div>
 
         <div className="flex gap-6 items-center flex-wrap" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <span className="text-sm font-medium">Tipo do Professor:</span>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="radio" name="teacherType" value="regente" checked={teacherType === 'regente'} onChange={(e) => { setTeacherType(e.target.value); setSelectedSubjects([]); }} disabled={saving} />
+            <input type="radio" name="teacherType" value="regente" checked={teacherType === 'regente'} onChange={(e) => { setTeacherType(e.target.value); setSelectedSubjects([]); }} disabled={saving || !isOnline} />
             Regente
           </label>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="radio" name="teacherType" value="especialista" checked={teacherType === 'especialista'} onChange={(e) => setTeacherType(e.target.value)} disabled={saving} />
+            <input type="radio" name="teacherType" value="especialista" checked={teacherType === 'especialista'} onChange={(e) => setTeacherType(e.target.value)} disabled={saving || !isOnline} />
             Especialista
           </label>
         </div>
@@ -933,14 +1066,14 @@ function TeachersCrud({ schoolId }) {
                 <div key={seg.id} style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                   <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-2)' }}>
                     <p className="text-xs font-semibold text-muted m-0">{seg.name}</p>
-                    <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleSegment(seg.id)} disabled={saving}>
+                    <button type="button" className="text-xs text-primary hover:underline bg-transparent border-none cursor-pointer" style={{ padding: 0 }} onClick={() => toggleSegment(seg.id)} disabled={saving || !isOnline}>
                       {segSeries.length > 0 && segSeries.every(s => selectedSeries.includes(s.id)) ? 'Desmarcar todas' : 'Selecionar todas'}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {segSeries.map(s => (
                       <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: selectedSeries.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSeries.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
-                        <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} style={{ margin: 0 }} disabled={saving} />
+                        <input type="checkbox" checked={selectedSeries.includes(s.id)} onChange={() => toggleSeries(s.id)} style={{ margin: 0 }} disabled={saving || !isOnline} />
                         <span style={{ color: selectedSeries.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSeries.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                       </label>
                     ))}
@@ -959,7 +1092,7 @@ function TeachersCrud({ schoolId }) {
             <div className="flex flex-wrap gap-2" style={{ padding: 'var(--space-3)', backgroundColor: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               {subjects.map(s => (
                 <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer" style={{ whiteSpace: 'nowrap', backgroundColor: selectedSubjects.includes(s.id) ? 'var(--primary-light)' : '#f8fafc', border: '1px solid', borderColor: selectedSubjects.includes(s.id) ? 'var(--primary)' : '#e2e8f0', borderRadius: '16px', padding: '4px 10px', transition: 'all 0.2s' }}>
-                  <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ margin: 0 }} disabled={saving} />
+                  <input type="checkbox" checked={selectedSubjects.includes(s.id)} onChange={() => toggleSubject(s.id)} style={{ margin: 0 }} disabled={saving || !isOnline} />
                   <span style={{ color: selectedSubjects.includes(s.id) ? 'var(--primary-hover)' : 'var(--text-secondary)', fontWeight: selectedSubjects.includes(s.id) ? '500' : 'normal' }}>{s.name}</span>
                 </label>
               ))}
@@ -969,7 +1102,7 @@ function TeachersCrud({ schoolId }) {
         )}
 
         <div>
-          <Button type="submit" variant="primary" disabled={saving}>
+          <Button type="submit" variant="primary" disabled={saving || !isOnline}>
             {saving ? 'Adicionando...' : <><Plus size={18} /> Adicionar Professor</>}
           </Button>
         </div>
@@ -993,10 +1126,10 @@ function TeachersCrud({ schoolId }) {
                 </td>
                 <td>
                   <div className="flex gap-2 justify-end">
-                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEdit(t)}>
+                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => startEdit(t)} disabled={!isOnline}>
                       <Edit2 size={16} />
                     </Button>
-                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(t.id)}>
+                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(t.id)} disabled={!isOnline}>
                       <Trash2 size={16} />
                     </Button>
                   </div>

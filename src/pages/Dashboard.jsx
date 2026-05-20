@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Modal } from '../components/ui';
+import { Card, Button, Modal, ConfirmModal, Toast } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff } from 'lucide-react';
 import ObservationDetails from './ObservationDetails';
+import { useSync } from '../contexts/SyncContext';
+import { removeQueueItem, cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
 import { 
   ResponsiveContainer, 
   LineChart, 
@@ -23,10 +25,13 @@ import {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { selectedSchoolId, selectedBimestre } = useSchool();
+  const { offlineQueue, loadQueue } = useSync();
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // Card Selectors State
   const [totalFilter, setTotalFilter] = useState('data'); // data, nome, serie, turma
@@ -48,6 +53,10 @@ export default function Dashboard() {
     setLoading(true);
     
     try {
+      if (!navigator.onLine) {
+        throw new Error('Device is offline');
+      }
+
       let query = supabase
         .from('observations')
         .select(`
@@ -62,12 +71,29 @@ export default function Dashboard() {
         query = query.eq('bimestre', selectedBimestre);
       }
 
-      const { data, error } = await query.order('visit_date', { ascending: false });
+      const { data, error } = await withTimeout(query.order('visit_date', { ascending: false }), 2000);
 
       if (error) throw error;
-      setObservations(data || []);
+      
+      const obsData = data || [];
+      setObservations(obsData);
+
+      // Cache the observations list for this school and bimestre
+      if (selectedSchoolId && selectedBimestre) {
+        await cacheMetadata(`observations_${selectedSchoolId}_${selectedBimestre}`, obsData);
+      }
     } catch (error) {
-      console.error('Error fetching observations:', error);
+      console.error('Error fetching observations, loading from cache:', error);
+      if (selectedSchoolId && selectedBimestre) {
+        const cachedObs = await getCachedMetadata(`observations_${selectedSchoolId}_${selectedBimestre}`);
+        if (cachedObs) {
+          setObservations(cachedObs);
+        } else {
+          setObservations([]);
+        }
+      } else {
+        setObservations([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -75,17 +101,42 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchObservations();
+
+    const handleSyncCompleted = () => {
+      fetchObservations();
+    };
+    window.addEventListener('sosa_sync_completed', handleSyncCompleted);
+    return () => window.removeEventListener('sosa_sync_completed', handleSyncCompleted);
   }, [selectedSchoolId, selectedBimestre]);
 
   // Data Transformation for Charts
+  const localOfflineObs = useMemo(() => {
+    return offlineQueue
+      .filter(item => item.payload.school_id === selectedSchoolId && item.payload.bimestre === selectedBimestre)
+      .map(item => {
+        return {
+          ...item.payload,
+          id: item.id,
+          isOffline: true,
+          teachers: { name: item.meta.teacherName },
+          subjects: { name: item.meta.subjectName },
+          series: { name: item.meta.seriesName }
+        };
+      });
+  }, [offlineQueue, selectedSchoolId, selectedBimestre]);
+
+  const allObservations = useMemo(() => {
+    return [...localOfflineObs, ...observations];
+  }, [localOfflineObs, observations]);
+
   const chartData = useMemo(() => {
-    if (observations.length === 0) return { total: [], period: [], status: [] };
+    if (allObservations.length === 0) return { total: [], period: [], status: [] };
 
     // 1. Total Card Data
     let totalData = [];
     if (totalFilter === 'data') {
       const counts = {};
-      observations.forEach(obs => {
+      allObservations.forEach(obs => {
         const date = obs.visit_date;
         counts[date] = (counts[date] || 0) + 1;
       });
@@ -94,7 +145,7 @@ export default function Dashboard() {
         .sort((a, b) => a.label.localeCompare(b.label));
     } else if (totalFilter === 'nome') {
       const counts = {};
-      observations.forEach(obs => {
+      allObservations.forEach(obs => {
         const name = obs.teachers?.name?.split(' ')[0] || 'N/A';
         counts[name] = (counts[name] || 0) + 1;
       });
@@ -104,7 +155,7 @@ export default function Dashboard() {
         .slice(0, 5);
     } else if (totalFilter === 'serie' || totalFilter === 'turma') {
       const counts = {};
-      observations.forEach(obs => {
+      allObservations.forEach(obs => {
         const name = obs.series?.name || 'N/A';
         counts[name] = (counts[name] || 0) + 1;
       });
@@ -120,7 +171,7 @@ export default function Dashboard() {
     if (periodRange === 'semana') {
       const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
       const counts = days.reduce((acc, d) => ({ ...acc, [d]: 0 }), {});
-      observations.forEach(obs => {
+      allObservations.forEach(obs => {
         const d = new Date(obs.visit_date);
         const weekAgo = new Date(); weekAgo.setDate(now.getDate() - 7);
         if (d >= weekAgo) counts[days[d.getDay()]] += 1;
@@ -129,7 +180,7 @@ export default function Dashboard() {
     } else if (periodRange === 'mes') {
       // Group by weeks
       const counts = { 'Sem 1': 0, 'Sem 2': 0, 'Sem 3': 0, 'Sem 4+': 0 };
-      observations.forEach(obs => {
+      allObservations.forEach(obs => {
         const d = new Date(obs.visit_date);
         if (d.getMonth() === now.getMonth()) {
           const day = d.getDate();
@@ -144,7 +195,7 @@ export default function Dashboard() {
       // Group by months for Bimestre, Semestre, Ano
       const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const counts = months.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
-      observations.forEach(obs => {
+      allObservations.forEach(obs => {
         const d = new Date(obs.visit_date);
         if (d.getFullYear() === now.getFullYear()) {
           counts[months[d.getMonth()]] += 1;
@@ -163,40 +214,57 @@ export default function Dashboard() {
     ];
     
     const statusData = dimensions.map(dim => {
-      const count = observations.filter(obs => obs[dim.key] === statusFilter).length;
+      const count = allObservations.filter(obs => obs[dim.key] === statusFilter).length;
       return { label: dim.label, value: count };
     });
 
     return { total: totalData, period: periodData, status: statusData };
-  }, [observations, totalFilter, periodRange, statusFilter]);
+  }, [allObservations, totalFilter, periodRange, statusFilter]);
 
   const stats = useMemo(() => {
-    const totalCount = observations.length;
+    const totalCount = allObservations.length;
     const periodCount = chartData.period.reduce((a, b) => a + b.value, 0);
     // Soma total das avaliações que correspondem ao status selecionado nas 5 dimensões
-    const statusCount = observations.reduce((sum, obs) => {
+    const statusCount = allObservations.reduce((sum, obs) => {
       const evals = [obs.planning_evaluation, obs.methodology_evaluation, obs.learning_evaluation, obs.management_evaluation, obs.identity_evaluation];
       return sum + evals.filter(e => e === statusFilter).length;
     }, 0);
     return { total: totalCount, period: periodCount, status: statusCount };
-  }, [observations, chartData, statusFilter]);
+  }, [allObservations, chartData, statusFilter]);
 
   const sortedObservations = useMemo(() => {
-    const sorted = [...observations];
+    const sorted = [...allObservations];
     if (totalFilter === 'nome') sorted.sort((a, b) => (a.teachers?.name || '').localeCompare(b.teachers?.name || ''));
     else if (totalFilter === 'serie') sorted.sort((a, b) => (a.series?.name || '').localeCompare(b.series?.name || ''));
     else sorted.sort((a, b) => new Date(b.visit_date) - new Date(a.visit_date));
     return sorted;
-  }, [observations, totalFilter]);
+  }, [allObservations, totalFilter]);
 
-  const handleDelete = async (id) => {
-    if (!confirm('Tem certeza que deseja excluir este registro?')) return;
+  const handleDelete = (id) => {
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    const idToDelete = deleteConfirmId;
+    setDeleteConfirmId(null);
+    setLoading(true);
     try {
-      const { error } = await supabase.from('observations').delete().eq('id', id);
-      if (error) throw error;
-      fetchObservations();
+      if (String(idToDelete).startsWith('offline_')) {
+        await removeQueueItem(idToDelete);
+        await loadQueue();
+        setToast({ message: 'Observação offline excluída com sucesso!' });
+      } else {
+        const { error } = await supabase.from('observations').delete().eq('id', idToDelete);
+        if (error) throw error;
+        fetchObservations();
+        setToast({ message: 'Observação excluída com sucesso!' });
+      }
     } catch (error) {
-      alert('Erro ao excluir registro.');
+      console.error(error);
+      setToast({ message: 'Erro ao excluir registro.', type: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -386,7 +454,17 @@ export default function Dashboard() {
                 {sortedObservations.map(obs => (
                   <tr key={obs.id}>
                     <td className="text-xs font-bold text-primary">
-                      {obs.visit_date ? obs.visit_date.split('-').reverse().join('/') : 'N/A'}
+                      <div className="flex items-center gap-1.5">
+                        {obs.visit_date ? obs.visit_date.split('-').reverse().join('/') : 'N/A'}
+                        {obs.isOffline && (
+                          <div className="offline-badge-container">
+                            <CloudOff size={13} className="text-danger animate-pulse" style={{ cursor: 'help' }} />
+                            <span className="offline-tooltip" style={{ width: '180px' }}>
+                              Registro salvo localmente offline. Sincronização automática pendente.
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div className="flex items-center gap-1">
@@ -435,6 +513,15 @@ export default function Dashboard() {
           <Button onClick={() => setIsModalOpen(false)}>Fechar</Button>
         </div>
       </Modal>
+
+      <ConfirmModal 
+        isOpen={!!deleteConfirmId}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={confirmDelete}
+        message="Tem certeza que deseja excluir esta observação? Esta ação não pode ser desfeita."
+      />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

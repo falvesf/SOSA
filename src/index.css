@@ -599,3 +599,104 @@ input, select, textarea {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 }
+
+/* Discrete Offline Status Badge & Hover Tooltip */
+.offline-badge-container {
+  display: inline-block;
+  position: relative;
+}
+
+.offline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: help;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.offline-badge:hover {
+  background-color: #fecaca;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.offline-badge::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background-color: #dc2626;
+  border-radius: 50%;
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(220, 38, 38, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
+}
+
+.offline-tooltip {
+  visibility: hidden;
+  width: 260px;
+  background-color: #1f2937;
+  color: #ffffff;
+  text-align: left;
+  border-radius: 8px;
+  padding: 8px 12px;
+  position: absolute;
+  z-index: 1000;
+  top: 125%;
+  left: 0;
+  transform: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: normal;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.offline-tooltip::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 30px;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent #1f2937 transparent;
+}
+
+.offline-badge-container:hover .offline-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Animation for local CloudOff icon */
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-pulse {
+  animation: pulse-opacity 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
