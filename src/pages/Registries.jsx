@@ -70,7 +70,7 @@ function SchoolsCrud() {
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const { isOnline } = useSync();
-  const { reloadSchools } = useSchool();
+  const { reloadSchools, userRole } = useSchool();
 
   const fetchSchools = async () => {
     try {
@@ -221,13 +221,15 @@ function SchoolsCrud() {
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-4)' }}>Unidades Escolares</h2>
-      <form onSubmit={handleAdd} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ flex: 1 }}><Input placeholder="Código da Unidade (ex: 001)" value={code} onChange={e => setCode(e.target.value)} required disabled={saving || !isOnline} /></div>
-        <div style={{ flex: 2 }}><Input placeholder="Nome da Unidade" value={name} onChange={e => setName(e.target.value)} required disabled={saving || !isOnline} /></div>
-        <Button type="submit" variant="primary" disabled={saving || !isOnline}>
-          {saving ? 'Adicionando...' : <><Plus size={18} /> Adicionar</>}
-        </Button>
-      </form>
+      {userRole === 'superadmin' && (
+        <form onSubmit={handleAdd} className="flex gap-4 items-center" style={{ marginBottom: 'var(--space-6)' }}>
+          <div style={{ flex: 1 }}><Input placeholder="Código da Unidade (ex: 001)" value={code} onChange={e => setCode(e.target.value)} required disabled={saving || !isOnline} /></div>
+          <div style={{ flex: 2 }}><Input placeholder="Nome da Unidade" value={name} onChange={e => setName(e.target.value)} required disabled={saving || !isOnline} /></div>
+          <Button type="submit" variant="primary" disabled={saving || !isOnline}>
+            {saving ? 'Adicionando...' : <><Plus size={18} /> Adicionar</>}
+          </Button>
+        </form>
+      )}
 
       <div className="table-container">
         <table className="table">
@@ -236,7 +238,7 @@ function SchoolsCrud() {
               <th>Código</th>
               <th>Nome da Unidade</th>
               <th style={{ width: '220px' }}>Banner do Cabeçalho</th>
-              <th style={{ width: '100px', textAlign: 'right' }}>Ações</th>
+              {userRole === 'superadmin' && <th style={{ width: '100px', textAlign: 'right' }}>Ações</th>}
             </tr>
           </thead>
           <tbody>
@@ -282,16 +284,18 @@ function SchoolsCrud() {
                     </div>
                   )}
                 </td>
-                <td style={{ verticalAlign: 'middle' }}>
-                  <div className="flex gap-2 justify-end">
-                    <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })} disabled={!isOnline}>
-                      <Edit2 size={16} />
-                    </Button>
-                    <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(s.id)} disabled={!isOnline}>
-                      <Trash2 size={16} />
-                    </Button>
-                  </div>
-                </td>
+                {userRole === 'superadmin' && (
+                  <td style={{ verticalAlign: 'middle' }}>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })} disabled={!isOnline}>
+                        <Edit2 size={16} />
+                      </Button>
+                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(s.id)} disabled={!isOnline}>
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
             {schools.length === 0 && <tr><td colSpan="4" className="text-center text-muted">Nenhuma unidade cadastrada.</td></tr>}

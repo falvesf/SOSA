@@ -17,6 +17,15 @@ function Layout({ children, onLogout }) {
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [userName, setUserName] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUserName(user.user_metadata?.full_name || '')
+      }
+    })
+  }, [])
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -112,6 +121,48 @@ function Layout({ children, onLogout }) {
           </div>
           <span className="text-xs text-muted" style={{ display: 'block', marginBottom: '4px', marginTop: '2px' }}>Observação em Sala</span>
           
+          {userRole && (
+            <div style={{ 
+              marginTop: 'var(--space-3)', 
+              marginBottom: 'var(--space-3)', 
+              padding: '8px 10px', 
+              backgroundColor: 'var(--background)', 
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              {userName && (
+                <span style={{ 
+                  fontSize: '12px', 
+                  fontWeight: '600', 
+                  color: 'var(--text)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {userName}
+                </span>
+              )}
+              <div>
+                <span style={{ 
+                  display: 'inline-block',
+                  backgroundColor: userRole === 'superadmin' ? '#dc2626' : userRole === 'school_admin' ? '#15803d' : '#1e3a8a', 
+                  color: 'white', 
+                  fontSize: '9px', 
+                  fontWeight: 'bold', 
+                  padding: '2px 8px', 
+                  borderRadius: 'var(--radius-full)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  {userRole === 'superadmin' ? 'Superadmin' : userRole === 'school_admin' ? 'Administrador(a)' : 'Coordenador(a)'}
+                </span>
+              </div>
+            </div>
+          )}
+          
           {!isOnline && (
             <div className="offline-badge-container" style={{ margin: '4px 0 8px 0' }}>
               <span className="offline-badge">
@@ -125,29 +176,38 @@ function Layout({ children, onLogout }) {
           
           <div className="flex flex-col gap-2">
             {!loading && schools.length > 0 && (
-              <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
-                <label className="text-xs font-semibold text-muted" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Unidade Escolar</label>
-                <select 
-                  style={{ 
-                    padding: 0, 
-                    margin: 0,
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    boxShadow: 'none',
-                    cursor: 'pointer',
-                    width: '100%',
-                    fontSize: '11px'
-                  }}
-                  className="font-medium text-muted"
-                  value={selectedSchoolId}
-                  onChange={(e) => setSelectedSchoolId(e.target.value)}
-                >
-                  {schools.map(s => (
-                    <option key={s.id} value={s.id}>{s.code ? `${s.code} - ${s.name}` : s.name}</option>
-                  ))}
-                </select>
-              </div>
+              schools.length > 1 ? (
+                <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
+                  <label className="text-xs font-semibold text-muted" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Unidade Escolar</label>
+                  <select 
+                    style={{ 
+                      padding: 0, 
+                      margin: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      outline: 'none',
+                      boxShadow: 'none',
+                      cursor: 'pointer',
+                      width: '100%',
+                      fontSize: '11px'
+                    }}
+                    className="font-medium text-muted"
+                    value={selectedSchoolId}
+                    onChange={(e) => setSelectedSchoolId(e.target.value)}
+                  >
+                    {schools.map(s => (
+                      <option key={s.id} value={s.id}>{s.code ? `${s.code} - ${s.name}` : s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
+                  <label className="text-xs font-semibold text-muted" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Unidade Escolar</label>
+                  <span className="font-medium text-muted" style={{ fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {schools[0].code ? `${schools[0].code} - ${schools[0].name}` : schools[0].name}
+                  </span>
+                </div>
+              )
             )}
 
             <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
