@@ -462,14 +462,26 @@ input, select, textarea {
 
   .card {
     border: 1px solid #ddd !important;
-    margin-bottom: 1.5rem !important;
+    margin-bottom: 0.75rem !important;
     break-inside: avoid;
     box-shadow: none !important;
     background-color: white !important;
   }
 
+  .detail-section {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 1.25rem !important;
+  }
+
+  .evaluations-container {
+    display: block !important;
+    width: 100% !important;
+  }
+
   .devolutiva-section,
-  .signature-container {
+  .signature-container,
+  .registro-final-section {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }

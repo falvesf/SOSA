@@ -57,16 +57,31 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
       padding: 'var(--space-4)'
     }}>
       <div className="card animate-fade-in" style={{
-        width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto',
-        position: 'relative'
+        width: '100%', maxWidth: '820px', maxHeight: '92vh',
+        display: 'flex', flexDirection: 'column',
+        position: 'relative', padding: 0, overflow: 'hidden'
       }}>
-        <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-4)' }}>
-          <h2 className="h3 modal-title" style={{ margin: 0 }}>{title}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+        {/* Frozen Modal Header */}
+        <div className="no-print" style={{ 
+          padding: 'var(--space-5) var(--space-5) var(--space-3) var(--space-5)', 
+          flexShrink: 0
+        }}>
+          <div className="flex justify-between items-center">
+            <h2 className="h3 modal-title" style={{ margin: 0 }}>{title}</h2>
+            <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
         </div>
-        {children}
+        
+        {/* Scrollable Modal Content */}
+        <div className="modal-scrollable-body" style={{ 
+          overflowY: 'auto', 
+          padding: '0 var(--space-5) var(--space-5) var(--space-5)',
+          flex: 1
+        }}>
+          {children}
+        </div>
       </div>
     </div>
   );

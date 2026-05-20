@@ -7,8 +7,8 @@ import { useSync } from '../contexts/SyncContext';
 import { cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
 
 export default function Registries() {
-  const [activeTab, setActiveTab] = useState('schools'); // schools, series, subjects, teachers
-  const { selectedSchoolId } = useSchool();
+  const [activeTab, setActiveTab] = useState('schools'); // schools, series, subjects, teachers, users
+  const { selectedSchoolId, userRole } = useSchool();
   const { isOnline } = useSync();
 
   return (
@@ -20,6 +20,9 @@ export default function Registries() {
           <Button variant={activeTab === 'series' ? 'primary' : 'secondary'} onClick={() => setActiveTab('series')}>Turmas e Séries</Button>
           <Button variant={activeTab === 'subjects' ? 'primary' : 'secondary'} onClick={() => setActiveTab('subjects')}>Disciplinas</Button>
           <Button variant={activeTab === 'teachers' ? 'primary' : 'secondary'} onClick={() => setActiveTab('teachers')}>Professores</Button>
+          {userRole === 'superadmin' && (
+            <Button variant={activeTab === 'users' ? 'primary' : 'secondary'} onClick={() => setActiveTab('users')}>Gerenciar Usuários</Button>
+          )}
         </div>
       </div>
 
@@ -45,7 +48,8 @@ export default function Registries() {
 
       <Card className="animate-fade-in">
         {activeTab === 'schools' && <SchoolsCrud />}
-        {activeTab !== 'schools' && !selectedSchoolId && (
+        {activeTab === 'users' && <UsersCrud />}
+        {activeTab !== 'schools' && activeTab !== 'users' && !selectedSchoolId && (
           <div className="p-8 text-center text-muted">Por favor, selecione uma Unidade Escolar no menu lateral para visualizar ou adicionar cadastros.</div>
         )}
         {activeTab === 'series' && selectedSchoolId && <SeriesCrud schoolId={selectedSchoolId} />}
@@ -66,6 +70,7 @@ function SchoolsCrud() {
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const { isOnline } = useSync();
+  const { reloadSchools } = useSchool();
 
   const fetchSchools = async () => {
     try {
@@ -84,6 +89,75 @@ function SchoolsCrud() {
   };
 
   useEffect(() => { fetchSchools(); }, []);
+
+  const handleUploadBanner = async (schoolId, file) => {
+    if (!file || !isOnline) return;
+    setSaving(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${schoolId}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      
+      let bucketName = 'school-banners';
+      let uploadResult = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+        
+      if (uploadResult.error) {
+        console.warn('Lowercase upload failed, trying uppercase fallback...');
+        bucketName = 'SCHOOL-BANNERS';
+        uploadResult = await supabase.storage
+          .from(bucketName)
+          .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      }
+      
+      if (uploadResult.error) throw uploadResult.error;
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+        
+      // Save to schools table
+      const { error: updateError } = await supabase
+        .from('schools')
+        .update({ banner_url: publicUrl })
+        .eq('id', schoolId);
+        
+      if (updateError) throw updateError;
+      
+      await fetchSchools();
+      await reloadSchools();
+      setToast({ message: 'Banner da Unidade atualizado com sucesso!' });
+    } catch (err) {
+      console.error('Error uploading banner:', err);
+      const errMsg = err.message || err.error_description || err.error || 'Erro desconhecido.';
+      setToast({ message: `Erro ao enviar banner: ${errMsg}`, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveBanner = async (schoolId) => {
+    if (!isOnline) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('schools')
+        .update({ banner_url: null })
+        .eq('id', schoolId);
+        
+      if (error) throw error;
+      
+      await fetchSchools();
+      await reloadSchools();
+      setToast({ message: 'Banner personalizado removido com sucesso.' });
+    } catch (err) {
+      console.error('Error removing banner:', err);
+      setToast({ message: 'Erro ao remover banner.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -158,14 +232,57 @@ function SchoolsCrud() {
       <div className="table-container">
         <table className="table">
           <thead>
-            <tr><th>Código</th><th>Nome da Unidade</th><th style={{ width: '100px' }}>Ações</th></tr>
+            <tr>
+              <th>Código</th>
+              <th>Nome da Unidade</th>
+              <th style={{ width: '220px' }}>Banner do Cabeçalho</th>
+              <th style={{ width: '100px', textAlign: 'right' }}>Ações</th>
+            </tr>
           </thead>
           <tbody>
             {schools.map(s => (
               <tr key={s.id} id={`school-${s.id}`} style={{ transition: 'background-color 0.5s' }}>
-                <td>{s.code}</td>
-                <td>{s.name}</td>
-                <td>
+                <td style={{ verticalAlign: 'middle' }}>{s.code}</td>
+                <td style={{ verticalAlign: 'middle' }}>{s.name}</td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  {s.banner_url ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <img 
+                        src={s.banner_url} 
+                        alt="Banner Unidade" 
+                        style={{ height: '32px', maxWidth: '120px', objectFit: 'contain', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} 
+                      />
+                      <Button variant="danger" style={{ padding: '2px 8px', fontSize: '10px', height: 'auto' }} onClick={() => handleRemoveBanner(s.id)} disabled={saving || !isOnline}>
+                        Excluir
+                      </Button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'inline-block' }}>
+                      <input 
+                        id={`banner-input-${s.id}`}
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleUploadBanner(s.id, e.target.files[0]);
+                          }
+                          e.target.value = ""; // Reseta o input para permitir selecionar o mesmo arquivo novamente
+                        }} 
+                        disabled={saving || !isOnline} 
+                        style={{ display: 'none' }} 
+                      />
+                      <Button 
+                        variant="secondary" 
+                        style={{ padding: '4px 10px', fontSize: '11px', height: 'auto' }} 
+                        disabled={saving || !isOnline}
+                        onClick={() => document.getElementById(`banner-input-${s.id}`).click()}
+                      >
+                        Enviar Banner
+                      </Button>
+                    </div>
+                  )}
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
                   <div className="flex gap-2 justify-end">
                     <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })} disabled={!isOnline}>
                       <Edit2 size={16} />
@@ -177,7 +294,7 @@ function SchoolsCrud() {
                 </td>
               </tr>
             ))}
-            {schools.length === 0 && <tr><td colSpan="3" className="text-center text-muted">Nenhuma unidade cadastrada.</td></tr>}
+            {schools.length === 0 && <tr><td colSpan="4" className="text-center text-muted">Nenhuma unidade cadastrada.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1216,6 +1333,256 @@ function TeachersCrud({ schoolId }) {
         onConfirm={confirmDelete}
         message="Tem certeza que deseja excluir este professor? Esta ação não pode ser desfeita."
       />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+// Users and Permissions Component
+function UsersCrud() {
+  const [users, setUsers] = useState([]);
+  const [schools, setSchools] = useState([]);
+  const [scopes, setScopes] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  
+  const { isOnline } = useSync();
+  const { reloadSchools } = useSchool();
+
+  const fetchData = async () => {
+    setLoadingUsers(true);
+    try {
+      if (!isOnline) return;
+      const [uRes, sRes, scRes] = await Promise.all([
+        supabase.from('user_profiles').select('*').order('email'),
+        supabase.from('schools').select('*').order('name'),
+        supabase.from('user_school_scopes').select('*')
+      ]);
+
+      if (uRes.error) throw uRes.error;
+      if (sRes.error) throw sRes.error;
+      if (scRes.error) throw scRes.error;
+
+      setUsers(uRes.data || []);
+      setSchools(sRes.data || []);
+      setScopes(scRes.data || []);
+    } catch (err) {
+      console.error('Error fetching users/scopes:', err);
+      setToast({ message: 'Erro ao carregar dados de usuários.', type: 'error' });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleRoleChange = async (userId, newRole) => {
+    if (!isOnline || saving) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ role: newRole })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      // If changing to superadmin, clean up school scopes as they are redundant
+      if (newRole === 'superadmin') {
+        await supabase.from('user_school_scopes').delete().eq('user_id', userId);
+      }
+
+      await fetchData();
+      await reloadSchools(); // Live reload schools scopes in Sidebar!
+      setToast({ message: 'Tipo de acesso atualizado com sucesso!' });
+    } catch (err) {
+      console.error(err);
+      setToast({ message: 'Erro ao atualizar tipo de acesso.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleScope = async (userId, schoolId, isAssigned) => {
+    if (!isOnline || saving) return;
+    setSaving(true);
+    try {
+      if (isAssigned) {
+        // Remove scope
+        const { error } = await supabase
+          .from('user_school_scopes')
+          .delete()
+          .eq('user_id', userId)
+          .eq('school_id', schoolId);
+        if (error) throw error;
+      } else {
+        // Add scope
+        const { error } = await supabase
+          .from('user_school_scopes')
+          .insert([{ user_id: userId, school_id: schoolId }]);
+        if (error) throw error;
+      }
+
+      await fetchData();
+      await reloadSchools(); // Live reload schools scopes in Sidebar!
+      setToast({ message: 'Escolas associadas atualizadas com sucesso!' });
+    } catch (err) {
+      console.error(err);
+      setToast({ message: 'Erro ao atualizar escopo do usuário.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!isOnline || saving) return;
+    if (!window.confirm('Tem certeza que deseja excluir o perfil e todas as permissões deste usuário?')) return;
+    
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      await fetchData();
+      await reloadSchools(); // Live reload schools scopes in Sidebar!
+      setToast({ message: 'Usuário excluído com sucesso.' });
+    } catch (err) {
+      console.error(err);
+      setToast({ message: 'Erro ao excluir usuário.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="h2" style={{ marginBottom: 'var(--space-2)' }}>Gerenciar Usuários e Permissões</h2>
+      <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-6)' }}>
+        Configure quais escolas e níveis de privilégios cada coordenador ou administrador terá acesso no sistema.
+      </p>
+
+      {loadingUsers ? (
+        <div style={{ textAlign: 'center', padding: 'var(--space-8)' }}>Carregando dados dos usuários...</div>
+      ) : (
+        <div className="table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>E-mail</th>
+                <th style={{ width: '220px' }}>Tipo de Acesso</th>
+                <th>Unidades Escolares Acessíveis</th>
+                <th style={{ width: '80px', textAlign: 'right' }}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => {
+                const userScopes = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
+                return (
+                  <tr key={u.id}>
+                    <td style={{ verticalAlign: 'middle', fontWeight: '500' }}>{u.email}</td>
+                    <td style={{ verticalAlign: 'middle' }}>
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                        disabled={saving}
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--border)',
+                          backgroundColor: 'white',
+                          fontSize: '13px'
+                        }}
+                      >
+                        <option value="superadmin">Superadmin</option>
+                        <option value="school_admin">Administrador Local</option>
+                        <option value="coordinator">Coordenador</option>
+                      </select>
+                    </td>
+                    <td style={{ verticalAlign: 'middle' }}>
+                      {u.role === 'superadmin' ? (
+                        <span style={{ 
+                          fontSize: '11px', 
+                          fontWeight: '600', 
+                          color: '#15803d', 
+                          backgroundColor: '#dcfce7', 
+                          padding: '4px 10px', 
+                          borderRadius: '16px' 
+                        }}>
+                          Todas as Unidades (Acesso Irrestrito)
+                        </span>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '4px 0' }}>
+                          {schools.map(s => {
+                            const isAssigned = userScopes.includes(s.id);
+                            return (
+                              <label 
+                                key={s.id} 
+                                style={{ 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px',
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  border: '1px solid',
+                                  borderColor: isAssigned ? 'var(--primary)' : '#e2e8f0',
+                                  backgroundColor: isAssigned ? 'var(--primary-light)' : '#f8fafc',
+                                  color: isAssigned ? 'var(--primary-hover)' : 'var(--text-secondary)',
+                                  fontWeight: isAssigned ? '500' : 'normal',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <input 
+                                  type="checkbox" 
+                                  checked={isAssigned} 
+                                  onChange={() => handleToggleScope(u.id, s.id, isAssigned)} 
+                                  style={{ margin: 0 }} 
+                                  disabled={saving} 
+                                />
+                                {s.name}
+                              </label>
+                            );
+                          })}
+                          {schools.length === 0 && <span className="text-xs text-muted">Nenhuma escola cadastrada no sistema.</span>}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
+                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteUser(u.id)} disabled={saving}>
+                        <Trash2 size={16} />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {users.length === 0 && <tr><td colSpan="4" className="text-center text-muted">Nenhum perfil de usuário registrado no sistema.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+      
+      <div style={{ 
+        marginTop: 'var(--space-6)', 
+        padding: 'var(--space-4)', 
+        backgroundColor: '#f8fafc', 
+        borderRadius: 'var(--radius-md)', 
+        border: '1px solid var(--border)',
+        fontSize: '13px',
+        color: 'var(--text-secondary)',
+        lineHeight: '1.4'
+      }}>
+        <strong>Dica para cadastrar novos usuários:</strong> Oriente o novo coordenador ou administrador a realizar o **primeiro login** no sistema SOSA utilizando sua conta Google Workspace institucional. Ao fazer isso, o perfil dele será criado automaticamente no sistema como "Coordenador" e aparecerá nesta lista. A partir daí, você poderá elevá-lo a "Administrador Local" ou "Superadmin" e associá-lo às respectivas escolas dele.
+      </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

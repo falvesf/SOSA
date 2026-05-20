@@ -614,9 +614,6 @@ export default function Dashboard() {
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Detalhes da Observação">
         <ObservationDetails observation={selectedObservation} />
-        <div className="flex justify-end mt-6">
-          <Button onClick={() => setIsModalOpen(false)}>Fechar</Button>
-        </div>
       </Modal>
 
       <ConfirmModal 
