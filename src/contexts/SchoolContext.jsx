@@ -15,6 +15,7 @@ export function SchoolProvider({ children }) {
   const [userRole, setUserRole] = useState(null);
   const [userScopes, setUserScopes] = useState([]);
   const [hasNoSchools, setHasNoSchools] = useState(false);
+  const [allSystemSchools, setAllSystemSchools] = useState([]);
 
   async function init() {
     setLoading(true);
@@ -108,6 +109,7 @@ export function SchoolProvider({ children }) {
           schoolsData = cachedSchools;
         }
       }
+      setAllSystemSchools(schoolsData);
       
       // Filter schools based on role & scopes
       let filteredSchools = schoolsData;
@@ -179,6 +181,7 @@ export function SchoolProvider({ children }) {
       userRole,
       userScopes,
       hasNoSchools,
+      allSystemSchools,
       reloadSchools: init
     }}>
       {children}

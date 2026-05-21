@@ -5,6 +5,7 @@ import { ClipboardList, Users, BookOpen, LogOut, Info } from 'lucide-react'
 import Registries from './pages/Registries'
 import Instructions from './pages/Instructions'
 import ObservationForm from './pages/ObservationForm'
+import UserRequests from './pages/UserRequests'
 import { SchoolProvider, useSchool } from './contexts/SchoolContext'
 import Dashboard from './pages/Dashboard'
 import { SyncProvider, useSync } from './contexts/SyncContext'
@@ -18,6 +19,7 @@ function Layout({ children, onLogout }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [userName, setUserName] = useState('')
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -28,9 +30,45 @@ function Layout({ children, onLogout }) {
   }, [])
 
   useEffect(() => {
+    if (userRole && userRole !== 'coordinator' && isOnline) {
+      const fetchPendingCount = async () => {
+        try {
+          let query = supabase
+            .from('user_school_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pending');
+          
+          if (userRole === 'school_admin') {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const { data: scData } = await supabase
+                .from('user_school_scopes')
+                .select('school_id')
+                .eq('user_id', user.id);
+              const scopes = scData ? scData.map(s => s.school_id) : [];
+              query = query.in('school_id', scopes);
+            }
+          }
+          
+          const { count, error } = await query;
+          if (!error) {
+            setPendingCount(count || 0);
+          }
+        } catch (e) {
+          console.error('Error fetching pending requests count:', e);
+        }
+      };
+      
+      fetchPendingCount();
+      const interval = setInterval(fetchPendingCount, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [userRole, isOnline]);
+
+  useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
-    
+
     // Orientation Lock logic
     const lockOrientation = async () => {
       if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
@@ -55,11 +93,11 @@ function Layout({ children, onLogout }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', width: '100vw', overflow: 'hidden', position: 'relative' }}>
-      
+
       {/* Mobile Header - More compact */}
       {isMobile && (
-        <header style={{ 
-          display: 'flex', alignItems: 'center', padding: '8px 16px', 
+        <header style={{
+          display: 'flex', alignItems: 'center', padding: '8px 16px',
           backgroundColor: 'white', borderBottom: '1px solid var(--border)', zIndex: 100,
           width: '100%', justifyContent: 'space-between'
         }}>
@@ -76,7 +114,7 @@ function Layout({ children, onLogout }) {
               </div>
             )}
           </div>
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
           >
@@ -87,19 +125,19 @@ function Layout({ children, onLogout }) {
 
       {/* Overlay for mobile */}
       {isMobile && isSidebarOpen && (
-        <div 
+        <div
           style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 110 }}
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <aside 
-        style={{ 
-          width: sidebarWidth, 
-          backgroundColor: 'var(--surface)', 
-          borderRight: '1px solid var(--border)', 
-          display: 'flex', 
+      <aside
+        style={{
+          width: sidebarWidth,
+          backgroundColor: 'var(--surface)',
+          borderRight: '1px solid var(--border)',
+          display: 'flex',
           flexDirection: 'column',
           position: isMobile ? 'fixed' : 'relative',
           top: 0,
@@ -120,13 +158,13 @@ function Layout({ children, onLogout }) {
             )}
           </div>
           <span className="text-xs text-muted" style={{ display: 'block', marginBottom: '4px', marginTop: '2px' }}>Observação em Sala</span>
-          
+
           {userRole && (
-            <div style={{ 
-              marginTop: 'var(--space-3)', 
-              marginBottom: 'var(--space-3)', 
-              padding: '8px 10px', 
-              backgroundColor: 'var(--background)', 
+            <div style={{
+              marginTop: 'var(--space-3)',
+              marginBottom: 'var(--space-3)',
+              padding: '8px 10px',
+              backgroundColor: 'var(--background)',
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border)',
               display: 'flex',
@@ -134,9 +172,9 @@ function Layout({ children, onLogout }) {
               gap: '4px'
             }}>
               {userName && (
-                <span style={{ 
-                  fontSize: '12px', 
-                  fontWeight: '600', 
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: '600',
                   color: 'var(--text)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
@@ -146,13 +184,13 @@ function Layout({ children, onLogout }) {
                 </span>
               )}
               <div>
-                <span style={{ 
+                <span style={{
                   display: 'inline-block',
-                  backgroundColor: userRole === 'superadmin' ? '#dc2626' : userRole === 'school_admin' ? '#15803d' : '#1e3a8a', 
-                  color: 'white', 
-                  fontSize: '9px', 
-                  fontWeight: 'bold', 
-                  padding: '2px 8px', 
+                  backgroundColor: userRole === 'superadmin' ? '#dc2626' : userRole === 'school_admin' ? '#15803d' : '#1e3a8a',
+                  color: 'white',
+                  fontSize: '9px',
+                  fontWeight: 'bold',
+                  padding: '2px 8px',
                   borderRadius: 'var(--radius-full)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px'
@@ -162,7 +200,7 @@ function Layout({ children, onLogout }) {
               </div>
             </div>
           )}
-          
+
           {!isOnline && (
             <div className="offline-badge-container" style={{ margin: '4px 0 8px 0' }}>
               <span className="offline-badge">
@@ -173,15 +211,15 @@ function Layout({ children, onLogout }) {
               </span>
             </div>
           )}
-          
+
           <div className="flex flex-col gap-2">
             {!loading && schools.length > 0 && (
               schools.length > 1 ? (
                 <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
                   <label className="text-xs font-semibold text-muted" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Unidade Escolar</label>
-                  <select 
-                    style={{ 
-                      padding: 0, 
+                  <select
+                    style={{
+                      padding: 0,
                       margin: 0,
                       border: 'none',
                       background: 'transparent',
@@ -212,9 +250,9 @@ function Layout({ children, onLogout }) {
 
             <div className="flex flex-col gap-0" style={{ backgroundColor: 'var(--surface-hover)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
               <label className="text-xs font-semibold text-muted" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Bimestre Ativo</label>
-              <select 
-                style={{ 
-                  padding: 0, 
+              <select
+                style={{
+                  padding: 0,
                   margin: 0,
                   border: 'none',
                   background: 'transparent',
@@ -245,9 +283,31 @@ function Layout({ children, onLogout }) {
             <ClipboardList size={16} /> Nova Observação
           </Link>
           {userRole !== 'coordinator' && (
-            <Link to="/cadastros" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
-              <Users size={16} /> Cadastros
-            </Link>
+            <>
+              <Link to="/cadastros" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
+                <Users size={16} /> Cadastros
+              </Link>
+              <Link to="/solicitacoes" className="btn btn-secondary" style={{ justifyContent: 'space-between', border: 'none', padding: '8px 12px', fontSize: '13px', display: 'flex', width: '100%', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ClipboardList size={16} /> Solicitações
+                </div>
+                {pendingCount > 0 && (
+                  <span style={{ 
+                    backgroundColor: 'var(--error)', 
+                    color: 'white', 
+                    fontSize: '10px', 
+                    fontWeight: 'bold', 
+                    padding: '2px 6px', 
+                    borderRadius: 'var(--radius-full)',
+                    minWidth: '18px',
+                    textAlign: 'center',
+                    lineHeight: '1.2'
+                  }}>
+                    {pendingCount}
+                  </span>
+                )}
+              </Link>
+            </>
           )}
           <Link to="/instrucoes" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
             <Info size={16} /> Instruções e Rubrica
@@ -269,22 +329,195 @@ function Layout({ children, onLogout }) {
 }
 
 function ScopedRoutes() {
-  const { userRole, hasNoSchools } = useSchool();
+  const { userRole, hasNoSchools, allSystemSchools, reloadSchools } = useSchool();
+  const [requests, setRequests] = useState([]);
+  const [selectedSchool, setSelectedSchool] = useState('');
+  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const fetchUserRequests = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('user_school_requests')
+        .select('*, schools(name, code)')
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+      setRequests(data || []);
+    } catch (err) {
+      console.error('Error fetching user requests:', err);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  useEffect(() => {
+    if (hasNoSchools) {
+      fetchUserRequests();
+      
+      // Auto-poll every 8 seconds to automatically verify status changes
+      const interval = setInterval(async () => {
+        await fetchUserRequests();
+        await reloadSchools();
+      }, 8000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [hasNoSchools]);
+
+  const handleSubmitRequest = async (e) => {
+    e.preventDefault();
+    if (!selectedSchool) return;
+    setSubmitting(true);
+    setErrorMsg('');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado.');
+
+      const { error } = await supabase
+        .from('user_school_requests')
+        .insert([{
+          user_id: user.id,
+          school_id: selectedSchool,
+          status: 'pending'
+        }]);
+
+      if (error) {
+        if (error.code === '23505') {
+          throw new Error('Você já solicitou vínculo com esta escola.');
+        }
+        throw error;
+      }
+
+      setSelectedSchool('');
+      await fetchUserRequests();
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.message || 'Erro ao enviar solicitação.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (hasNoSchools) {
+    // Filter out schools that have already been requested (either pending or rejected)
+    const activeOrRejectedSchoolIds = new Set(requests.map(r => r.school_id));
+    const availableSchools = allSystemSchools.filter(s => !activeOrRejectedSchoolIds.has(s.id));
+
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', padding: 'var(--space-8)', textAlign: 'center', backgroundColor: 'var(--background)' }}>
-        <div style={{ maxWidth: '500px', backgroundColor: 'white', padding: 'var(--space-8)', borderRadius: 'var(--radius-lg)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-          <h2 className="h2" style={{ color: 'var(--primary)', marginBottom: 'var(--space-3)' }}>Acesso Restrito</h2>
-          <p className="text-muted" style={{ marginBottom: 'var(--space-6)', fontSize: '14px' }}>
-            Seu usuário foi autenticado com sucesso, mas você ainda não está associado a nenhuma **Unidade Escolar**.
-          </p>
-          <p className="text-xs text-muted" style={{ marginBottom: 'var(--space-6)', lineHeight: '1.4' }}>
-            Por favor, entre em contato com o **Superadmin** ou o administrador do SOSA para liberar seu acesso à sua respectiva escola.
-          </p>
-          <button onClick={() => supabase.auth.signOut()} className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>
-            Sair da Conta
-          </button>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: 'var(--space-6)', backgroundColor: 'var(--background)' }}>
+        <div style={{ width: '100%', maxWidth: '550px', backgroundColor: 'white', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          <div style={{ textAlign: 'center' }}>
+            <h2 className="h2" style={{ color: 'var(--primary)', marginBottom: '8px' }}>Solicitar Vínculo Escolar</h2>
+            <p className="text-muted" style={{ fontSize: '13px', lineHeight: '1.4' }}>
+              Seu usuário foi autenticado com sucesso, mas você ainda não está associado a nenhuma **Unidade Escolar**.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmitRequest} style={{ display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border)', padding: '16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--background)' }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Nova Solicitação</h3>
+            
+            {errorMsg && (
+              <div style={{ color: 'var(--error)', backgroundColor: '#fee2e2', padding: '8px', borderRadius: 'var(--radius-sm)', fontSize: '11px', textAlign: 'center' }}>
+                {errorMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>SELECIONE A UNIDADE ESCOLAR</label>
+              <select
+                value={selectedSchool}
+                onChange={e => setSelectedSchool(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: '13px', backgroundColor: 'white' }}
+                required
+              >
+                <option value="">-- Escolha uma escola --</option>
+                {availableSchools.map(s => (
+                  <option key={s.id} value={s.id}>{s.code ? `${s.code} - ${s.name}` : s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: '600' }}
+              disabled={submitting || !selectedSchool}
+            >
+              {submitting ? 'Enviando Solicitação...' : 'Enviar Solicitação de Vínculo'}
+            </button>
+          </form>
+
+          {/* Minhas Solicitações */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '4px' }}>Minhas Solicitações</h3>
+            {loadingRequests ? (
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>Carregando solicitações...</div>
+            ) : requests.length === 0 ? (
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', padding: '10px', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
+                Nenhuma solicitação enviada ainda. Selecione uma escola acima para começar.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                {requests.map(req => (
+                  <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', backgroundColor: 'white' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '70%' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {req.schools?.name || 'Escola'}
+                      </span>
+                      <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>
+                        Pedida em: {new Date(req.created_at).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                    <div>
+                      {req.status === 'pending' && (
+                        <span style={{ backgroundColor: '#fef3c7', color: '#d97706', fontSize: '9px', fontWeight: 'bold', padding: '2px 8px', borderRadius: 'var(--radius-full)', textTransform: 'uppercase' }}>
+                          Pendente
+                        </span>
+                      )}
+                      {req.status === 'approved' && (
+                        <span style={{ backgroundColor: '#dcfce7', color: '#15803d', fontSize: '9px', fontWeight: 'bold', padding: '2px 8px', borderRadius: 'var(--radius-full)', textTransform: 'uppercase' }}>
+                          Aprovado
+                        </span>
+                      )}
+                      {req.status === 'rejected' && (
+                        <span style={{ backgroundColor: '#fee2e2', color: '#dc2626', fontSize: '9px', fontWeight: 'bold', padding: '2px 8px', borderRadius: 'var(--radius-full)', textTransform: 'uppercase' }}>
+                          Rejeitado
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '11px', color: 'var(--text-muted)', backgroundColor: 'var(--background)', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <span className="animate-pulse" style={{ 
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: '#10b981',
+                boxShadow: '0 0 6px #10b981'
+              }}></span>
+              Verificando status de aprovação automaticamente...
+            </div>
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="btn btn-secondary"
+              style={{ width: '100%', padding: '10px', fontSize: '13px', color: 'var(--error)', borderColor: '#fee2e2', backgroundColor: 'transparent' }}
+            >
+              Sair da Conta
+            </button>
+          </div>
+
         </div>
       </div>
     );
@@ -296,6 +529,7 @@ function ScopedRoutes() {
       <Route path="/observacao" element={<ObservationForm />} />
       <Route path="/observacao/editar/:id" element={<ObservationForm />} />
       {userRole !== 'coordinator' && <Route path="/cadastros" element={<Registries />} />}
+      {userRole !== 'coordinator' && <Route path="/solicitacoes" element={<UserRequests />} />}
       <Route path="/instrucoes" element={<Instructions />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -360,7 +594,7 @@ function App() {
         {/* Animated Background Orbs */}
         <div className="login-orb login-orb-1"></div>
         <div className="login-orb login-orb-2"></div>
-        
+
         <div className="login-card">
           {/* Logo Brand Header */}
           <div className="login-brand">
@@ -370,21 +604,21 @@ function App() {
             <h1 className="login-title">SOSA</h1>
             <p className="login-subtitle">Observação em Sala de Aula</p>
           </div>
-          
+
           <hr className="login-divider" />
-          
+
           <div className="login-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <h2 className="login-welcome-title">Acesso Restrito</h2>
-            
+
             {!showAdminLogin ? (
               <>
                 <p className="login-welcome-desc">
                   Utilize sua conta institucional do Google Workspace para realizar o acesso ao sistema.
                 </p>
-                
-                <button 
-                  className="google-signin-btn" 
-                  onClick={() => supabase.auth.signInWithOAuth({ 
+
+                <button
+                  className="google-signin-btn"
+                  onClick={() => supabase.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
                       redirectTo: window.location.origin + window.location.pathname
@@ -401,13 +635,13 @@ function App() {
                   </span>
                   <span className="google-signin-btn-text">Entrar com Google</span>
                 </button>
-                
-                <button 
-                  onClick={() => setShowAdminLogin(true)} 
-                  style={{ 
-                    marginTop: '20px', background: 'none', border: 'none', 
-                    color: 'var(--primary)', cursor: 'pointer', fontSize: '13px', 
-                    fontWeight: '600', textDecoration: 'underline' 
+
+                <button
+                  onClick={() => setShowAdminLogin(true)}
+                  style={{
+                    marginTop: '20px', background: 'none', border: 'none',
+                    color: 'var(--primary)', cursor: 'pointer', fontSize: '13px',
+                    fontWeight: '600', textDecoration: 'underline'
                   }}
                 >
                   Acesso Administrativo (E-mail/Senha)
@@ -416,49 +650,49 @@ function App() {
             ) : (
               <form onSubmit={handleAdminSubmit} className="flex flex-col gap-4" style={{ width: '100%' }}>
                 {adminError && (
-                  <div style={{ 
-                    color: 'var(--error)', 
-                    fontSize: '12px', 
-                    textAlign: 'center', 
-                    backgroundColor: '#fee2e2', 
-                    padding: '8px', 
-                    borderRadius: 'var(--radius-md)' 
+                  <div style={{
+                    color: 'var(--error)',
+                    fontSize: '12px',
+                    textAlign: 'center',
+                    backgroundColor: '#fee2e2',
+                    padding: '8px',
+                    borderRadius: 'var(--radius-md)'
                   }}>
                     {adminError}
                   </div>
                 )}
-                
+
                 <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>E-mail</label>
-                  <input 
-                    type="email" 
-                    placeholder="admin@sosa.com" 
-                    value={adminEmail} 
-                    onChange={e => setAdminEmail(e.target.value)} 
-                    required 
-                    style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: '14px' }} 
+                  <input
+                    type="email"
+                    placeholder="admin@sosa.com"
+                    value={adminEmail}
+                    onChange={e => setAdminEmail(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: '14px' }}
                   />
                 </div>
-                
+
                 <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Senha</label>
-                  <input 
-                    type="password" 
-                    placeholder="••••••••" 
-                    value={adminPassword} 
-                    onChange={e => setAdminPassword(e.target.value)} 
-                    required 
-                    style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: '14px' }} 
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={adminPassword}
+                    onChange={e => setAdminPassword(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: '14px' }}
                   />
                 </div>
-                
+
                 <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '12px', fontWeight: '700', fontSize: '14px', marginTop: '8px' }} disabled={adminLoading}>
                   {adminLoading ? 'Autenticando...' : 'Entrar'}
                 </button>
-                
-                <button 
-                  type="button" 
-                  onClick={() => { setShowAdminLogin(false); setAdminError(''); }} 
+
+                <button
+                  type="button"
+                  onClick={() => { setShowAdminLogin(false); setAdminError(''); }}
                   style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px', marginTop: '6px', alignSelf: 'center' }}
                 >
                   Voltar para Acesso Google
@@ -466,7 +700,7 @@ function App() {
               </form>
             )}
           </div>
-          
+
           <div className="login-footer">
             <span>Desenvolvido com tecnologia de ponta para gestão escolar.</span>
           </div>
