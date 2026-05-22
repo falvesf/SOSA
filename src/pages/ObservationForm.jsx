@@ -110,6 +110,7 @@ export default function ObservationForm() {
   const [visitToDelete, setVisitToDelete] = useState(null);
   const [lastId, setLastId] = useState(id);
   const [toast, setToast] = useState(null);
+  const [draftRecovered, setDraftRecovered] = useState(false);
 
   // Scroll to top on mount or id change
   useEffect(() => {
@@ -124,18 +125,97 @@ export default function ObservationForm() {
   // Navigation Guard & Form Reset
   useEffect(() => {
     if (!id) {
-      setFormData(initialFormState);
-      setIsDirty(false);
-      setDbVisitCount(1);
-      setActiveTab(1);
-      setLastId(null);
-      const d = new Date();
-      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      setFormData(prev => ({ ...prev, visit_date: localDate }));
+      const cachedDraft = localStorage.getItem('sosa_draft_new');
+      if (cachedDraft) {
+        try {
+          const parsed = JSON.parse(cachedDraft);
+          setFormData(parsed);
+          setIsDirty(true);
+          setDraftRecovered(true);
+          setToast({ message: 'Rascunho recuperado automaticamente!', type: 'info' });
+        } catch (e) {
+          console.error('Failed to parse draft_new:', e);
+        }
+      } else {
+        setFormData(initialFormState);
+        setIsDirty(false);
+        setDraftRecovered(false);
+        setDbVisitCount(1);
+        setActiveTab(1);
+        setLastId(null);
+        const d = new Date();
+        const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        setFormData(prev => ({ ...prev, visit_date: localDate }));
+      }
     } else {
       setLastId(id);
     }
   }, [id]);
+
+  // Auto-save draft to localStorage
+  useEffect(() => {
+    if (isDirty && formData) {
+      const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
+      localStorage.setItem(key, JSON.stringify(formData));
+    }
+  }, [formData, isDirty, id]);
+
+  const handleDiscardDraft = async () => {
+    const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
+    localStorage.removeItem(key);
+    setDraftRecovered(false);
+    setIsDirty(false);
+    
+    if (!id) {
+      setFormData(initialFormState);
+      const d = new Date();
+      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      setFormData(prev => ({ ...prev, visit_date: localDate }));
+      setToast({ message: 'Rascunho descartado.' });
+    } else {
+      setFetching(true);
+      const queue = await getQueue();
+      const item = queue.find(q => q.id === id || (q.payload && q.payload.id === id));
+      
+      let originalData = null;
+      if (item) {
+        originalData = item.payload;
+      } else {
+        const cachedItem = await findCachedObservation(id);
+        if (cachedItem) {
+          originalData = cachedItem;
+        } else {
+          try {
+            const { data } = await supabase.from('observations').select('*').eq('id', id).single();
+            if (data) originalData = data;
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+      
+      if (originalData) {
+        setFormData({
+          ...originalData,
+          visit_date: originalData.visit_date ? String(originalData.visit_date).substring(0, 10) : '',
+          revisit_date_1: originalData.revisit_date_1 ? String(originalData.revisit_date_1).substring(0, 10) : '',
+          revisit_date_2: originalData.revisit_date_2 ? String(originalData.revisit_date_2).substring(0, 10) : '',
+          visit_objectives: originalData.visit_objectives || [],
+          scores_v2: originalData.scores_v2 || {},
+          scores_v3: originalData.scores_v3 || {},
+          evaluations_v2: originalData.evaluations_v2 || {},
+          evaluations_v3: originalData.evaluations_v3 || {},
+          comments_v2: originalData.comments_v2 || {},
+          comments_v3: originalData.comments_v3 || {}
+        });
+        if (originalData.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
+        else if (originalData.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
+        else { setDbVisitCount(1); setActiveTab(1); }
+      }
+      setFetching(false);
+      setToast({ message: 'Rascunho descartado. Dados originais carregados.' });
+    }
+  };
 
   const confirmExit = () => {
     setIsDirty(false);
@@ -203,6 +283,25 @@ export default function ObservationForm() {
     if (!id) return;
     async function fetchObservation() {
       setFetching(true);
+      
+      const key = `sosa_draft_${id}`;
+      const cachedDraft = localStorage.getItem(key);
+      if (cachedDraft) {
+        try {
+          const parsed = JSON.parse(cachedDraft);
+          setFormData(parsed);
+          setIsDirty(true);
+          setDraftRecovered(true);
+          setToast({ message: 'Rascunho recuperado automaticamente!', type: 'info' });
+          if (parsed.revisit_date_2) { setDbVisitCount(3); setActiveTab(3); }
+          else if (parsed.revisit_date_1) { setDbVisitCount(2); setActiveTab(2); }
+          else { setDbVisitCount(1); setActiveTab(1); }
+          setFetching(false);
+          return;
+        } catch (e) {
+          console.error('Failed to parse draft_id:', e);
+        }
+      }
       
       // Always look in the local offline queue first (handles both UUIDs and offline_ prefixed IDs)
       const queue = await getQueue();
@@ -726,6 +825,9 @@ export default function ObservationForm() {
           seriesName: seriesObj ? seriesObj.name : 'N/A'
         });
 
+        const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
+        localStorage.removeItem(key);
+        setDraftRecovered(false);
         setIsDirty(false);
         setSuccess(true);
         window.scrollTo(0,0);
@@ -747,6 +849,9 @@ export default function ObservationForm() {
               seriesName: seriesObj ? seriesObj.name : 'N/A'
             });
 
+            const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
+            localStorage.removeItem(key);
+            setDraftRecovered(false);
             setIsDirty(false);
             setSuccess(true);
             window.scrollTo(0,0);
@@ -754,6 +859,9 @@ export default function ObservationForm() {
             throw error;
           }
         } else {
+          const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
+          localStorage.removeItem(key);
+          setDraftRecovered(false);
           setIsDirty(false);
           setSuccess(true);
           window.scrollTo(0,0);
@@ -1163,6 +1271,44 @@ export default function ObservationForm() {
           ))}
         </div>
       </div>
+
+      {draftRecovered && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderRadius: 'var(--radius-md)',
+          padding: '12px 16px',
+          marginTop: 'var(--space-4)',
+          marginBottom: 'var(--space-4)',
+          fontSize: '13px',
+          color: '#1e3a8a',
+          fontWeight: 500,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '50%' }}></span>
+            <span>Rascunho recuperado com alterações não salvas.</span>
+          </div>
+          <button 
+            type="button"
+            onClick={handleDiscardDraft}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--error)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              padding: 0
+            }}
+          >
+            Descartar Rascunho
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="animate-fade-in" style={{ marginTop: 'var(--space-6)' }}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ marginBottom: 'var(--space-8)' }}>
