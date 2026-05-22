@@ -1,7 +1,7 @@
 import { useLocation, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
-import { ClipboardList, Users, BookOpen, LogOut, Info, AlertTriangle } from 'lucide-react'
+import { ClipboardList, Users, BookOpen, LogOut, Info } from 'lucide-react'
 import Registries from './pages/Registries'
 import Instructions from './pages/Instructions'
 import ObservationForm from './pages/ObservationForm'
@@ -328,7 +328,7 @@ function Layout({ children, onLogout }) {
   )
 }
 
-function ScopedRoutes({ handleLogout }) {
+function ScopedRoutes() {
   const { userRole, hasNoSchools, allSystemSchools, reloadSchools } = useSchool();
   const [requests, setRequests] = useState([]);
   const [selectedSchool, setSelectedSchool] = useState('');
@@ -510,7 +510,7 @@ function ScopedRoutes({ handleLogout }) {
               Verificando status de aprovação automaticamente...
             </div>
             <button
-              onClick={handleLogout}
+              onClick={() => supabase.auth.signOut()}
               className="btn btn-secondary"
               style={{ width: '100%', padding: '10px', fontSize: '13px', color: 'var(--error)', borderColor: '#fee2e2', backgroundColor: 'transparent' }}
             >
@@ -544,43 +544,17 @@ function App() {
   const [adminPassword, setAdminPassword] = useState('')
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminError, setAdminError] = useState('')
-  const [showSessionExpiredAlert, setShowSessionExpiredAlert] = useState(false)
-
-  const handleLogout = async () => {
-    localStorage.setItem('sosa_intentional_logout', 'true')
-    await supabase.auth.signOut()
-  }
 
   useEffect(() => {
-    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
 
-    // Check if the session was previously marked as expired
-    if (localStorage.getItem('sosa_session_expired') === 'true') {
-      setShowSessionExpiredAlert(true)
-    }
-
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      setSession(currentSession)
-      
-      if (event === 'SIGNED_OUT') {
-        const isIntentional = localStorage.getItem('sosa_intentional_logout') === 'true'
-        localStorage.removeItem('sosa_intentional_logout')
-        
-        if (!isIntentional) {
-          localStorage.setItem('sosa_session_expired', 'true')
-          setShowSessionExpiredAlert(true)
-        }
-      } else if (currentSession) {
-        // Clear alert on successful sign in
-        localStorage.removeItem('sosa_session_expired')
-        setShowSessionExpiredAlert(false)
-      }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
     })
 
     return () => subscription.unsubscribe()
@@ -634,14 +608,6 @@ function App() {
           <hr className="login-divider" />
 
           <div className="login-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {showSessionExpiredAlert && (
-              <div className="login-alert-warning animate-fade-in">
-                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <strong>Sessão Expirada:</strong> Por inatividade, sua sessão foi encerrada de forma segura. Por favor, conecte-se novamente.
-                </div>
-              </div>
-            )}
             <h2 className="login-welcome-title">Acesso Restrito</h2>
 
             {!showAdminLogin ? (
@@ -746,8 +712,8 @@ function App() {
   return (
     <SyncProvider>
       <SchoolProvider>
-        <Layout onLogout={handleLogout}>
-          <ScopedRoutes handleLogout={handleLogout} />
+        <Layout onLogout={() => supabase.auth.signOut()}>
+          <ScopedRoutes />
         </Layout>
       </SchoolProvider>
     </SyncProvider>

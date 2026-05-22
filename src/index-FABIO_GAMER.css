@@ -903,28 +903,3 @@ input, select, textarea {
   color: #64748b;
   line-height: 1.4;
 }
-
-/* Glassmorphism Warning Alert for Session Expiration */
-.login-alert-warning {
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  background: rgba(245, 158, 11, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  border-radius: 14px;
-  color: #fef3c7;
-  font-size: 0.815rem;
-  line-height: 1.5;
-  margin-bottom: var(--space-5);
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  text-align: left;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.login-alert-warning strong {
-  color: #fbbf24;
-}

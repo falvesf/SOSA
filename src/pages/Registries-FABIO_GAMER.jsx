@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, handleAuthError } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, Modal, ConfirmModal, Toast } from '../components/ui';
 import { Trash2, Plus, Edit2, X, Book, CloudOff } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
@@ -82,7 +82,6 @@ function SchoolsCrud() {
       setSchools(data || []);
       await cacheMetadata('schools', data || []);
     } catch (err) {
-      if (handleAuthError(err)) return;
       console.warn('Failed to fetch schools, loading from cache:', err);
       const cached = await getCachedMetadata('schools');
       if (cached) setSchools(cached);
@@ -359,7 +358,7 @@ function SeriesCrud({ schoolId }) {
       ]), 2000);
 
       if (segRes.error || serRes.error) {
-        throw (segRes.error || serRes.error);
+        throw new Error('Supabase segments/series fetch error');
       }
 
       const segData = segRes.data || [];
@@ -371,7 +370,6 @@ function SeriesCrud({ schoolId }) {
       await cacheMetadata(`segments_${schoolId}`, segData);
       await cacheMetadata(`series_${schoolId}`, serData);
     } catch (err) {
-      if (handleAuthError(err)) return;
       console.warn('Failed to fetch segments/series, loading from cache:', err);
       const cachedSeg = await getCachedMetadata(`segments_${schoolId}`);
       const cachedSer = await getCachedMetadata(`series_${schoolId}`);
@@ -676,7 +674,7 @@ function SubjectsCrud({ schoolId }) {
       ]), 2000);
 
       if (subRes.error || segRes.error) {
-        throw (subRes.error || segRes.error);
+        throw new Error('Supabase subjects fetch error');
       }
 
       const subData = subRes.data || [];
@@ -688,7 +686,6 @@ function SubjectsCrud({ schoolId }) {
       await cacheMetadata(`subjects_crud_${schoolId}`, subData);
       await cacheMetadata(`segments_${schoolId}`, segData);
     } catch (err) {
-      if (handleAuthError(err)) return;
       console.warn('Failed to fetch subjects, loading from cache:', err);
       const cachedSub = await getCachedMetadata(`subjects_crud_${schoolId}`);
       const cachedSeg = await getCachedMetadata(`segments_${schoolId}`);
@@ -980,7 +977,7 @@ function TeachersCrud({ schoolId }) {
       ]), 2000);
 
       if (tRes.error || serRes.error || subRes.error) {
-        throw (tRes.error || serRes.error || subRes.error);
+        throw new Error('Supabase teachers fetch error');
       }
 
       const tData = tRes.data || [];
@@ -995,7 +992,6 @@ function TeachersCrud({ schoolId }) {
       await cacheMetadata(`series_${schoolId}`, serData);
       await cacheMetadata(`subjects_${schoolId}`, subData);
     } catch (err) {
-      if (handleAuthError(err)) return;
       console.warn('Failed to fetch teachers, loading from cache:', err);
       const cachedT = await getCachedMetadata(`teachers_crud_${schoolId}`);
       const cachedSer = await getCachedMetadata(`series_${schoolId}`);
@@ -1377,7 +1373,6 @@ function UsersCrud() {
       setSchools(sRes.data || []);
       setScopes(scRes.data || []);
     } catch (err) {
-      if (handleAuthError(err)) return;
       console.error('Error fetching users/scopes:', err);
       setToast({ message: 'Erro ao carregar dados de usuários.', type: 'error' });
     } finally {

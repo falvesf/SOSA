@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, handleAuthError } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Card, Button, Modal, ConfirmModal, Toast } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
 import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown } from 'lucide-react';
@@ -85,7 +85,6 @@ export default function Dashboard() {
         await cacheMetadata(`observations_${selectedSchoolId}_${selectedBimestre}`, obsData);
       }
     } catch (error) {
-      if (handleAuthError(error)) return;
       console.error('Error fetching observations, loading from cache:', error);
       if (selectedSchoolId && selectedBimestre) {
         const cachedObs = await getCachedMetadata(`observations_${selectedSchoolId}_${selectedBimestre}`);
@@ -340,7 +339,6 @@ export default function Dashboard() {
         setToast({ message: 'Observação excluída com sucesso!' });
       }
     } catch (error) {
-      if (handleAuthError(error)) return;
       console.error(error);
       setToast({ message: 'Erro ao excluir registro.', type: 'error' });
     } finally {
