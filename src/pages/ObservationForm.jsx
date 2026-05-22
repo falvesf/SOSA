@@ -456,10 +456,10 @@ export default function ObservationForm() {
     const v3 = formData.scores_v3?.[field];
 
     if (activeTab === 1) return v1;
-    if (activeTab === 2) return v2 !== undefined && v2 !== null ? v2 : v1;
+    if (activeTab === 2) return v2 !== undefined ? v2 : v1;
     if (activeTab === 3) {
-      if (v3 !== undefined && v3 !== null) return v3;
-      if (v2 !== undefined && v2 !== null) return v2;
+      if (v3 !== undefined) return v3;
+      if (v2 !== undefined) return v2;
       return v1;
     }
     return null;
@@ -592,7 +592,14 @@ export default function ObservationForm() {
                 name={field} 
                 className="score-radio"
                 checked={currentScore === num}
-                onChange={() => setScore(field, num)}
+                onChange={() => {}}
+                onClick={() => {
+                  if (currentScore === num) {
+                    setScore(field, null);
+                  } else {
+                    setScore(field, num);
+                  }
+                }}
               />
               <label 
                 htmlFor={`${field}-${num}`} 
