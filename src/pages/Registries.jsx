@@ -70,7 +70,7 @@ function SchoolsCrud() {
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const { isOnline } = useSync();
-  const { reloadSchools, userRole } = useSchool();
+  const { reloadSchools, userRole, userScopes } = useSchool();
 
   const fetchSchools = async () => {
     try {
@@ -93,6 +93,11 @@ function SchoolsCrud() {
 
   const handleUploadBanner = async (schoolId, file) => {
     if (!file || !isOnline) return;
+    const isEditable = userRole === 'superadmin' || (userRole === 'school_admin' && userScopes?.includes(schoolId));
+    if (!isEditable) {
+      setToast({ message: 'Você não tem permissão para alterar o banner desta unidade.', type: 'error' });
+      return;
+    }
     setSaving(true);
     try {
       const fileExt = file.name.split('.').pop();
@@ -140,6 +145,11 @@ function SchoolsCrud() {
 
   const handleRemoveBanner = async (schoolId) => {
     if (!isOnline) return;
+    const isEditable = userRole === 'superadmin' || (userRole === 'school_admin' && userScopes?.includes(schoolId));
+    if (!isEditable) {
+      setToast({ message: 'Você não tem permissão para remover o banner desta unidade.', type: 'error' });
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase
@@ -243,62 +253,65 @@ function SchoolsCrud() {
             </tr>
           </thead>
           <tbody>
-            {schools.map(s => (
-              <tr key={s.id} id={`school-${s.id}`} style={{ transition: 'background-color 0.5s' }}>
-                <td style={{ verticalAlign: 'middle' }}>{s.code}</td>
-                <td style={{ verticalAlign: 'middle' }}>{s.name}</td>
-                <td style={{ verticalAlign: 'middle' }}>
-                  {s.banner_url ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <img 
-                        src={s.banner_url} 
-                        alt="Banner Unidade" 
-                        style={{ height: '32px', maxWidth: '120px', objectFit: 'contain', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} 
-                      />
-                      <Button variant="danger" style={{ padding: '2px 8px', fontSize: '10px', height: 'auto' }} onClick={() => handleRemoveBanner(s.id)} disabled={saving || !isOnline}>
-                        Excluir
-                      </Button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'inline-block' }}>
-                      <input 
-                        id={`banner-input-${s.id}`}
-                        type="file" 
-                        accept="image/*" 
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) {
-                            handleUploadBanner(s.id, e.target.files[0]);
-                          }
-                          e.target.value = ""; // Reseta o input para permitir selecionar o mesmo arquivo novamente
-                        }} 
-                        disabled={saving || !isOnline} 
-                        style={{ display: 'none' }} 
-                      />
-                      <Button 
-                        variant="secondary" 
-                        style={{ padding: '4px 10px', fontSize: '11px', height: 'auto' }} 
-                        disabled={saving || !isOnline}
-                        onClick={() => document.getElementById(`banner-input-${s.id}`).click()}
-                      >
-                        Enviar Banner
-                      </Button>
-                    </div>
-                  )}
-                </td>
-                {userRole === 'superadmin' && (
+            {schools.map(s => {
+              const isEditable = userRole === 'superadmin' || (userRole === 'school_admin' && userScopes?.includes(s.id));
+              return (
+                <tr key={s.id} id={`school-${s.id}`} style={{ transition: 'all 0.5s', opacity: isEditable ? 1 : 0.65 }}>
+                  <td style={{ verticalAlign: 'middle' }}>{s.code}</td>
+                  <td style={{ verticalAlign: 'middle' }}>{s.name}</td>
                   <td style={{ verticalAlign: 'middle' }}>
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })} disabled={!isOnline}>
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(s.id)} disabled={!isOnline}>
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
+                    {s.banner_url ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <img 
+                          src={s.banner_url} 
+                          alt="Banner Unidade" 
+                          style={{ height: '32px', maxWidth: '120px', objectFit: 'contain', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} 
+                        />
+                        <Button variant="danger" style={{ padding: '2px 8px', fontSize: '10px', height: 'auto' }} onClick={() => handleRemoveBanner(s.id)} disabled={saving || !isOnline || !isEditable}>
+                          Excluir
+                        </Button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'inline-block' }}>
+                        <input 
+                          id={`banner-input-${s.id}`}
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              handleUploadBanner(s.id, e.target.files[0]);
+                            }
+                            e.target.value = ""; // Reseta o input para permitir selecionar o mesmo arquivo novamente
+                          }} 
+                          disabled={saving || !isOnline || !isEditable} 
+                          style={{ display: 'none' }} 
+                        />
+                        <Button 
+                          variant="secondary" 
+                          style={{ padding: '4px 10px', fontSize: '11px', height: 'auto' }} 
+                          disabled={saving || !isOnline || !isEditable}
+                          onClick={() => document.getElementById(`banner-input-${s.id}`).click()}
+                        >
+                          Enviar Banner
+                        </Button>
+                      </div>
+                    )}
                   </td>
-                )}
-              </tr>
-            ))}
+                  {userRole === 'superadmin' && (
+                    <td style={{ verticalAlign: 'middle' }}>
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="secondary" style={{ padding: '4px 8px' }} onClick={() => setEditingItem({ ...s })} disabled={!isOnline}>
+                          <Edit2 size={16} />
+                        </Button>
+                        <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => setDeleteConfirm(s.id)} disabled={!isOnline}>
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
             {schools.length === 0 && <tr><td colSpan="4" className="text-center text-muted">Nenhuma unidade cadastrada.</td></tr>}
           </tbody>
         </table>
