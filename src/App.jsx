@@ -754,7 +754,7 @@ function App() {
 
   return (
     <SyncProvider>
-      <SchoolProvider>
+      <SchoolProvider key={session?.user?.id || 'anonymous'}>
         <Layout onLogout={handleLogout}>
           <ScopedRoutes handleLogout={handleLogout} />
         </Layout>
