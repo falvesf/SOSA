@@ -12,22 +12,16 @@ import { SyncProvider, useSync } from './contexts/SyncContext'
 
 import { Menu, X as CloseIcon } from 'lucide-react'
 
-function Layout({ children, onLogout }) {
+function Layout({ children, onLogout, session }) {
   const { schools, selectedSchoolId, setSelectedSchoolId, selectedBimestre, updateBimestre, loading, userRole } = useSchool()
   const { isOnline } = useSync()
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
-  const [userName, setUserName] = useState('')
   const [pendingCount, setPendingCount] = useState(0)
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setUserName(user.user_metadata?.full_name || '')
-      }
-    })
-  }, [])
+  const userName = session?.user?.user_metadata?.full_name || session?.user?.email || ''
+  const userEmail = session?.user?.email || ''
 
   useEffect(() => {
     if (userRole && userRole !== 'coordinator' && isOnline) {
@@ -181,6 +175,18 @@ function Layout({ children, onLogout }) {
                   textOverflow: 'ellipsis'
                 }}>
                   {userName}
+                </span>
+              )}
+              {userEmail && (
+                <span style={{
+                  fontSize: '10px',
+                  color: 'var(--text-muted)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  marginTop: '-2px'
+                }}>
+                  {userEmail}
                 </span>
               )}
               <div>
@@ -755,7 +761,7 @@ function App() {
   return (
     <SyncProvider>
       <SchoolProvider key={session?.user?.id || 'anonymous'}>
-        <Layout onLogout={handleLogout}>
+        <Layout onLogout={handleLogout} session={session}>
           <ScopedRoutes handleLogout={handleLogout} />
         </Layout>
       </SchoolProvider>
