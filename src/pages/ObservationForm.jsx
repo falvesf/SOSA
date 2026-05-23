@@ -17,6 +17,13 @@ const evaluationOptions = [
 
 const scores = [4, 3, 2, 1];
 
+const scoreLabels = {
+  1: "Necessita de Acompanhamento",
+  2: "Em Desenvolvimento",
+  3: "Adequado",
+  4: "Excelente"
+};
+
 const rubrics = {
   planejamento: {
     4: "4 – Excelente: Aula claramente alinhada às habilidades da BNCC, aos referenciais da rede e à progressão das aprendizagens.",
@@ -705,7 +712,7 @@ export default function ObservationForm() {
               <label 
                 htmlFor={`${field}-${num}`} 
                 className={`score-label ${getScoreColorClass(activeTab, num, field)} ${currentScore !== num && history.some(h => h.score === num) ? `v${history.find(h => h.score === num)?.visit}-ghost` : ''}`}
-                title={tooltips?.[num]}
+                title={scoreLabels[num]}
               >
                 {num}
                 <div className="score-pips">
