@@ -43,6 +43,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
+  // Only handle same-origin static assets (ignore Supabase API and other external requests)
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Check if it's an HTML page/navigation request
   const isHtmlRequest = 
     event.request.mode === 'navigate' || 
