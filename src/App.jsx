@@ -22,6 +22,15 @@ function Layout({ children, onLogout, session }) {
 
   const userName = session?.user?.user_metadata?.full_name || session?.user?.email || ''
   const userEmail = session?.user?.email || ''
+  const [hasDraft, setHasDraft] = useState(!!localStorage.getItem('sosa_draft_new'))
+
+  useEffect(() => {
+    const handleDraftChange = () => {
+      setHasDraft(!!localStorage.getItem('sosa_draft_new'))
+    }
+    window.addEventListener('sosa_draft_change', handleDraftChange)
+    return () => window.removeEventListener('sosa_draft_change', handleDraftChange)
+  }, [])
 
   useEffect(() => {
     if (userRole && userRole !== 'coordinator' && isOnline) {
@@ -286,7 +295,7 @@ function Layout({ children, onLogout, session }) {
             <BookOpen size={16} /> Dashboard
           </Link>
           <Link to="/observacao" className="btn btn-secondary" style={{ justifyContent: 'flex-start', border: 'none', padding: '8px 12px', fontSize: '13px' }}>
-            <ClipboardList size={16} /> Nova Observação
+            <ClipboardList size={16} /> {hasDraft ? 'Continuar Observação' : 'Nova Observação'}
           </Link>
           {userRole !== 'coordinator' && (
             <>

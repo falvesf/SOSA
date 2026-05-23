@@ -157,12 +157,14 @@ export default function ObservationForm() {
     if (isDirty && formData) {
       const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
       localStorage.setItem(key, JSON.stringify(formData));
+      window.dispatchEvent(new Event('sosa_draft_change'));
     }
   }, [formData, isDirty, id]);
 
   const handleDiscardDraft = async () => {
     const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
     localStorage.removeItem(key);
+    window.dispatchEvent(new Event('sosa_draft_change'));
     setDraftRecovered(false);
     setIsDirty(false);
     
@@ -827,6 +829,7 @@ export default function ObservationForm() {
 
         const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
         localStorage.removeItem(key);
+        window.dispatchEvent(new Event('sosa_draft_change'));
         setDraftRecovered(false);
         setIsDirty(false);
         setSuccess(true);
@@ -851,6 +854,7 @@ export default function ObservationForm() {
 
             const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
             localStorage.removeItem(key);
+            window.dispatchEvent(new Event('sosa_draft_change'));
             setDraftRecovered(false);
             setIsDirty(false);
             setSuccess(true);
@@ -861,6 +865,7 @@ export default function ObservationForm() {
         } else {
           const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
           localStorage.removeItem(key);
+          window.dispatchEvent(new Event('sosa_draft_change'));
           setDraftRecovered(false);
           setIsDirty(false);
           setSuccess(true);
