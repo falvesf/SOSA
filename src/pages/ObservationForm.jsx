@@ -1275,45 +1275,45 @@ export default function ObservationForm() {
             </button>
           ))}
         </div>
-      </div>
 
-      {draftRecovered && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          backgroundColor: '#eff6ff',
-          border: '1px solid #bfdbfe',
-          borderRadius: 'var(--radius-md)',
-          padding: '12px 16px',
-          marginTop: 'var(--space-4)',
-          marginBottom: 'var(--space-4)',
-          fontSize: '13px',
-          color: '#1e3a8a',
-          fontWeight: 500,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '50%' }}></span>
-            <span>Rascunho recuperado com alterações não salvas.</span>
+        {draftRecovered && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            backgroundColor: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 16px',
+            marginTop: 'var(--space-3)',
+            marginBottom: 'var(--space-3)',
+            fontSize: '13px',
+            color: '#1e3a8a',
+            fontWeight: 500,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '50%' }}></span>
+              <span>Rascunho recuperado com alterações não salvas.</span>
+            </div>
+            <button 
+              type="button"
+              onClick={handleDiscardDraft}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--error)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: 0
+              }}
+            >
+              Descartar Rascunho
+            </button>
           </div>
-          <button 
-            type="button"
-            onClick={handleDiscardDraft}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--error)',
-              fontWeight: 600,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              padding: 0
-            }}
-          >
-            Descartar Rascunho
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
       <form onSubmit={handleSubmit} className="animate-fade-in" style={{ marginTop: 'var(--space-6)' }}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ marginBottom: 'var(--space-8)' }}>
