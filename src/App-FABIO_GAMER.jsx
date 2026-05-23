@@ -553,8 +553,13 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
+      if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('sosa_user_profile')
+        localStorage.removeItem('sosa_user_scopes')
+        localStorage.removeItem('sosa_preferred_school_id')
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -621,7 +626,10 @@ function App() {
                   onClick={() => supabase.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
-                      redirectTo: window.location.origin + window.location.pathname
+                      redirectTo: window.location.origin + window.location.pathname,
+                      queryParams: {
+                        prompt: 'select_account'
+                      }
                     }
                   })}
                 >

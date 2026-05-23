@@ -548,6 +548,9 @@ function App() {
 
   const handleLogout = async () => {
     localStorage.setItem('sosa_intentional_logout', 'true')
+    localStorage.removeItem('sosa_user_profile')
+    localStorage.removeItem('sosa_user_scopes')
+    localStorage.removeItem('sosa_preferred_school_id')
     await supabase.auth.signOut()
   }
 
@@ -569,6 +572,9 @@ function App() {
       setSession(currentSession)
       
       if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('sosa_user_profile')
+        localStorage.removeItem('sosa_user_scopes')
+        localStorage.removeItem('sosa_preferred_school_id')
         const isIntentional = localStorage.getItem('sosa_intentional_logout') === 'true'
         localStorage.removeItem('sosa_intentional_logout')
         
@@ -655,7 +661,10 @@ function App() {
                   onClick={() => supabase.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
-                      redirectTo: window.location.origin + window.location.pathname
+                      redirectTo: window.location.origin + window.location.pathname,
+                      queryParams: {
+                        prompt: 'select_account'
+                      }
                     }
                   })}
                 >
