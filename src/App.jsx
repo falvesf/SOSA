@@ -1,5 +1,5 @@
 import { useLocation, Routes, Route, Navigate, Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { ClipboardList, Users, BookOpen, LogOut, Info, AlertTriangle } from 'lucide-react'
 import Registries from './pages/Registries'
@@ -10,7 +10,7 @@ import { SchoolProvider, useSchool } from './contexts/SchoolContext'
 import Dashboard from './pages/Dashboard'
 import { SyncProvider, useSync } from './contexts/SyncContext'
 
-import { Menu, X as CloseIcon } from 'lucide-react'
+import { Menu, X as CloseIcon, Trophy, Code, Rocket, Shield } from 'lucide-react'
 
 function Layout({ children, onLogout, session }) {
   const { schools, selectedSchoolId, setSelectedSchoolId, selectedBimestre, updateBimestre, loading, userRole } = useSchool()
@@ -19,6 +19,25 @@ function Layout({ children, onLogout, session }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [pendingCount, setPendingCount] = useState(0)
+  const [showCredits, setShowCredits] = useState(false)
+  const clickRef = useRef({ count: 0, timer: null })
+
+  const handleIconClick = () => {
+    const current = clickRef.current
+    if (current.timer) clearTimeout(current.timer)
+
+    current.count += 1
+    if (current.count >= 3) {
+      setShowCredits(true)
+      current.count = 0
+      current.timer = null
+    } else {
+      current.timer = setTimeout(() => {
+        current.count = 0
+        current.timer = null
+      }, 1000)
+    }
+  }
 
   const userName = session?.user?.user_metadata?.full_name || session?.user?.email || ''
   const userEmail = session?.user?.email || ''
@@ -40,7 +59,7 @@ function Layout({ children, onLogout, session }) {
             .from('user_school_requests')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'pending');
-          
+
           if (userRole === 'school_admin') {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -52,7 +71,7 @@ function Layout({ children, onLogout, session }) {
               query = query.in('school_id', scopes);
             }
           }
-          
+
           const { count, error } = await query;
           if (!error) {
             setPendingCount(count || 0);
@@ -61,7 +80,7 @@ function Layout({ children, onLogout, session }) {
           console.error('Error fetching pending requests count:', e);
         }
       };
-      
+
       fetchPendingCount();
       const interval = setInterval(fetchPendingCount, 15000);
       return () => clearInterval(interval);
@@ -96,6 +115,17 @@ function Layout({ children, onLogout, session }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', width: '100vw', overflow: 'hidden', position: 'relative' }}>
+      <style>{`
+        .sosa-logo-clickable {
+          transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .sosa-logo-clickable:hover {
+          transform: scale(1.15);
+        }
+        .sosa-logo-clickable:active {
+          transform: scale(0.9);
+        }
+      `}</style>
 
       {/* Mobile Header - More compact */}
       {isMobile && (
@@ -105,6 +135,20 @@ function Layout({ children, onLogout, session }) {
           width: '100%', justifyContent: 'space-between'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img
+              src="/SOSA/icon.png"
+              alt="SOSA Logo"
+              onClick={handleIconClick}
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+              title="Clique 3x para ver os créditos"
+              className="sosa-logo-clickable"
+            />
             <h2 className="h3" style={{ color: 'var(--primary)', margin: 0, fontSize: '1.25rem' }}>SOSA</h2>
             {!isOnline && (
               <div className="offline-badge-container">
@@ -153,7 +197,23 @@ function Layout({ children, onLogout, session }) {
       >
         <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 className="h3" style={{ color: 'var(--primary)', margin: 0 }}>SOSA</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img
+                src="/SOSA/icon.png"
+                alt="SOSA Logo"
+                onClick={handleIconClick}
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  userSelect: 'none'
+                }}
+                title="Clique 3x para ver os créditos"
+                className="sosa-logo-clickable"
+              />
+              <h2 className="h3" style={{ color: 'var(--primary)', margin: 0 }}>SOSA</h2>
+            </div>
             {isMobile && (
               <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'none', border: 'none' }}>
                 <CloseIcon size={20} />
@@ -307,12 +367,12 @@ function Layout({ children, onLogout, session }) {
                   <ClipboardList size={16} /> Solicitações
                 </div>
                 {pendingCount > 0 && (
-                  <span style={{ 
-                    backgroundColor: 'var(--error)', 
-                    color: 'white', 
-                    fontSize: '10px', 
-                    fontWeight: 'bold', 
-                    padding: '2px 6px', 
+                  <span style={{
+                    backgroundColor: 'var(--error)',
+                    color: 'white',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    padding: '2px 6px',
                     borderRadius: 'var(--radius-full)',
                     minWidth: '18px',
                     textAlign: 'center',
@@ -339,6 +399,263 @@ function Layout({ children, onLogout, session }) {
       <main style={{ flex: 1, backgroundColor: 'var(--background)', overflowY: 'auto', padding: isMobile ? 'var(--space-4)' : '0' }}>
         {children}
       </main>
+
+      {/* Premium Credits Modal */}
+      {showCredits && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(249, 250, 251, 0.5)',
+          backdropFilter: 'blur(20px)',
+          animation: 'premiumFadeIn 0.3s ease-out forwards',
+          padding: '20px'
+        }}
+          onClick={() => setShowCredits(false)}
+        >
+          <style>{`
+            @keyframes premiumFadeIn {
+              from { opacity: 0; backdrop-filter: blur(0px); }
+              to { opacity: 1; backdrop-filter: blur(20px); }
+            }
+            @keyframes premiumScaleUp {
+              0% { transform: scale(0.9) translateY(20px); opacity: 0; }
+              100% { transform: scale(1) translateY(0); opacity: 1; }
+            }
+            @keyframes logoOrbit {
+              0% { box-shadow: 0 0 15px rgba(79, 70, 229, 0.1), inset 0 0 10px rgba(79, 70, 229, 0.05); }
+              50% { box-shadow: 0 0 30px rgba(79, 70, 229, 0.25), inset 0 0 15px rgba(79, 70, 229, 0.12); }
+              100% { box-shadow: 0 0 15px rgba(79, 70, 229, 0.1), inset 0 0 10px rgba(79, 70, 229, 0.05); }
+            }
+            .credits-card {
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .credits-card:hover {
+              background-color: var(--surface-hover) !important;
+              border-color: var(--primary) !important;
+              transform: translateY(-3px) scale(1.02);
+              box-shadow: 0 10px 25px rgba(79, 70, 229, 0.08) !important;
+            }
+            .close-btn {
+              transition: all 0.2s ease;
+            }
+            .close-btn:hover {
+              transform: scale(1.1) rotate(90deg);
+              color: var(--text-primary) !important;
+              background-color: var(--surface-hover) !important;
+            }
+          `}</style>
+
+          <div style={{
+            width: '420px',
+            maxWidth: '100%',
+            backgroundColor: 'var(--surface)',
+            backgroundImage: 'radial-gradient(circle at top right, rgba(79, 70, 229, 0.06), rgba(255, 255, 255, 0))',
+            border: '1px solid var(--border)',
+            borderRadius: '28px',
+            padding: '40px 32px 32px 32px',
+            boxShadow: '0 30px 60px rgba(79, 70, 229, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.6)',
+            position: 'relative',
+            animation: 'premiumScaleUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              className="close-btn"
+              onClick={() => setShowCredits(false)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0
+              }}
+            >
+              <CloseIcon size={18} />
+            </button>
+
+            {/* Circular Logo Ring */}
+            <div style={{
+              width: '104px',
+              height: '104px',
+              borderRadius: '50%',
+              background: 'var(--background)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '24px',
+              animation: 'logoOrbit 3s infinite ease-in-out'
+            }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '22px',
+                background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '10px',
+                boxShadow: '0 10px 25px rgba(79, 70, 229, 0.2)'
+              }}>
+                <img
+                  src="/SOSA/icon.png"
+                  alt="SOSA App Icon"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '14px',
+                    objectFit: 'cover'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Title Brand */}
+            <h3 style={{
+              color: 'var(--text-primary)',
+              fontSize: '28px',
+              fontWeight: '800',
+              textAlign: 'center',
+              margin: '0 0 16px 0',
+              letterSpacing: '0.5px',
+              display: 'flex',
+              gap: '6px'
+            }}>
+              SOSA
+            </h3>
+
+            {/* List Cards */}
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+              {/* Card 1: Idealização */}
+              <div className="credits-card" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                backgroundColor: 'var(--background)',
+                border: '1px solid var(--border)',
+                borderRadius: '18px',
+                padding: '14px 20px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '14px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#d97706',
+                  flexShrink: 0
+                }}>
+                  <Trophy size={20} />
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '9px', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Idealizador</span>
+                  <span style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>Fabio Alves Feitoza</span>
+                </div>
+              </div>
+
+              {/* Card 2: Desenvolvimento */}
+              <div className="credits-card" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                backgroundColor: 'var(--background)',
+                border: '1px solid var(--border)',
+                borderRadius: '18px',
+                padding: '14px 20px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '14px',
+                  backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                  border: '1px solid rgba(79, 70, 229, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)',
+                  flexShrink: 0
+                }}>
+                  <Code size={20} />
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '9px', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Desenvolvedor</span>
+                  <span style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>Antigravity + IA Gemini</span>
+                </div>
+              </div>
+
+              {/* Card 3: Versão Atual */}
+              <div className="credits-card" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                backgroundColor: 'var(--background)',
+                border: '1px solid var(--border)',
+                borderRadius: '18px',
+                padding: '14px 20px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '14px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#059669',
+                  flexShrink: 0
+                }}>
+                  <Rocket size={20} />
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '9px', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Versão</span>
+                  <span style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>1.0</span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Shield Check Footer */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              color: 'var(--text-tertiary)',
+              fontSize: '11px',
+              marginTop: '32px'
+            }}>
+              <Shield size={14} style={{ color: 'var(--secondary)' }} />
+              <span>© 2026 Todos os direitos reservados</span>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -355,12 +672,12 @@ function ScopedRoutes({ handleLogout }) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      
+
       const { data, error } = await supabase
         .from('user_school_requests')
         .select('*, schools(name, code)')
         .eq('user_id', user.id);
-      
+
       if (error) throw error;
       setRequests(data || []);
     } catch (err) {
@@ -373,13 +690,13 @@ function ScopedRoutes({ handleLogout }) {
   useEffect(() => {
     if (hasNoSchools) {
       fetchUserRequests();
-      
+
       // Auto-poll every 8 seconds to automatically verify status changes
       const interval = setInterval(async () => {
         await fetchUserRequests();
         await reloadSchools();
       }, 8000);
-      
+
       return () => clearInterval(interval);
     }
   }, [hasNoSchools]);
@@ -426,7 +743,7 @@ function ScopedRoutes({ handleLogout }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: 'var(--space-6)', backgroundColor: 'var(--background)' }}>
         <div style={{ width: '100%', maxWidth: '550px', backgroundColor: 'white', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
+
           <div style={{ textAlign: 'center' }}>
             <h2 className="h2" style={{ color: 'var(--primary)', marginBottom: '8px' }}>Solicitar Vínculo Escolar</h2>
             <p className="text-muted" style={{ fontSize: '13px', lineHeight: '1.4' }}>
@@ -436,7 +753,7 @@ function ScopedRoutes({ handleLogout }) {
 
           <form onSubmit={handleSubmitRequest} style={{ display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border)', padding: '16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--background)' }}>
             <h3 style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Nova Solicitação</h3>
-            
+
             {errorMsg && (
               <div style={{ color: 'var(--error)', backgroundColor: '#fee2e2', padding: '8px', borderRadius: 'var(--radius-sm)', fontSize: '11px', textAlign: 'center' }}>
                 {errorMsg}
@@ -514,7 +831,7 @@ function ScopedRoutes({ handleLogout }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '11px', color: 'var(--text-muted)', backgroundColor: 'var(--background)', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <span className="animate-pulse" style={{ 
+              <span className="animate-pulse" style={{
                 display: 'inline-block',
                 width: '8px',
                 height: '8px',
@@ -585,14 +902,14 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession)
-      
+
       if (event === 'SIGNED_OUT') {
         localStorage.removeItem('sosa_user_profile')
         localStorage.removeItem('sosa_user_scopes')
         localStorage.removeItem('sosa_preferred_school_id')
         const isIntentional = localStorage.getItem('sosa_intentional_logout') === 'true'
         localStorage.removeItem('sosa_intentional_logout')
-        
+
         if (!isIntentional) {
           localStorage.setItem('sosa_session_expired', 'true')
           setShowSessionExpiredAlert(true)
