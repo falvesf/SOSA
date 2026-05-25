@@ -1739,7 +1739,7 @@ function UsersCrud() {
         color: 'var(--text-secondary)',
         lineHeight: '1.4'
       }}>
-        <strong>Dica para cadastrar novos usuários:</strong> Oriente o novo coordenador ou administrador a realizar o **primeiro login** no sistema SOSA utilizando sua conta Google Workspace institucional. Ao fazer isso, o perfil dele será criado automaticamente no sistema como "Coordenador" e aparecerá nesta lista. A partir daí, você poderá elevá-lo a "Administrador Local" ou "Superadmin" e associá-lo às respectivas escolas dele.
+        <strong>Dica para cadastrar novos usuários:</strong> Oriente o novo coordenador ou administrador a realizar o **primeiro login** no sistema SOSA utilizando sua conta Google Workspace institucional. Ao fazer isso, o perfil dele será criado automaticamente no sistema como "Coordenador" e aparecerá nesta lista. A partir daí, você poderá elevá-lo a {userRole === 'superadmin' ? '"Administrador Local" ou "Superadmin"' : '"Administrador Local"'} e associá-lo às respectivas escolas dele.
       </div>
 
       <ConfirmModal
