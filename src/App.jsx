@@ -234,7 +234,7 @@ function Layout({ children, onLogout, session }) {
               flexDirection: 'column',
               gap: '4px'
             }}>
-              {userName && (
+              {userRole !== 'superadmin' && userName && (
                 <span style={{
                   fontSize: '12px',
                   fontWeight: '600',
@@ -246,7 +246,7 @@ function Layout({ children, onLogout, session }) {
                   {userName}
                 </span>
               )}
-              {userEmail && (
+              {userRole !== 'superadmin' && userEmail && (
                 <span style={{
                   fontSize: '10px',
                   color: 'var(--text-muted)',
@@ -267,7 +267,6 @@ function Layout({ children, onLogout, session }) {
                   fontWeight: 'bold',
                   padding: '2px 8px',
                   borderRadius: 'var(--radius-full)',
-                  textTransform: 'uppercase',
                   letterSpacing: '0.5px'
                 }}>
                   {userRole === 'superadmin' ? 'Superadmin' : userRole === 'school_admin' ? 'Administrador(a)' : 'Coordenador(a)'}

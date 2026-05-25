@@ -20,7 +20,7 @@ export default function Registries() {
           <Button variant={activeTab === 'series' ? 'primary' : 'secondary'} onClick={() => setActiveTab('series')}>Turmas e Séries</Button>
           <Button variant={activeTab === 'subjects' ? 'primary' : 'secondary'} onClick={() => setActiveTab('subjects')}>Disciplinas</Button>
           <Button variant={activeTab === 'teachers' ? 'primary' : 'secondary'} onClick={() => setActiveTab('teachers')}>Professores</Button>
-          {userRole === 'superadmin' && (
+          {(userRole === 'superadmin' || userRole === 'school_admin') && (
             <Button variant={activeTab === 'users' ? 'primary' : 'secondary'} onClick={() => setActiveTab('users')}>Gerenciar Usuários</Button>
           )}
         </div>
@@ -1370,7 +1370,7 @@ function UsersCrud() {
   const [toast, setToast] = useState(null);
   
   const { isOnline } = useSync();
-  const { reloadSchools } = useSchool();
+  const { reloadSchools, userRole, userScopes } = useSchool();
 
   const fetchData = async () => {
     setLoadingUsers(true);
@@ -1484,6 +1484,22 @@ function UsersCrud() {
     }
   };
 
+  // Filter out superadmins from the user management list under any circumstances
+  let displayedUsers = users.filter(u => u.role !== 'superadmin');
+
+  // If the logged-in user is a school_admin, only show users who are approved (scoped) to at least one school they manage
+  if (userRole === 'school_admin') {
+    displayedUsers = displayedUsers.filter(u => {
+      const userScopesList = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
+      return userScopesList.some(schoolId => userScopes.includes(schoolId));
+    });
+  }
+
+  // For school admins, only show the school units they manage in the checkbox lists
+  const visibleSchools = userRole === 'school_admin'
+    ? schools.filter(s => userScopes.includes(s.id))
+    : schools;
+
   return (
     <div>
       <h2 className="h2" style={{ marginBottom: 'var(--space-2)' }}>Gerenciar Usuários e Permissões</h2>
@@ -1505,8 +1521,8 @@ function UsersCrud() {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => {
-                const userScopes = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
+              {displayedUsers.map(u => {
+                const uScopes = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
                 return (
                   <tr key={u.id}>
                     <td style={{ verticalAlign: 'middle', fontWeight: '500' }}>{u.email}</td>
@@ -1524,7 +1540,7 @@ function UsersCrud() {
                           fontSize: '13px'
                         }}
                       >
-                        <option value="superadmin">Superadmin</option>
+                        {userRole === 'superadmin' && <option value="superadmin">Superadmin</option>}
                         <option value="school_admin">Administrador Local</option>
                         <option value="coordinator">Coordenador</option>
                       </select>
@@ -1543,8 +1559,8 @@ function UsersCrud() {
                         </span>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '4px 0' }}>
-                          {schools.map(s => {
-                            const isAssigned = userScopes.includes(s.id);
+                          {visibleSchools.map(s => {
+                            const isAssigned = uScopes.includes(s.id);
                             return (
                               <label 
                                 key={s.id} 
@@ -1575,7 +1591,7 @@ function UsersCrud() {
                               </label>
                             );
                           })}
-                          {schools.length === 0 && <span className="text-xs text-muted">Nenhuma escola cadastrada no sistema.</span>}
+                          {visibleSchools.length === 0 && <span className="text-xs text-muted">Nenhuma escola cadastrada no sistema.</span>}
                         </div>
                       )}
                     </td>
@@ -1587,7 +1603,7 @@ function UsersCrud() {
                   </tr>
                 );
               })}
-              {users.length === 0 && <tr><td colSpan="4" className="text-center text-muted">Nenhum perfil de usuário registrado no sistema.</td></tr>}
+              {displayedUsers.length === 0 && <tr><td colSpan="4" className="text-center text-muted">Nenhum perfil de usuário registrado no sistema.</td></tr>}
             </tbody>
           </table>
         </div>
