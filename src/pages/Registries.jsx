@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase, handleAuthError } from '../lib/supabase';
 import { Card, Button, Input, Select, Modal, ConfirmModal, Toast } from '../components/ui';
 import { Trash2, Plus, Edit2, X, Book, CloudOff } from 'lucide-react';
@@ -1360,6 +1360,121 @@ function TeachersCrud({ schoolId }) {
   );
 }
 
+// Custom Premium Multi-Select Combobox for School Units
+function MultiSelectSchool({ userId, visibleSchools, uScopes, handleToggleScope, saving }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const assignedSchools = visibleSchools.filter(s => uScopes.includes(s.id));
+  const assignedNames = assignedSchools.map(s => s.name).join('; ');
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '220px',
+          padding: '6px 10px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)',
+          backgroundColor: 'white',
+          fontSize: '13px',
+          textAlign: 'left',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          cursor: 'pointer'
+        }}
+      >
+        <span style={{ color: 'var(--text-muted)' }}>Gerenciar Escolas...</span>
+        <span style={{ fontSize: '10px' }}>▼</span>
+      </button>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          width: '220px',
+          zIndex: 99,
+          backgroundColor: 'white',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-md)',
+          maxHeight: '180px',
+          overflowY: 'auto',
+          padding: '4px',
+          marginTop: '4px'
+        }}>
+          {visibleSchools.map(s => {
+            const isAssigned = uScopes.includes(s.id);
+            return (
+              <label
+                key={s.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: isAssigned ? 'var(--primary)' : 'var(--text)',
+                  backgroundColor: isAssigned ? 'var(--primary-light)' : 'transparent',
+                  transition: 'background-color 0.15s',
+                  userSelect: 'none'
+                }}
+                className="dropdown-item-hover"
+              >
+                <input
+                  type="checkbox"
+                  checked={isAssigned}
+                  onChange={() => handleToggleScope(userId, s.id, isAssigned)}
+                  disabled={saving}
+                  style={{ margin: 0 }}
+                />
+                <span style={{ fontWeight: isAssigned ? '500' : 'normal' }}>{s.name}</span>
+              </label>
+            );
+          })}
+          {visibleSchools.length === 0 && (
+            <div style={{ padding: '8px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              Nenhuma escola disponível
+            </div>
+          )}
+        </div>
+      )}
+
+      {assignedSchools.length > 0 && (
+        <div style={{ 
+          marginTop: '6px', 
+          fontSize: '11px', 
+          color: 'var(--text-secondary)',
+          lineHeight: '1.4',
+          wordBreak: 'break-word',
+          fontStyle: 'italic'
+        }}>
+          {assignedNames}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Users and Permissions Component
 function UsersCrud() {
   const [users, setUsers] = useState([]);
@@ -1368,9 +1483,34 @@ function UsersCrud() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    userId: null,
+    schoolId: null,
+    isAssigned: false,
+    schoolName: '',
+    userEmail: '',
+    totalScopesCount: 0
+  });
   
   const { isOnline } = useSync();
-  const { reloadSchools, userRole, userScopes } = useSchool();
+  const { reloadSchools, userRole, userScopes, selectedSchoolId } = useSchool();
+
+  const triggerToggleScope = (userId, schoolId, isAssigned) => {
+    const userObj = users.find(u => u.id === userId);
+    const schoolObj = schools.find(s => s.id === schoolId);
+    const userScopesCount = scopes.filter(sc => sc.user_id === userId).length;
+    
+    setConfirmModal({
+      isOpen: true,
+      userId,
+      schoolId,
+      isAssigned,
+      schoolName: schoolObj ? schoolObj.name : '',
+      userEmail: userObj ? userObj.email : '',
+      totalScopesCount: userScopesCount
+    });
+  };
 
   const fetchData = async () => {
     setLoadingUsers(true);
@@ -1487,6 +1627,14 @@ function UsersCrud() {
   // Filter out superadmins from the user management list under any circumstances
   let displayedUsers = users.filter(u => u.role !== 'superadmin');
 
+  // Filter users by the currently selected school unit from the sidebar (reactive filter)
+  if (selectedSchoolId) {
+    displayedUsers = displayedUsers.filter(u => {
+      const userScopesList = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
+      return userScopesList.includes(selectedSchoolId);
+    });
+  }
+
   // If the logged-in user is a school_admin, only show users who are approved (scoped) to at least one school they manage
   if (userRole === 'school_admin') {
     displayedUsers = displayedUsers.filter(u => {
@@ -1510,7 +1658,7 @@ function UsersCrud() {
       {loadingUsers ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-8)' }}>Carregando dados dos usuários...</div>
       ) : (
-        <div className="table-container">
+        <div className="table-container" style={{ overflow: 'visible' }}>
           <table className="table">
             <thead>
               <tr>
@@ -1558,41 +1706,13 @@ function UsersCrud() {
                           Todas as Unidades (Acesso Irrestrito)
                         </span>
                       ) : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '4px 0' }}>
-                          {visibleSchools.map(s => {
-                            const isAssigned = uScopes.includes(s.id);
-                            return (
-                              <label 
-                                key={s.id} 
-                                style={{ 
-                                  display: 'inline-flex', 
-                                  alignItems: 'center', 
-                                  gap: '4px',
-                                  fontSize: '12px',
-                                  cursor: 'pointer',
-                                  padding: '3px 8px',
-                                  borderRadius: '12px',
-                                  border: '1px solid',
-                                  borderColor: isAssigned ? 'var(--primary)' : '#e2e8f0',
-                                  backgroundColor: isAssigned ? 'var(--primary-light)' : '#f8fafc',
-                                  color: isAssigned ? 'var(--primary-hover)' : 'var(--text-secondary)',
-                                  fontWeight: isAssigned ? '500' : 'normal',
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                <input 
-                                  type="checkbox" 
-                                  checked={isAssigned} 
-                                  onChange={() => handleToggleScope(u.id, s.id, isAssigned)} 
-                                  style={{ margin: 0 }} 
-                                  disabled={saving} 
-                                />
-                                {s.name}
-                              </label>
-                            );
-                          })}
-                          {visibleSchools.length === 0 && <span className="text-xs text-muted">Nenhuma escola cadastrada no sistema.</span>}
-                        </div>
+                        <MultiSelectSchool
+                          userId={u.id}
+                          visibleSchools={visibleSchools}
+                          uScopes={uScopes}
+                          handleToggleScope={triggerToggleScope}
+                          saving={saving}
+                        />
                       )}
                     </td>
                     <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
@@ -1621,6 +1741,39 @@ function UsersCrud() {
       }}>
         <strong>Dica para cadastrar novos usuários:</strong> Oriente o novo coordenador ou administrador a realizar o **primeiro login** no sistema SOSA utilizando sua conta Google Workspace institucional. Ao fazer isso, o perfil dele será criado automaticamente no sistema como "Coordenador" e aparecerá nesta lista. A partir daí, você poderá elevá-lo a "Administrador Local" ou "Superadmin" e associá-lo às respectivas escolas dele.
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => handleToggleScope(confirmModal.userId, confirmModal.schoolId, confirmModal.isAssigned)}
+        title={confirmModal.isAssigned && confirmModal.totalScopesCount === 1 ? "⚠️ ALERTA CRÍTICO: Perda de Acesso" : "Confirmar Alteração de Acesso"}
+        message={
+          confirmModal.isAssigned ? (
+            confirmModal.totalScopesCount === 1 ? (
+              <span style={{ display: 'block', lineHeight: '1.6' }}>
+                O usuário <strong>{confirmModal.userEmail}</strong> está atualmente associado a apenas uma única unidade escolar (<strong>{confirmModal.schoolName}</strong>).
+                <br /><br />
+                <span style={{ color: 'var(--error)', fontWeight: '600' }}>
+                  Atenção: Se você remover esta última associação, ele perderá acesso completo ao sistema e retornará ao fluxo de pendente, necessitando de uma nova aprovação manual dos administradores para poder voltar a acessá-lo.
+                </span>
+                <br /><br />
+                Deseja realmente confirmar a remoção desta unidade escolar?
+              </span>
+            ) : (
+              <span>
+                Deseja realmente remover a permissão de acesso da unidade escolar <strong>{confirmModal.schoolName}</strong> para o usuário <strong>{confirmModal.userEmail}</strong>?
+              </span>
+            )
+          ) : (
+            <span>
+              Deseja realmente conceder permissão de acesso da unidade escolar <strong>{confirmModal.schoolName}</strong> para o usuário <strong>{confirmModal.userEmail}</strong>?
+            </span>
+          )
+        }
+        confirmText={confirmModal.isAssigned ? (confirmModal.totalScopesCount === 1 ? "Sim, Remover e Bloquear" : "Sim, Remover") : "Sim, Associar"}
+        cancelText="Cancelar"
+        variant={confirmModal.isAssigned ? "danger" : "primary"}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
