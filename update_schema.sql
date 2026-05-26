@@ -41,3 +41,5 @@ CREATE TABLE IF NOT EXISTS teacher_subjects (
 -- We will keep the old columns for backward compatibility if needed, but add the new ones.
 ALTER TABLE observations ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id);
 ALTER TABLE observations ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id);
+ALTER TABLE observations ADD COLUMN IF NOT EXISTS subject_ids UUID[];
+

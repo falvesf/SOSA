@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, Toast } from '../components/ui';
-import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings, Sparkles, Undo } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui';
@@ -61,6 +61,7 @@ const initialFormState = {
   visit_date: '',
   teacher_id: '',
   subject_id: '',
+  subject_ids: [],
   series_id: '',
   visit_type: '',
   visit_type_other: '',
@@ -95,6 +96,506 @@ const generateUUID = () => {
   });
 };
 
+const sanitizeApiKey = (rawKey) => {
+  if (!rawKey) return '';
+  let key = rawKey.trim();
+
+  try {
+    if (key.includes('key=')) {
+      const urlParams = new URLSearchParams(key.substring(key.indexOf('?')));
+      const extractedKey = urlParams.get('key');
+      if (extractedKey) {
+        key = extractedKey;
+      }
+    }
+  } catch (e) {
+    // Fallback if URL parsing fails
+  }
+
+  if (key.includes('&')) {
+    key = key.split('&')[0];
+  }
+  if (key.includes('?')) {
+    key = key.split('?')[0];
+  }
+
+  key = key.replace(/["']/g, '').trim();
+
+  const match = key.match(/^[A-Za-z0-9_-]+/);
+  if (match) {
+    return match[0];
+  }
+
+  return key;
+};
+
+const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, activeThemeColor = "var(--primary)", onSaveKey, aiContext }) => {
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [originalValue, setOriginalValue] = useState(null);
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [inputKey, setInputKey] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleEnhance = async () => {
+    let rawKey = localStorage.getItem('sosa_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
+    let apiKey = sanitizeApiKey(rawKey);
+    if (!apiKey) {
+      const currentKey = localStorage.getItem('sosa_gemini_api_key') || '';
+      setInputKey(currentKey);
+      setShowKeyInput(true);
+      return;
+    }
+
+    setIsEnhancing(true);
+    setErrorMsg('');
+
+    try {
+      let promptText = "";
+      if (value && value.trim()) {
+        const teacher = aiContext?.teacherName || "o(a) professor(a)";
+        const series = aiContext?.seriesName || "a série";
+        const subjects = aiContext?.subjectNames || "a disciplina";
+        const section = aiContext?.sectionTitle || "Observação";
+        
+        let contextSectionText = "";
+        if (!["Pontos Fortes da Aula", "Oportunidades de Aprimoramento", "Síntese da Observação", "Orientações Pedagógicas", "Combinados e Encaminhamentos"].includes(section)) {
+          const indicators = aiContext?.indicators || [];
+          const indicatorsText = indicators.map(ind => `- ${ind.label}: ${ind.score ? `Nota ${ind.score}/4` : 'Não avaliado'}`).join('\n');
+          contextSectionText = `Esta observação refere-se especificamente ao eixo "${section}" da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+Abaixo estão as pontuações registradas para este eixo (escala de 1 a 4):
+${indicatorsText}`;
+        } else {
+          const allScores = aiContext?.allScores || [];
+          const allScoresText = allScores.map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n');
+          contextSectionText = `Esta observação refere-se ao campo "${section}" da Devolutiva da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+Abaixo estão as notas gerais registradas em toda a visita de sala (escala de 1 a 4):
+${allScoresText}`;
+        }
+
+        promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é aprimorar o rascunho de observação pedagógica escrito pelo coordenador pedagógico, tornando-o altamente profissional, de escrita fluida, formal, clara e pedagogicamente fundamentada.
+
+IMPORTANTE: Você deve refinar o rascunho garantindo total alinhamento e consistência com o contexto da aula e com as notas avaliadas listadas abaixo:
+- Preserve a essência e os fatos descritos pelo coordenador no rascunho.
+- Enriqueça o texto incorporando as avaliações reais das notas: se houver indicadores avaliados com notas baixas (1 ou 2), certifique-se de que o texto final apresente propostas e caminhos práticos e claros para superar essas fragilidades, sem qualquer timidez ou rodeios. Se houver notas altas (3 ou 4), reforce a validação positiva dessas boas práticas.
+- O resultado deve parecer um único parágrafo fluido, coeso e extremamente profissional de 3 a 6 linhas.
+
+Contexto pedagógico da aula e pontuações:
+${contextSectionText}
+
+Rascunho original escrito pelo coordenador:
+"${value}"
+
+Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.`;
+      } else {
+        const teacher = aiContext?.teacherName || "o(a) professor(a)";
+        const series = aiContext?.seriesName || "a série";
+        const subjects = aiContext?.subjectNames || "a disciplina";
+        const section = aiContext?.sectionTitle || "Observação";
+        
+        if (section === "Pontos Fortes da Aula") {
+          const highScores = (aiContext?.allScores || []).filter(s => s.score >= 3);
+          const highScoresText = highScores.length > 0 
+            ? highScores.map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n')
+            : "Práticas positivas de engajamento dos alunos e gestão de sala.";
+            
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir uma redação formal e profissional de Pontos Fortes da Aula observados para o(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+
+Aqui estão indicadores da aula que foram bem avaliados (notas 3 e 4) durante a observação:
+${highScoresText}
+
+Redija um texto descritivo e muito positivo (1 parágrafo com 3 a 5 linhas), extremamente profissional e pedagógico, destacando essas boas práticas observadas em sala.
+Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+        } else if (section === "Oportunidades de Aprimoramento") {
+          const lowScores = (aiContext?.allScores || []).filter(s => s.score <= 2);
+          const lowScoresText = lowScores.length > 0
+            ? lowScores.map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n')
+            : "Pontos gerais de desenvolvimento e aperfeiçoamento contínuo.";
+
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir orientações formativas diretas, claras e construtivas para o campo Oportunidades de Aprimoramento para o(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+
+Aqui estão os indicadores da aula que foram identificados com oportunidade de desenvolvimento (notas 1 e 2):
+${lowScoresText}
+
+Redija um texto formal (1 parágrafo com 3 a 5 linhas). 
+REGRAS CRÍTICAS:
+- Seja extremamente propositivo, oferecendo recomendações formativas claras e caminhos práticos de superação para as fragilidades identificadas.
+- NÃO hesite ou seja vago ao sugerir as melhorias específicas; descreva-as de forma direta, clara, profissional e respeitosa.
+- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+        } else if (["Síntese da Observação", "Orientações Pedagógicas", "Combinados e Encaminhamentos"].includes(section)) {
+          const allScoresText = (aiContext?.allScores || []).length > 0
+            ? (aiContext?.allScores || []).map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n')
+            : "Indicadores gerais de regência e gestão de sala.";
+
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir um texto inicial para o campo "${section}" da Devolutiva Pedagógica do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+
+Abaixo está o resumo dos indicadores e notas avaliadas durante a visita de sala de aula:
+${allScoresText}
+
+Com base nisso, redija uma redação de 1 parágrafo formal, coerente e tecnicamente primorosa apropriada para o campo "${section}":
+- Se for Síntese da Observação: faça um resumo equilibrado da aula observada.
+- Se for Orientações Pedagógicas: ofereça orientações de aperfeiçoamento didático coerentes com a aula.
+- Se for Combinados e Encaminhamentos: proponha ações práticas conjuntas para as próximas semanas.
+
+Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+        } else {
+          // Standard Rubric Section (Planning, Methodology, Learning, Management, Confessional Identity)
+          const localIndicatorsText = (aiContext?.indicators || []).length > 0
+            ? (aiContext?.indicators || []).map(ind => `- ${ind.label}: ${ind.score ? `Nota ${ind.score}/4` : 'Não avaliado'}`).join('\n')
+            : "Práticas gerais deste eixo pedagógico.";
+
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir um texto inicial de observação pedagógica técnica, formal, direto e construtivo para a seção "${section}" referente à visita da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+
+Abaixo estão os indicadores específicos desta seção e suas respectivas avaliações (escala de 1 a 4, onde 1 é Necessita de Acompanhamento, 2 é Em Desenvolvimento, 3 é Adequado e 4 é Excelente):
+${localIndicatorsText}
+
+Escreva uma observação técnica de 1 parágrafo (3 a 5 linhas). 
+REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
+- Seja extremamente claro, direto e assertivo ao apontar pontos de atenção. 
+- Se algum indicador obteve nota 1 ou 2, NÃO seja tímido ou superficial: descreva a fragilidade de forma respeitosa, mas declare explicitamente o que precisa de melhoria e proponha IMEDIATAMENTE uma ação ou recomendação didática prática e clara para que o(a) docente se desenvolva (por exemplo, se recebeu nota 1 em instrumentos de avaliação, aponte a falta de evidências observadas e recomende a introdução de critérios claros ou avaliações formativas pontuais).
+- Se houver indicadores com notas 3 ou 4, valide o bom desempenho correspondente de forma elogiosa, destacando o impacto positivo na aula.
+- O texto final deve mesclar de forma muito fluida e profissional tanto as validações (notas 3 e 4) quanto as propostas concretas de melhoria para os itens com nota 1 e 2.
+- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+        }
+      }
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: promptText
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 1024
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `Erro HTTP ${response.status}`);
+      }
+
+      const resData = await response.json();
+      let enhancedText = resData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!enhancedText) {
+        throw new Error('Não foi possível obter uma resposta válida do Gemini.');
+      }
+
+      enhancedText = enhancedText.trim().replace(/^"|"$/g, '').trim();
+
+      setOriginalValue(value);
+      onChange({ target: { value: enhancedText } });
+    } catch (err) {
+      console.error('Erro no aprimoramento por IA:', err);
+      setErrorMsg(err.message || 'Erro ao conectar à IA.');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleUndo = () => {
+    if (originalValue !== null) {
+      onChange({ target: { value: originalValue } });
+      setOriginalValue(null);
+    }
+  };
+
+  const handleSaveKey = () => {
+    if (inputKey.trim()) {
+      const sanitized = sanitizeApiKey(inputKey);
+      localStorage.setItem('sosa_gemini_api_key', sanitized);
+      if (onSaveKey) {
+        onSaveKey(sanitized);
+      }
+      setShowKeyInput(false);
+      setInputKey('');
+      // Delay slightly and enhance
+      setTimeout(() => {
+        handleEnhance();
+      }, 50);
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <textarea
+        className="form-input"
+        rows={rows}
+        placeholder={placeholder}
+        value={value || ''}
+        onChange={onChange}
+        style={{
+          width: '100%',
+          paddingRight: originalValue ? '160px' : '84px',
+          resize: 'vertical'
+        }}
+      />
+      
+      {/* Action Container */}
+      <div 
+        style={{
+          position: 'absolute',
+          bottom: '8px',
+          right: '8px',
+          display: 'flex',
+          gap: '6px',
+          zIndex: 10,
+          alignItems: 'center'
+        }}
+      >
+        {/* Undo Button */}
+        {originalValue !== null && (
+          <button
+            type="button"
+            onClick={handleUndo}
+            title="Desfazer aprimoramento IA"
+            style={{
+              padding: '4px 8px',
+              backgroundColor: '#fee2e2',
+              color: '#ef4444',
+              border: '1px solid #fecaca',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fecaca'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <Undo size={12} />
+            <span style={{ fontSize: '10px', marginLeft: '3px', fontWeight: 'bold' }}>Desfazer</span>
+          </button>
+        )}
+
+        {/* Enhance/Suggest Button */}
+        <button
+          type="button"
+          onClick={handleEnhance}
+          disabled={isEnhancing}
+          title={value && value.trim() 
+            ? (isEnhancing ? 'Aprimorando...' : 'Aprimorar texto com IA') 
+            : (isEnhancing ? 'Sugerindo...' : 'Sugerir observação com IA baseada na aula')
+          }
+          style={{
+            padding: '4px 8px',
+            background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)', 
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(139, 92, 246, 0.2)',
+            transition: 'opacity 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '0.9';
+          }}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <Sparkles 
+            size={12} 
+            className={isEnhancing ? 'animate-spin' : ''} 
+            style={{ 
+              color: 'white',
+              animationDuration: '2s'
+            }} 
+          />
+          <span style={{ fontSize: '10px', marginLeft: '4px', fontWeight: 'bold' }}>
+            {isEnhancing 
+              ? (value && value.trim() ? 'Aprimorando...' : 'Sugerindo...') 
+              : 'IA'
+            }
+          </span>
+        </button>
+
+        {/* Edit Key Gear Button */}
+        <button
+          type="button"
+          onClick={() => {
+            const currentKey = localStorage.getItem('sosa_gemini_api_key') || '';
+            setInputKey(currentKey);
+            setShowKeyInput(!showKeyInput);
+            setErrorMsg('');
+          }}
+          title="Configurar Chave da IA"
+          style={{
+            padding: '4px 6px',
+            backgroundColor: '#f1f5f9',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'var(--shadow-sm)',
+            transition: 'background-color 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <Settings size={12} />
+        </button>
+      </div>
+
+      {/* Popover setup Chave Gemini */}
+      {showKeyInput && (
+        <div 
+          className="animate-fade-in"
+          style={{
+            position: 'absolute',
+            bottom: '42px',
+            right: '8px',
+            backgroundColor: 'white',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            zIndex: 100,
+            width: '280px',
+            textAlign: 'left'
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+            Configurar Chave do Gemini
+          </h4>
+          <p style={{ margin: '0 0 8px 0', fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.3' }}>
+            Para usar o aprimoramento inteligente gratuito, insira sua chave da API do Gemini. 
+            Pegue uma <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: '600', textDecoration: 'underline' }}>aqui gratuitamente</a>.
+          </p>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input 
+              type="password"
+              placeholder="Cole sua API Key aqui..."
+              value={inputKey}
+              onChange={(e) => setInputKey(e.target.value)}
+              style={{
+                flex: 1,
+                fontSize: '11px',
+                padding: '6px 8px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                outline: 'none'
+              }}
+            />
+            <button 
+              type="button"
+              onClick={handleSaveKey}
+              style={{
+                backgroundColor: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Salvar
+            </button>
+            <button 
+              type="button"
+              onClick={() => { setShowKeyInput(false); setInputKey(''); }}
+              style={{
+                backgroundColor: '#f1f5f9',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                padding: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMsg && (
+        <div 
+          style={{
+            position: 'absolute',
+            bottom: '42px',
+            right: '8px',
+            backgroundColor: '#fee2e2',
+            border: '1px solid #fca5a5',
+            borderRadius: '6px',
+            padding: '6px 10px',
+            color: '#ef4444',
+            fontSize: '10px',
+            zIndex: 90,
+            maxWidth: '240px',
+            boxShadow: 'var(--shadow-md)'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+              <span>{errorMsg}</span>
+              <button 
+                type="button"
+                onClick={() => setErrorMsg('')}
+                style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontWeight: 'bold' }}
+              >
+                ✕
+              </button>
+            </div>
+            {(errorMsg.toLowerCase().includes('key') || errorMsg.toLowerCase().includes('chave') || errorMsg.toLowerCase().includes('valid')) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const currentKey = localStorage.getItem('sosa_gemini_api_key') || '';
+                  setInputKey(currentKey);
+                  setShowKeyInput(true);
+                  setErrorMsg('');
+                }}
+                style={{
+                  alignSelf: 'flex-start',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '9px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  marginTop: '4px'
+                }}
+              >
+                Alterar Chave
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function ObservationForm() {
   const { selectedSchoolId, selectedBimestre } = useSchool();
   const { isOnline, addToOfflineQueue } = useSync();
@@ -118,6 +619,20 @@ export default function ObservationForm() {
   const [lastId, setLastId] = useState(id);
   const [toast, setToast] = useState(null);
   const [draftRecovered, setDraftRecovered] = useState(false);
+
+  const [isSubjectDropdownOpen, setIsSubjectDropdownOpen] = useState(false);
+  const subjectDropdownRef = useRef(null);
+  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('sosa_gemini_api_key') || '');
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (subjectDropdownRef.current && !subjectDropdownRef.current.contains(event.target)) {
+        setIsSubjectDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Scroll to top on mount or id change
   useEffect(() => {
@@ -210,6 +725,7 @@ export default function ObservationForm() {
           revisit_date_1: originalData.revisit_date_1 ? String(originalData.revisit_date_1).substring(0, 10) : '',
           revisit_date_2: originalData.revisit_date_2 ? String(originalData.revisit_date_2).substring(0, 10) : '',
           visit_objectives: originalData.visit_objectives || [],
+          subject_ids: originalData.subject_ids || (originalData.subject_id ? [originalData.subject_id] : []),
           scores_v2: originalData.scores_v2 || {},
           scores_v3: originalData.scores_v3 || {},
           evaluations_v2: originalData.evaluations_v2 || {},
@@ -324,6 +840,7 @@ export default function ObservationForm() {
           revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
           revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
           visit_objectives: data.visit_objectives || [],
+          subject_ids: data.subject_ids || (data.subject_id ? [data.subject_id] : []),
           scores_v2: data.scores_v2 || {},
           scores_v3: data.scores_v3 || {},
           evaluations_v2: data.evaluations_v2 || {},
@@ -344,6 +861,7 @@ export default function ObservationForm() {
             revisit_date_1: cachedItem.revisit_date_1 ? String(cachedItem.revisit_date_1).substring(0, 10) : '',
             revisit_date_2: cachedItem.revisit_date_2 ? String(cachedItem.revisit_date_2).substring(0, 10) : '',
             visit_objectives: cachedItem.visit_objectives || [],
+            subject_ids: cachedItem.subject_ids || (cachedItem.subject_id ? [cachedItem.subject_id] : []),
             scores_v2: cachedItem.scores_v2 || {},
             scores_v3: cachedItem.scores_v3 || {},
             evaluations_v2: cachedItem.evaluations_v2 || {},
@@ -365,6 +883,7 @@ export default function ObservationForm() {
                 revisit_date_1: data.revisit_date_1 ? String(data.revisit_date_1).substring(0, 10) : '',
                 revisit_date_2: data.revisit_date_2 ? String(data.revisit_date_2).substring(0, 10) : '',
                 visit_objectives: data.visit_objectives || [],
+                subject_ids: data.subject_ids || (data.subject_id ? [data.subject_id] : []),
                 scores_v2: data.scores_v2 || {},
                 scores_v3: data.scores_v3 || {},
                 evaluations_v2: data.evaluations_v2 || {},
@@ -401,9 +920,19 @@ export default function ObservationForm() {
 
   useEffect(() => {
     async function loadUserSettings() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.user_metadata?.sosa_thresholds) {
-        setThresholds(user.user_metadata.sosa_thresholds);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.user_metadata) {
+          if (user.user_metadata.sosa_thresholds) {
+            setThresholds(user.user_metadata.sosa_thresholds);
+          }
+          if (user.user_metadata.sosa_gemini_api_key) {
+            setGeminiApiKey(user.user_metadata.sosa_gemini_api_key);
+            localStorage.setItem('sosa_gemini_api_key', user.user_metadata.sosa_gemini_api_key);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar configurações do Supabase:', err);
       }
     }
     loadUserSettings();
@@ -414,6 +943,26 @@ export default function ObservationForm() {
     await supabase.auth.updateUser({
       data: { sosa_thresholds: newThresholds }
     });
+  };
+
+  const updateGeminiApiKey = async (keyVal) => {
+    const trimmed = keyVal.trim();
+    setGeminiApiKey(trimmed);
+    if (trimmed) {
+      localStorage.setItem('sosa_gemini_api_key', trimmed);
+    } else {
+      localStorage.removeItem('sosa_gemini_api_key');
+    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.auth.updateUser({
+          data: { sosa_gemini_api_key: trimmed || null }
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar chave da API no Supabase:', err);
+    }
   };
 
   const handleChange = (e) => {
@@ -571,6 +1120,57 @@ export default function ObservationForm() {
       return v1;
     }
     return null;
+  };
+
+  const getAllFormScores = () => {
+    const scores = [];
+    const scoreFields = [
+      { field: 'plan_alignment_score', label: 'Alinhamento às habilidades BNCC' },
+      { field: 'plan_content_score', label: 'Conteúdo conforme Sequência Didática' },
+      { field: 'plan_objectives_score', label: 'Objetivos claros e coerentes' },
+      { field: 'plan_references_score', label: 'Conexão com referenciais institucionais' },
+      { field: 'meth_adequate_score', label: 'Metodologias adequadas à faixa etária' },
+      { field: 'meth_strategies_score', label: 'Estratégias que favorecem o aprendizado' },
+      { field: 'meth_resources_score', label: 'Uso intencional de recursos' },
+      { field: 'meth_clarity_score', label: 'Clareza na condução da aula' },
+      { field: 'learn_instruments_score', label: 'Instrumentos coerentes com objetivos' },
+      { field: 'learn_formative_score', label: 'Avaliação formativa presente' },
+      { field: 'learn_feedback_score', label: 'Devolutivas claras aos estudantes' },
+      { field: 'learn_criteria_score', label: 'Critérios de avaliação compreensíveis' },
+      { field: 'man_space_score', label: 'Organização do espaço e do tempo pedagógico' },
+      { field: 'man_respect_score', label: 'Relação respeitosa entre professor e estudantes' },
+      { field: 'man_conflict_score', label: 'Estratégias de mediação de conflitos' },
+      { field: 'man_environment_score', label: 'Ambiente favorável à aprendizagem' },
+      { field: 'man_material_score', label: 'Uso adequado do material didático' },
+      { field: 'man_content_score', label: 'Registro do conteúdo no caderno dos alunos' },
+      { field: 'man_activities_score', label: 'As atividades são bem orientadas' },
+      { field: 'man_monitoring_score', label: 'O professor acompanha sua realização circulando pela sala' },
+      { field: 'ident_values_score', label: 'Integração de valores naturais e éticos' },
+      { field: 'ident_posture_score', label: 'Postura coerente com princípios EA' },
+      { field: 'ident_language_score', label: 'Linguagem, atitudes e exemplos alinhados' }
+    ];
+    scoreFields.forEach(f => {
+      const val = getScore(f.field);
+      if (val !== null && val !== undefined && val !== '') {
+        scores.push({ label: f.label, score: Number(val) });
+      }
+    });
+    return scores;
+  };
+
+  const getAiContext = (sectionTitle, localScores = []) => {
+    const teacherName = teachers.find(t => t.id === formData.teacher_id)?.name || '';
+    const seriesName = seriesList.find(s => s.id === formData.series_id)?.name || '';
+    const subjectNames = (formData.subject_ids || []).map(id => subjects.find(s => s.id === id)?.name).filter(Boolean).join(', ');
+    
+    return {
+      teacherName,
+      seriesName,
+      subjectNames,
+      sectionTitle,
+      indicators: localScores.map(f => ({ label: f.label, score: getScore(f.field) })),
+      allScores: getAllFormScores()
+    };
   };
 
   const getHistory = (field) => {
@@ -825,12 +1425,13 @@ export default function ObservationForm() {
 
       if (!isOnline) {
         const teacherObj = teachers.find(t => t.id === formData.teacher_id);
-        const subjectObj = subjects.find(s => s.id === formData.subject_id);
+        const selectedSubjects = subjects.filter(s => formData.subject_ids?.includes(s.id));
+        const subjectName = selectedSubjects.length > 0 ? selectedSubjects.map(s => s.name).join(', ') : 'N/A';
         const seriesObj = seriesList.find(s => s.id === formData.series_id);
 
         await addToOfflineQueue(payload, {
           teacherName: teacherObj ? teacherObj.name : 'N/A',
-          subjectName: subjectObj ? subjectObj.name : 'N/A',
+          subjectName: subjectName,
           seriesName: seriesObj ? seriesObj.name : 'N/A'
         });
 
@@ -844,18 +1445,41 @@ export default function ObservationForm() {
       } else {
         const dbPayload = { ...payload };
         delete dbPayload.is_new_offline;
-        const { error } = id ? await supabase.from('observations').update(dbPayload).eq('id', id) : await supabase.from('observations').insert([dbPayload]);
         
-        if (error) {
-          if (error.message && (error.message.includes('fetch') || error.message.includes('network'))) {
+        let saveError = null;
+        try {
+          const { error } = id 
+            ? await supabase.from('observations').update(dbPayload).eq('id', id) 
+            : await supabase.from('observations').insert([dbPayload]);
+          if (error) throw error;
+        } catch (dbError) {
+          const errorMsg = dbError?.message || '';
+          if (errorMsg.includes('subject_ids') && errorMsg.includes('does not exist')) {
+            console.warn('Database does not have subject_ids column yet. Retrying without it.');
+            const fallbackPayload = { ...dbPayload };
+            delete fallbackPayload.subject_ids;
+            const { error: retryError } = id 
+              ? await supabase.from('observations').update(fallbackPayload).eq('id', id) 
+              : await supabase.from('observations').insert([fallbackPayload]);
+            if (retryError) {
+              saveError = retryError;
+            }
+          } else {
+            saveError = dbError;
+          }
+        }
+        
+        if (saveError) {
+          if (saveError.message && (saveError.message.includes('fetch') || saveError.message.includes('network'))) {
             console.warn('Network error during save, falling back to offline queue');
             const teacherObj = teachers.find(t => t.id === formData.teacher_id);
-            const subjectObj = subjects.find(s => s.id === formData.subject_id);
+            const selectedSubjects = subjects.filter(s => formData.subject_ids?.includes(s.id));
+            const subjectName = selectedSubjects.length > 0 ? selectedSubjects.map(s => s.name).join(', ') : 'N/A';
             const seriesObj = seriesList.find(s => s.id === formData.series_id);
 
             await addToOfflineQueue(payload, {
               teacherName: teacherObj ? teacherObj.name : 'N/A',
-              subjectName: subjectObj ? subjectObj.name : 'N/A',
+              subjectName: subjectName,
               seriesName: seriesObj ? seriesObj.name : 'N/A'
             });
 
@@ -867,7 +1491,7 @@ export default function ObservationForm() {
             setSuccess(true);
             window.scrollTo(0,0);
           } else {
-            throw error;
+            throw saveError;
           }
         } else {
           const key = id ? `sosa_draft_${id}` : 'sosa_draft_new';
@@ -1063,7 +1687,7 @@ export default function ObservationForm() {
               justifyContent: 'center',
               color: 'var(--text-muted)'
             }}
-            title="Configurações de Rigor"
+            title="Configurações (Rigor & IA)"
           >
             <Settings size={20} />
           </button>
@@ -1073,7 +1697,7 @@ export default function ObservationForm() {
           <div className="mb-4 p-5 bg-white rounded-xl border border-gray-200 shadow-lg animate-fade-in" style={{ margin: 'var(--space-2) 0' }}>
             <div className="flex items-center gap-2 mb-5 text-sm font-bold text-gray-800">
               <Settings size={18} className="text-primary" /> 
-              <span>Ajuste do Rigor Pedagógico</span>
+              <span>Configurações do Sistema (Rigor & IA)</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="flex flex-col gap-4">
@@ -1101,6 +1725,31 @@ export default function ObservationForm() {
                 />
               </div>
             </div>
+            
+            {/* Gemini API Key Section */}
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2 mb-3 text-xs font-bold text-gray-850">
+                <Sparkles size={14} style={{ color: '#a855f7' }} />
+                <span>Integração com Inteligência Artificial (Gemini API)</span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <div style={{ flex: 1, width: '100%' }}>
+                  <input 
+                    type="password"
+                    placeholder="Chave de API do Gemini (ex: AIzaSy...)"
+                    className="form-input w-full"
+                    style={{ fontSize: '12px', padding: '8px 12px' }}
+                    value={geminiApiKey}
+                    onChange={(e) => updateGeminiApiKey(e.target.value)}
+                  />
+                </div>
+                <p className="text-[11px] text-muted leading-relaxed" style={{ flex: 1, margin: 0 }}>
+                  Insira sua chave de API para ativar o aprimoramento de observações por IA.
+                  Obtenha uma chave <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: '650', textDecoration: 'underline' }}>gratuita aqui</a>.
+                </p>
+              </div>
+            </div>
+
             <div className="mt-6 pt-3 border-t border-gray-50 flex justify-between items-center">
               <p className="text-[10px] text-muted italic">
                 * As configurações são salvas automaticamente na sua conta e aplicadas em tempo real.
@@ -1342,14 +1991,16 @@ export default function ObservationForm() {
                         ...prev, 
                         teacher_id: defaultTeacher.id, 
                         series_id: '',
-                        subject_id: ''
+                        subject_id: '',
+                        subject_ids: []
                       }));
                     } else {
                       setFormData(prev => ({ 
                         ...prev, 
                         teacher_id: '', 
                         series_id: '',
-                        subject_id: ''
+                        subject_id: '',
+                        subject_ids: []
                       }));
                     }
                   }}
@@ -1391,6 +2042,7 @@ export default function ObservationForm() {
                     
                     // Reseta a disciplina se ela não pertencer à nova série selecionada
                     let finalSubjectId = formData.subject_id;
+                    let finalSubjectIds = formData.subject_ids || [];
                     const nextMatchedRecords = matchingTeacherRecords.filter(t => 
                       t.teacher_series?.some(ts => ts.series_id === sId)
                     );
@@ -1399,15 +2051,19 @@ export default function ObservationForm() {
                       t.teacher_subjects?.forEach(ts => nextAllowedSubjectIds.add(ts.subject_id));
                     });
                     const isAnyRegente = nextMatchedRecords.some(t => t.teacher_type === 'regente');
-                    if (!isAnyRegente && finalSubjectId && !nextAllowedSubjectIds.has(finalSubjectId)) {
-                      finalSubjectId = '';
+                    if (!isAnyRegente) {
+                      if (finalSubjectId && !nextAllowedSubjectIds.has(finalSubjectId)) {
+                        finalSubjectId = '';
+                      }
+                      finalSubjectIds = finalSubjectIds.filter(id => nextAllowedSubjectIds.has(id));
                     }
 
                     setFormData(prev => ({ 
                       ...prev, 
                       series_id: sId,
                       teacher_id: finalTeacherId,
-                      subject_id: finalSubjectId
+                      subject_id: finalSubjectId,
+                      subject_ids: finalSubjectIds
                     }));
                   }}
                   required
@@ -1416,44 +2072,148 @@ export default function ObservationForm() {
                   {availableSeries.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label className="form-label">Disciplina</label>
-                <select 
-                  className="form-input"
-                  value={formData.subject_id || ''}
-                  onChange={(e) => {
-                    const subId = e.target.value;
-                    let finalTeacherId = formData.teacher_id;
-                    if (matchingTeacherRecords.length > 1) {
-                      const bestTeacher = findBestTeacherRecord(matchingTeacherRecords, formData.series_id, subId);
-                      if (bestTeacher) finalTeacherId = bestTeacher.id;
-                    }
-                    
-                    // Reseta a série se ela não pertencer à nova disciplina selecionada
-                    let finalSeriesId = formData.series_id;
-                    const nextMatchedRecords = matchingTeacherRecords.filter(t => 
-                      t.teacher_subjects?.some(ts => ts.subject_id === subId) || t.teacher_type === 'regente'
-                    );
-                    const nextAllowedSeriesIds = new Set();
-                    nextMatchedRecords.forEach(t => {
-                      t.teacher_series?.forEach(ts => nextAllowedSeriesIds.add(ts.series_id));
-                    });
-                    if (finalSeriesId && !nextAllowedSeriesIds.has(finalSeriesId)) {
-                      finalSeriesId = '';
-                    }
-
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      subject_id: subId,
-                      teacher_id: finalTeacherId,
-                      series_id: finalSeriesId
-                    }));
+              <div className="form-group" ref={subjectDropdownRef} style={{ position: 'relative' }}>
+                <label className="form-label">Disciplinas</label>
+                
+                {/* Combobox Header */}
+                <div 
+                  onClick={() => setIsSubjectDropdownOpen(!isSubjectDropdownOpen)}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="form-input flex justify-between items-center cursor-pointer select-none"
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    minHeight: '38px',
+                    backgroundColor: 'white',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 'var(--space-2) var(--space-3)',
+                    boxShadow: 'var(--shadow-sm)',
+                    fontSize: '14px',
+                    color: (formData.subject_ids || []).length > 0 ? 'var(--text-primary)' : 'var(--text-muted)'
                   }}
-                  required
                 >
-                  <option value="">Selecione a disciplina</option>
-                  {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                  <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '90%' }}>
+                    {(() => {
+                      const ids = formData.subject_ids || [];
+                      if (ids.length === 0) return 'Selecione as disciplinas';
+                      const selected = subjects.filter(s => ids.includes(s.id));
+                      if (selected.length === 0) return 'Selecione as disciplinas';
+                      return selected.map(s => s.name).join(', ');
+                    })()}
+                  </span>
+                  {/* Chevron Icon */}
+                  <span style={{ 
+                    transition: 'transform 0.2s', 
+                    transform: isSubjectDropdownOpen ? 'rotate(180deg)' : 'none',
+                    borderTop: '5px solid var(--text-secondary)',
+                    borderLeft: '4px solid transparent',
+                    borderRight: '4px solid transparent',
+                    display: 'inline-block',
+                    width: 0,
+                    height: 0
+                  }} />
+                </div>
+
+                {/* Dropdown Menu */}
+                {isSubjectDropdownOpen && (
+                  <div 
+                    className="animate-fade-in"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 50,
+                      backgroundColor: 'white',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      marginTop: '4px',
+                      boxShadow: 'var(--shadow-lg)',
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      padding: '6px 0'
+                    }}
+                  >
+                    {availableSubjects.length === 0 ? (
+                      <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Nenhuma disciplina disponível
+                      </div>
+                    ) : (
+                      availableSubjects.map(sub => {
+                        const isChecked = (formData.subject_ids || []).includes(sub.id);
+                        return (
+                          <label 
+                            key={sub.id}
+                            className="flex items-center gap-2"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px 12px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              color: 'var(--text-secondary)',
+                              transition: 'background-color 0.15s',
+                              userSelect: 'none'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                const currentIds = formData.subject_ids || [];
+                                let nextIds;
+                                if (currentIds.includes(sub.id)) {
+                                  nextIds = currentIds.filter(id => id !== sub.id);
+                                } else {
+                                  nextIds = [...currentIds, sub.id];
+                                }
+                                
+                                // Reseta a série se ela não pertencer a nenhuma das novas disciplinas selecionadas
+                                // (Apenas para professores especialistas/não-regentes)
+                                let finalSeriesId = formData.series_id;
+                                const isAnyRegente = matchingTeacherRecords.some(t => t.teacher_type === 'regente');
+                                
+                                if (!isAnyRegente && nextIds.length > 0) {
+                                  const nextMatchedRecords = matchingTeacherRecords.filter(t => 
+                                    t.teacher_subjects?.some(ts => nextIds.includes(ts.subject_id)) || t.teacher_type === 'regente'
+                                  );
+                                  const nextAllowedSeriesIds = new Set();
+                                  nextMatchedRecords.forEach(t => {
+                                    t.teacher_series?.forEach(ts => nextAllowedSeriesIds.add(ts.series_id));
+                                  });
+                                  if (finalSeriesId && !nextAllowedSeriesIds.has(finalSeriesId)) {
+                                    finalSeriesId = '';
+                                  }
+                                }
+
+                                setFormData(prev => ({
+                                  ...prev,
+                                  subject_ids: nextIds,
+                                  subject_id: nextIds[0] || '', // Fallback to first selected subject
+                                  series_id: finalSeriesId
+                                }));
+                                setIsDirty(true);
+                              }}
+                              style={{
+                                width: '15px',
+                                height: '15px',
+                                cursor: 'pointer',
+                                accentColor: 'var(--primary)'
+                              }}
+                            />
+                            <span>{sub.name}</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             
@@ -1562,7 +2322,20 @@ export default function ObservationForm() {
           <ScoreSelector field="plan_references_score" rubricsKey="planejamento" label="Conexão com referenciais institucionais" />
           <div className="form-group mt-4">
             <label className="form-label">Observações:</label>
-            <textarea className="form-input" rows="3" value={getComment('planning_observations')} onChange={(e) => setComment('planning_observations', e.target.value)} />
+            <AiTextarea 
+              rows="3" 
+              value={getComment('planning_observations')} 
+              onChange={(e) => setComment('planning_observations', e.target.value)} 
+              activeThemeColor={activeThemeColor} 
+              fieldName="planning_observations" 
+              onSaveKey={updateGeminiApiKey} 
+              aiContext={getAiContext("Planejamento", [
+                { field: 'plan_alignment_score', label: 'Alinhamento às habilidades BNCC' },
+                { field: 'plan_content_score', label: 'Conteúdo conforme Sequência Didática' },
+                { field: 'plan_objectives_score', label: 'Objetivos claros e coerentes' },
+                { field: 'plan_references_score', label: 'Conexão com referenciais institucionais' }
+              ])}
+            />
           </div>
         </Card>
 
@@ -1577,7 +2350,20 @@ export default function ObservationForm() {
           <ScoreSelector field="meth_clarity_score" rubricsKey="metodologia" label="Clareza na condução da aula" />
           <div className="form-group mt-4">
             <label className="form-label">Observações:</label>
-            <textarea className="form-input" rows="3" value={getComment('methodology_observations')} onChange={(e) => setComment('methodology_observations', e.target.value)} />
+            <AiTextarea 
+              rows="3" 
+              value={getComment('methodology_observations')} 
+              onChange={(e) => setComment('methodology_observations', e.target.value)} 
+              activeThemeColor={activeThemeColor} 
+              fieldName="methodology_observations" 
+              onSaveKey={updateGeminiApiKey} 
+              aiContext={getAiContext("Metodologia", [
+                { field: 'meth_adequate_score', label: 'Metodologias adequadas à faixa etária' },
+                { field: 'meth_strategies_score', label: 'Estratégias que favorecem o aprendizado' },
+                { field: 'meth_resources_score', label: 'Uso intencional de recursos' },
+                { field: 'meth_clarity_score', label: 'Clareza na condução da aula' }
+              ])}
+            />
           </div>
         </Card>
 
@@ -1592,7 +2378,20 @@ export default function ObservationForm() {
           <ScoreSelector field="learn_criteria_score" rubricsKey="avaliacao" label="Critérios de avaliação compreensíveis" />
           <div className="form-group mt-4">
             <label className="form-label">Observações:</label>
-            <textarea className="form-input" rows="3" value={getComment('learning_observations')} onChange={(e) => setComment('learning_observations', e.target.value)} />
+            <AiTextarea 
+              rows="3" 
+              value={getComment('learning_observations')} 
+              onChange={(e) => setComment('learning_observations', e.target.value)} 
+              activeThemeColor={activeThemeColor} 
+              fieldName="learning_observations" 
+              onSaveKey={updateGeminiApiKey} 
+              aiContext={getAiContext("Avaliação", [
+                { field: 'learn_instruments_score', label: 'Instrumentos coerentes com objetivos' },
+                { field: 'learn_formative_score', label: 'Avaliação formativa presente' },
+                { field: 'learn_feedback_score', label: 'Devolutivas claras aos estudantes' },
+                { field: 'learn_criteria_score', label: 'Critérios de avaliação compreensíveis' }
+              ])}
+            />
           </div>
         </Card>
 
@@ -1611,7 +2410,24 @@ export default function ObservationForm() {
           <ScoreSelector field="man_monitoring_score" rubricsKey="gestao" label="O professor acompanha sua realização circulando pela sala" />
           <div className="form-group mt-4">
             <label className="form-label">Observações:</label>
-            <textarea className="form-input" rows="3" value={getComment('management_observations')} onChange={(e) => setComment('management_observations', e.target.value)} />
+            <AiTextarea 
+              rows="3" 
+              value={getComment('management_observations')} 
+              onChange={(e) => setComment('management_observations', e.target.value)} 
+              activeThemeColor={activeThemeColor} 
+              fieldName="management_observations" 
+              onSaveKey={updateGeminiApiKey} 
+              aiContext={getAiContext("Gestão de Sala", [
+                { field: 'man_space_score', label: 'Organização do espaço e do tempo pedagógico' },
+                { field: 'man_respect_score', label: 'Relação respeitosa entre professor e estudantes' },
+                { field: 'man_conflict_score', label: 'Estratégias de mediação de conflitos' },
+                { field: 'man_environment_score', label: 'Ambiente favorável à aprendizagem' },
+                { field: 'man_material_score', label: 'Uso adequado do material didático' },
+                { field: 'man_content_score', label: 'Registro do conteúdo no caderno dos alunos' },
+                { field: 'man_activities_score', label: 'As atividades são bem orientadas' },
+                { field: 'man_monitoring_score', label: 'O professor acompanha sua realização circulando pela sala' }
+              ])}
+            />
           </div>
         </Card>
 
@@ -1625,19 +2441,34 @@ export default function ObservationForm() {
           <ScoreSelector field="ident_language_score" rubricsKey="identidade" label="Linguagem, atitudes e exemplos alinhados à proposta" />
           <div className="form-group mt-4">
             <label className="form-label">Observações:</label>
-            <textarea className="form-input" rows="3" value={getComment('identity_observations')} onChange={(e) => setComment('identity_observations', e.target.value)} />
+            <AiTextarea 
+              rows="3" 
+              value={getComment('identity_observations')} 
+              onChange={(e) => setComment('identity_observations', e.target.value)} 
+              activeThemeColor={activeThemeColor} 
+              fieldName="identity_observations" 
+              onSaveKey={updateGeminiApiKey} 
+              aiContext={getAiContext("Identidade Confessional", [
+                { field: 'ident_values_score', label: 'Integração de valores naturais e éticos' },
+                { field: 'ident_posture_score', label: 'Postura coerente com princípios EA' },
+                { field: 'ident_language_score', label: 'Linguagem, atitudes e exemplos alinhados' }
+              ])}
+            />
           </div>
         </Card>
 
         <Card style={{ marginBottom: 'var(--space-6)' }}>
           <h3 className="h3 mb-4 flex items-center gap-2"><Award size={20} color={activeThemeColor}/> 8. Pontos Fortes da Aula</h3>
           <div className="form-group">
-            <textarea 
-              className="form-input" 
+            <AiTextarea 
               rows="3" 
               placeholder="Descreva os pontos positivos observados..."
               value={getComment('strong_points')} 
               onChange={(e) => setComment('strong_points', e.target.value)} 
+              activeThemeColor={activeThemeColor}
+              fieldName="strong_points"
+              onSaveKey={updateGeminiApiKey}
+              aiContext={getAiContext("Pontos Fortes da Aula")}
             />
           </div>
         </Card>
@@ -1646,12 +2477,15 @@ export default function ObservationForm() {
           <h3 className="h3 mb-4 flex items-center gap-2"><Zap size={20} color={activeThemeColor}/> 9. Oportunidades de Aprimoramento</h3>
           <div className="form-group">
             <label className="text-xs text-muted mb-2">(Orientações formativas da coordenação pedagógica)</label>
-            <textarea 
-              className="form-input" 
+            <AiTextarea 
               rows="3" 
               placeholder="Indique pontos a serem desenvolvidos..."
               value={getComment('improvement_opportunities')} 
               onChange={(e) => setComment('improvement_opportunities', e.target.value)} 
+              activeThemeColor={activeThemeColor}
+              fieldName="improvement_opportunities"
+              onSaveKey={updateGeminiApiKey}
+              aiContext={getAiContext("Oportunidades de Aprimoramento")}
             />
           </div>
         </Card>
@@ -1661,31 +2495,40 @@ export default function ObservationForm() {
           
           <div className="form-group">
             <label className="form-label">Síntese da Observação:</label>
-            <textarea 
-              className="form-input" 
+            <AiTextarea 
               rows="3" 
               value={getComment('observation_synthesis')} 
               onChange={(e) => setComment('observation_synthesis', e.target.value)} 
+              activeThemeColor={activeThemeColor}
+              fieldName="observation_synthesis"
+              onSaveKey={updateGeminiApiKey}
+              aiContext={getAiContext("Síntese da Observação")}
             />
           </div>
 
           <div className="form-group mt-4">
             <label className="form-label">Orientações Pedagógicas:</label>
-            <textarea 
-              className="form-input" 
+            <AiTextarea 
               rows="3" 
               value={getComment('pedagogical_guidelines')} 
               onChange={(e) => setComment('pedagogical_guidelines', e.target.value)} 
+              activeThemeColor={activeThemeColor}
+              fieldName="pedagogical_guidelines"
+              onSaveKey={updateGeminiApiKey}
+              aiContext={getAiContext("Orientações Pedagógicas")}
             />
           </div>
 
           <div className="form-group mt-4">
             <label className="form-label">Combinados e Encaminhamentos:</label>
-            <textarea 
-              className="form-input" 
+            <AiTextarea 
               rows="3" 
               value={getComment('forwarding')} 
               onChange={(e) => setComment('forwarding', e.target.value)} 
+              activeThemeColor={activeThemeColor}
+              fieldName="forwarding"
+              onSaveKey={updateGeminiApiKey}
+              aiContext={getAiContext("Combinados e Encaminhamentos")}
             />
           </div>
         </Card>

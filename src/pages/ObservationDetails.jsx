@@ -96,6 +96,40 @@ export default function ObservationDetails({ observation }) {
     });
   }, []);
 
+  const [subjects, setSubjects] = useState([]);
+
+  const schoolId = observation?.school_id || selectedSchoolId;
+  const selectedSchool = schools.find(s => String(s.id) === String(schoolId));
+
+  useEffect(() => {
+    if (!schoolId) return;
+    async function loadSubjects() {
+      try {
+        const { data, error } = await supabase
+          .from('subjects')
+          .select('id, name')
+          .eq('school_id', schoolId)
+          .order('name');
+        if (data && !error) {
+          setSubjects(data);
+        }
+      } catch (err) {
+        console.error('Failed to load subjects for details:', err);
+      }
+    }
+    loadSubjects();
+  }, [schoolId]);
+
+  const getSubjectNames = () => {
+    if (observation?.subject_ids && observation.subject_ids.length > 0 && subjects.length > 0) {
+      const names = subjects
+        .filter(s => observation.subject_ids.includes(s.id))
+        .map(s => s.name);
+      if (names.length > 0) return names.join(', ');
+    }
+    return observation?.subjects?.name || 'N/A';
+  };
+
   if (!observation) return null;
 
   const evaluationOptions = [
@@ -104,11 +138,6 @@ export default function ObservationDetails({ observation }) {
     { label: 'Não atende', value: 'Não atende' },
     { label: 'Não observado', value: 'Não observado' }
   ];
-
-  const schoolId = observation?.school_id || selectedSchoolId;
-  const selectedSchool = schools.find(s => String(s.id) === String(schoolId));
-
-
 
   const [reportModel, setReportModel] = useState('sosa');
 
@@ -163,7 +192,7 @@ export default function ObservationDetails({ observation }) {
           )}
           <div>
             <label className="text-xs font-bold text-muted uppercase block">Disciplina</label>
-            <p className="text-sm font-medium">{observation.subjects?.name || 'N/A'}</p>
+            <p className="text-sm font-medium">{getSubjectNames()}</p>
           </div>
           <div>
             <label className="text-xs font-bold text-muted uppercase block">Série / Turma</label>
@@ -660,7 +689,7 @@ export default function ObservationDetails({ observation }) {
                   <strong>Professor(a):</strong> {observation.teachers?.name}
                 </td>
                 <td style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', width: '25%' }}>
-                  <strong>Disciplina:</strong> {observation.subjects?.name}
+                  <strong>Disciplina:</strong> {getSubjectNames()}
                 </td>
                 <td colSpan="2" style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
                   <strong>Ano/Série:</strong> {observation.series?.name}

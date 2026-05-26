@@ -34,6 +34,45 @@ export default function Dashboard() {
   const [deleteIsOffline, setDeleteIsOffline] = useState(false);
   const [toast, setToast] = useState(null);
 
+  const [subjects, setSubjects] = useState([]);
+
+  useEffect(() => {
+    if (!selectedSchoolId) return;
+    async function loadSubjects() {
+      try {
+        const cachedSub = await getCachedMetadata(`subjects_${selectedSchoolId}`);
+        if (cachedSub) {
+          setSubjects(cachedSub);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('subjects')
+          .select('id, name')
+          .eq('school_id', selectedSchoolId)
+          .order('name');
+        if (data && !error) {
+          setSubjects(data);
+        }
+      } catch (err) {
+        console.error('Failed to load subjects in dashboard:', err);
+      }
+    }
+    loadSubjects();
+  }, [selectedSchoolId]);
+
+  const getObservationSubjectNames = (obs) => {
+    if (obs.isOffline && obs.subjects?.name) {
+      return obs.subjects.name;
+    }
+    if (obs.subject_ids && obs.subject_ids.length > 0 && subjects.length > 0) {
+      const names = subjects
+        .filter(s => obs.subject_ids.includes(s.id))
+        .map(s => s.name);
+      if (names.length > 0) return names.join(', ');
+    }
+    return obs.subjects?.name || 'N/A';
+  };
+
   // Card Selectors State
   const totalFilter = 'data';
   const [periodRange, setPeriodRange] = useState('mes'); // semana, mes, bimestre, semestre, ano
@@ -590,7 +629,7 @@ export default function Dashboard() {
                     <td>
                       <div className="flex items-center gap-1">
                         <BookOpen size={12} className="text-muted" />
-                        <span className="text-xs">{obs.subjects?.name || 'N/A'}</span>
+                        <span className="text-xs">{getObservationSubjectNames(obs)}</span>
                       </div>
                     </td>
                     <td style={{ position: 'sticky', right: 0, backgroundColor: 'white', zIndex: 10 }}>
