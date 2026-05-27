@@ -9,6 +9,7 @@ import UserRequests from './pages/UserRequests'
 import { SchoolProvider, useSchool } from './contexts/SchoolContext'
 import Dashboard from './pages/Dashboard'
 import { SyncProvider, useSync } from './contexts/SyncContext'
+import { ConfirmModal } from './components/ui.jsx'
 
 import { Menu, X as CloseIcon, Trophy, Code, Rocket, Shield } from 'lucide-react'
 
@@ -19,6 +20,8 @@ function Layout({ children, onLogout, session }) {
   const isFormPage = location.pathname.startsWith('/observacao')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [confirmScopeModal, setConfirmScopeModal] = useState({ isOpen: false, pendingSchoolId: null })
+  const [confirmBimestreModal, setConfirmBimestreModal] = useState({ isOpen: false, pendingBimestre: null })
   const [pendingCount, setPendingCount] = useState(0)
   const [showCredits, setShowCredits] = useState(false)
   const clickRef = useRef({ count: 0, timer: null })
@@ -309,12 +312,10 @@ function Layout({ children, onLogout, session }) {
                     onChange={(e) => {
                       const newId = e.target.value;
                       if (isFormPage) {
-                        const confirmChange = window.confirm(
-                          "Atenção: Você está na página de Observação Pedagógica. Mudar a Unidade Escolar agora poderá fazer com que o registro em andamento/rascunho seja salvo na unidade errada ou cause inconsistências nos dados dos professores.\n\nDeseja mesmo mudar a Unidade Escolar?"
-                        );
-                        if (!confirmChange) return;
+                        setConfirmScopeModal({ isOpen: true, pendingSchoolId: newId });
+                      } else {
+                        setSelectedSchoolId(newId);
                       }
-                      setSelectedSchoolId(newId);
                     }}
                   >
                     {schools.map(s => (
@@ -352,12 +353,10 @@ function Layout({ children, onLogout, session }) {
                 onChange={(e) => {
                   const newBimestre = e.target.value;
                   if (isFormPage) {
-                    const confirmChange = window.confirm(
-                      "Atenção: Você está na página de Observação Pedagógica. Mudar o Bimestre agora fará com que o registro em andamento/rascunho seja salvo no novo bimestre selecionado.\n\nDeseja mesmo mudar o Bimestre?"
-                    );
-                    if (!confirmChange) return;
+                    setConfirmBimestreModal({ isOpen: true, pendingBimestre: newBimestre });
+                  } else {
+                    updateBimestre(newBimestre);
                   }
-                  updateBimestre(newBimestre);
                 }}
               >
                 <option value="1º Bimestre">1º Bimestre</option>
@@ -674,6 +673,35 @@ function Layout({ children, onLogout, session }) {
           </div>
         </div>
       )}
+
+      {/* Scope & Bimester Confirmation Modals */}
+      <ConfirmModal
+        isOpen={confirmScopeModal.isOpen}
+        onClose={() => setConfirmScopeModal({ isOpen: false, pendingSchoolId: null })}
+        onConfirm={() => {
+          setSelectedSchoolId(confirmScopeModal.pendingSchoolId);
+          setConfirmScopeModal({ isOpen: false, pendingSchoolId: null });
+        }}
+        title="⚠️ Troca de Unidade Escolar"
+        message="Atenção: Você está na página de Observação Pedagógica. Mudar a Unidade Escolar agora poderá fazer com que o registro em andamento/rascunho seja salvo na unidade errada ou cause inconsistências nos dados dos professores. Deseja mesmo mudar a Unidade Escolar?"
+        confirmText="Sim, Mudar Unidade"
+        cancelText="Voltar"
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={confirmBimestreModal.isOpen}
+        onClose={() => setConfirmBimestreModal({ isOpen: false, pendingBimestre: null })}
+        onConfirm={() => {
+          updateBimestre(confirmBimestreModal.pendingBimestre);
+          setConfirmBimestreModal({ isOpen: false, pendingBimestre: null });
+        }}
+        title="⚠️ Troca de Bimestre Ativo"
+        message="Atenção: Você está na página de Observação Pedagógica. Mudar o Bimestre agora fará com que o registro em andamento/rascunho seja salvo no novo bimestre selecionado. Deseja mesmo mudar o Bimestre?"
+        confirmText="Sim, Mudar Bimestre"
+        cancelText="Voltar"
+        variant="warning"
+      />
     </div>
   )
 }
