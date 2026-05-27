@@ -231,6 +231,7 @@ IMPORTANTE: Você deve refinar o rascunho garantindo total alinhamento e consist
 - O resultado deve parecer um único parágrafo fluido, coeso e extremamente profissional de 3 a 6 linhas.
 
 REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
+- NUNCA escreva ou mencione explicitamente notas ou pontuações numéricas no texto final (ex: NÃO use termos como "nota 3", "nota 2/4", "pontuação 4", etc.). Refira-se ao desempenho de forma puramente qualitativa e pedagógica (ex: "excelente", "adequado", "em desenvolvimento", "requer acompanhamento") de forma sutil e natural, sem citar números.
 - NUNCA use saudações, vocativos ou cabeçalhos de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Prezada professora ${teacher}", "Olá"). O texto deve ser redigido como um registro formal de acompanhamento do coordenador.
 - EVITE iniciar o texto diretamente com o nome do(a) professor(a). Comece descrevendo as ações didáticas, a aula ou o cenário pedagógico de forma técnica e formal (ex: "A aula observada demonstrou...", "Durante a regência de classe...").
 - Refira-se ao professor de maneira elegante e seletiva (ex: "o(a) docente", "o(a) professor(a)"), citando o nome próprio dele(a) de forma sutil e natural no meio das frases apenas se for estritamente necessário.
@@ -262,9 +263,10 @@ ${highScoresText}
 Redija um texto descritivo e muito positivo (1 parágrafo com 3 a 5 linhas), extremamente profissional e pedagógico, destacando essas boas práticas observadas em sala.
 
 REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
+- NUNCA mencione notas numéricas ou pontuações no texto final (ex: NÃO use "nota 4", "escala 3"). Fale sobre as práticas excelentes ou adequadas de forma puramente qualitativa e descritiva.
 - NUNCA comece com saudações ou vocativos (ex: NÃO use "Prezado(a) professor(a)", "Olá", "Prezada professora").
 - NÃO inicie o parágrafo com o nome do(a) professor(a) "${teacher}". Comece diretamente descrevendo as boas práticas didáticas ou a dinâmica da aula de forma técnica.
-- Refira-se ao professor de maneira elegante e seletiva (ex: "o(a) docente", "o(a) professor(a)"), usando o nome próprio dele(a) de forma discreta no meio do texto apenas se agregar valor.
+- Refira-se ao professor de maneira elegante e seletiva (ex: "o(a) docente", "o(a) professor(a)"), usando o nome próprio dele(a) de forma discreta no meio del texto apenas se agregar valor.
 - Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.${getVerbosityInstruction(detailLevel)}`;
         } else if (section === "Oportunidades de Aprimoramento") {
           const lowScores = (aiContext?.allScores || []).filter(s => s.score <= 2);
@@ -280,6 +282,7 @@ ${lowScoresText}
 Redija um texto formal (1 parágrafo com 3 a 5 linhas). 
 
 REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
+- NUNCA mencione notas numéricas ou pontuações no texto final (ex: NÃO use "nota 1", "escala 2"). Aborde os pontos a desenvolver usando descrições pedagógicas qualitativas (ex: "em desenvolvimento", "demandam maior acompanhamento") de forma sutil e construtiva.
 - Seja extremamente propositivo, oferecendo recomendações formativas claras e caminhos práticos de superação para as fragilidades identificadas.
 - NÃO hesite ou seja vago ao sugerir as melhorias específicas; descreva-as de forma direta, clara, profissional e respeitosa.
 - NUNCA comece com saudações ou vocativos (ex: NÃO use "Prezado(a) professor(a)", "Olá").
@@ -302,6 +305,7 @@ Com base nisso, redija uma redação de 1 parágrafo formal, coerente e tecnicam
 - Se for Combinados e Encaminhamentos: proponha ações práticas conjuntas para as próximas semanas.
 
 REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
+- NUNCA mencione notas numéricas ou pontuações no texto final (ex: NÃO use "nota 3", "escala 2"). Refira-se ao desempenho ou às ações de forma qualitativa e técnica.
 - NUNCA use saudações, vocativos ou formato de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Prezada professora ${teacher}", "Olá"). O texto deve ser redigido como um registro formal de acompanhamento do coordenador.
 - EVITE iniciar o texto com o nome do(a) professor(a) "${teacher}". Dê preferência por iniciar abordando a regência, as orientações didáticas ou os encaminhamentos pedagógicos estabelecidos.
 - Refira-se ao professor de forma técnica e natural (ex: "o(a) docente", "o(a) professor(a)"), usando o nome próprio apenas de forma pontual e integrada ao fluxo do texto.
@@ -320,10 +324,11 @@ ${localIndicatorsText}
 Escreva uma observação técnica de 1 parágrafo (3 a 5 linhas). 
 
 REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
+- NUNCA escreva nem mencione explicitamente as notas ou pontuações numéricas no texto final (ex: NÃO use termos como "nota 1", "nota 2/4", "pontuação 3", etc.). Faça referências qualitativas sutis ao nível pedagógico (ex: "excelente", "adequado", "em desenvolvimento", "precisa de acompanhamento/apoio") ou apenas descreva as fragilidades e potencialidades de forma natural sem revelar números.
 - Seja extremamente claro, direto e assertivo ao apontar pontos de atenção. 
-- Se algum indicador obteve nota 1 ou 2, NÃO seja tímido ou superficial: descreva a fragilidade de forma respeitosa, mas declare explicitamente o que precisa de melhoria e proponha IMEDIATAMENTE uma ação ou recomendação didática prática e clara para que o(a) docente se desenvolva (por exemplo, se recebeu nota 1 em instrumentos de avaliação, aponte a falta de evidências observadas e recomende a introdução de critérios claros ou avaliações formativas pontuais).
+- Se algum indicador obteve nota 1 ou 2, NÃO seja tímido ou superficial: descreva a fragilidade de forma respeitosa, mas declare explicitamente o que precisa de melhoria e proponha IMEDIATAMENTE uma ação ou recomendação didática prática e clara para que o(a) docente se desenvolva (por exemplo, aponte a falta de evidências observadas em instrumentos de avaliação e recomende a introdução de critérios claros ou avaliações formativas pontuais, sem mencionar termos numéricos).
 - Se houver indicadores com notas 3 ou 4, valide o bom desempenho correspondente de forma elogiosa, destacando o impacto positivo na aula.
-- O texto final deve mesclar de forma muito fluida e profissional tanto as validações (notas 3 e 4) quanto as propostas concretas de melhoria para os itens com nota 1 e 2.
+- O texto final deve mesclar de forma muito fluida e profissional tanto as validações (notas 3 e 4) quanto as propostas concretas de melhoria para os itens com desenvolvimento pendente.
 - NUNCA use saudações ou vocativos (ex: NÃO use "Prezado(a) professor(a)", "Olá").
 - NÃO comece o parágrafo diretamente com o nome do(a) professor(a) "${teacher}". Prefira introduzir a observação focando nos aspectos didáticos e pedagógicos da aula.
 - Refira-se ao professor de forma formal e fluida (ex: "o(a) docente", "o(a) professor(a)"), usando o nome próprio apenas de forma esporádica e natural no meio das frases se necessário.
