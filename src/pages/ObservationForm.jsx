@@ -160,6 +160,25 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
   const [showKeyPlain, setShowKeyPlain] = useState(false);
   const [detailLevel, setDetailLevel] = useState(2);
   const [aiModel, setAiModel] = useState(() => localStorage.getItem('sosa_ai_model') || 'llama-3.3-70b-versatile');
+  const [autonomy, setAutonomy] = useState(() => localStorage.getItem('sosa_ai_autonomy') || 'ia');
+
+  const textareaRef = useRef(null);
+
+  // Sync global autonomy mode across all AiTextarea instances
+  useEffect(() => {
+    const handleGlobalAutonomyChange = () => {
+      const mode = localStorage.getItem('sosa_ai_autonomy') || 'ia';
+      setAutonomy(mode);
+    };
+    window.addEventListener('sosa_ai_autonomy_change', handleGlobalAutonomyChange);
+    return () => window.removeEventListener('sosa_ai_autonomy_change', handleGlobalAutonomyChange);
+  }, []);
+
+  const handleAutonomyChange = (mode) => {
+    setAutonomy(mode);
+    localStorage.setItem('sosa_ai_autonomy', mode);
+    window.dispatchEvent(new Event('sosa_ai_autonomy_change'));
+  };
 
   // Hydrate AI configurations from Supabase User Metadata (recurrence per user)
   useEffect(() => {
@@ -197,43 +216,109 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
       return;
     }
 
+    let draftToEnhance = value || '';
+    let selectionStart = 0;
+    let selectionEnd = 0;
+    let isSegmentEnhancement = false;
+
+    if (textareaRef.current) {
+      const start = textareaRef.current.selectionStart;
+      const end = textareaRef.current.selectionEnd;
+      const selected = draftToEnhance.substring(start, end);
+      if (selected && selected.trim()) {
+        draftToEnhance = selected;
+        selectionStart = start;
+        selectionEnd = end;
+        isSegmentEnhancement = true;
+      }
+    }
+
+    const hasText = draftToEnhance && draftToEnhance.trim();
+
+    if (!hasText && autonomy === 'coordination') {
+      setErrorMsg('O modo "Autonomia da Coordenação" exige que você digite um rascunho (ou selecione um trecho) primeiro para que a IA possa aprimorá-lo.');
+      return;
+    }
+
     setIsEnhancing(true);
     setErrorMsg('');
 
     try {
       let promptText = "";
-      if (value && value.trim()) {
-        const teacher = aiContext?.teacherName || "o(a) professor(a)";
-        const teacherGender = aiContext?.teacherGender || "F";
-        const teacherFirstName = aiContext?.teacherFirstName || (aiContext?.teacherName ? aiContext.teacherName.split(' ')[0] : "");
-        const series = aiContext?.seriesName || "a série";
-        const subjects = aiContext?.subjectNames || "a disciplina";
-        const section = aiContext?.sectionTitle || "Observação";
+      if (hasText) {
+        if (autonomy === 'coordination') {
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é aprimorar o rascunho de observação pedagógica escrito pelo coordenador pedagógico, tornando-o pedagogicamente técnico, formal e claro, mas respeitando FIEL e RIGOROSAMENTE a percepção original da coordenadora.
 
-        const teacherTerm = teacherGender === 'M' ? 'o professor' : 'a professora';
-        const docentTerm = teacherGender === 'M' ? 'o docente' : 'a docente';
-        const pronounTerm = teacherGender === 'M' ? 'dele' : 'dela';
-        const prepositionTerm = teacherGender === 'M' ? 'do docente' : 'da docente';
-        const aoPrepositionTerm = teacherGender === 'M' ? 'ao docente' : 'à docente';
+IMPORTANTE (AUTONOMIA DA COORDENAÇÃO):
+- Você deve agir estritamente sobre o texto fornecido abaixo, fazendo apenas correções gramaticais, melhorias de coesão, concordância e incorporando termos pedagógicos refinados (ex: substituindo termos informais por terminologia pedagógica técnica).
+- NUNCA adicione ideias novas, suposições, novos fatos, orientações didáticas que não estejam sugeridas no rascunho original ou avaliações que não tenham sido descritas.
+- NUNCA considere notas de avaliação, BNCC, nomes de disciplinas, turmas ou dados do professor para inferir notas. Apenas refine a escrita do texto enviado.
+- Preserve de forma absoluta a percepção humana, sensibilidade, pontos fortes ou fragilidades exatamente como relatados pela coordenadora no rascunho.
+- EVITE CLICHÊS DE INTELIGÊNCIA ARTIFICIAL: NUNCA use transições robóticas e jargões mecânicos típicos de IA (como "Ademais", "Outrossim", "Em suma", "Sob essa ótica", "Urge salientar", "É imperioso destacar", "Impulsionar/Potencializar de forma contínua"). Escreva de forma fluida, natural, elegante e humana.
+${isSegmentEnhancement 
+  ? '- O resultado deve ser o aprimoramento direto e exclusivo do trecho fornecido, mantendo a extensão aproximada do trecho e integrando-se perfeitamente de volta ao contexto de onde foi extraído.'
+  : '- O resultado deve parecer um único parágrafo fluido, coeso e extremamente profissional de 3 a 6 linhas.'
+}
+- NUNCA use saudações, vocativos ou cabeçalhos de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Olá").
 
-        const genderRule = `O(A) professor(a) observado(a) é do gênero ${teacherGender === 'M' ? 'Masculino' : 'Feminino'}. Portanto, você DEVE utilizar pronomes e artigos exclusivamente adequados a este gênero (use sempre "${teacherTerm}", "${docentTerm}", "${pronounTerm}", "${prepositionTerm}", "${aoPrepositionTerm}"). NUNCA use termos neutros com barra ou parênteses como "o(a) professor(a)", "o(a) docente", "dele(a)". Se precisar se referir ao(à) professor(a) pelo seu nome próprio, use APENAS o seu primeiro nome "${teacherFirstName}" de forma discreta. NUNCA mencione o nome completo dele(a) no texto.`;
-        
-        let contextSectionText = "";
-        if (!["Pontos Fortes da Aula", "Oportunidades de Aprimoramento", "Síntese da Observação", "Orientações Pedagógicas", "Combinados e Encaminhamentos"].includes(section)) {
-          const indicators = aiContext?.indicators || [];
-          const indicatorsText = indicators.map(ind => `- ${ind.label}: ${ind.score ? `Nota ${ind.score}/4` : 'Não avaliado'}`).join('\n');
-          contextSectionText = `Esta observação refere-se especificamente ao eixo "${section}" da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+${isSegmentEnhancement ? 'Trecho selecionado para refinar:' : 'Rascunho original escrito pelo coordenador para refinar:'}
+"${draftToEnhance}"
+
+Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.${getVerbosityInstruction(detailLevel)}`;
+        } else {
+          const teacher = aiContext?.teacherName || "o(a) professor(a)";
+          const teacherGender = aiContext?.teacherGender || "F";
+          const teacherFirstName = aiContext?.teacherFirstName || (aiContext?.teacherName ? aiContext.teacherName.split(' ')[0] : "");
+          const series = aiContext?.seriesName || "a série";
+          const subjects = aiContext?.subjectNames || "a disciplina";
+          const section = aiContext?.sectionTitle || "Observação";
+
+          const teacherTerm = teacherGender === 'M' ? 'o professor' : 'a professora';
+          const docentTerm = teacherGender === 'M' ? 'o docente' : 'a docente';
+          const pronounTerm = teacherGender === 'M' ? 'dele' : 'dela';
+          const prepositionTerm = teacherGender === 'M' ? 'do docente' : 'da docente';
+          const aoPrepositionTerm = teacherGender === 'M' ? 'ao docente' : 'à docente';
+
+          const genderRule = `O(A) professor(a) observado(a) é do gênero ${teacherGender === 'M' ? 'Masculino' : 'Feminino'}. Portanto, você DEVE utilizar pronomes e artigos exclusivamente adequados a este gênero (use sempre "${teacherTerm}", "${docentTerm}", "${pronounTerm}", "${prepositionTerm}", "${aoPrepositionTerm}"). NUNCA use termos neutros com barra ou parênteses como "o(a) professor(a)", "o(a) docente", "dele(a)". Se precisar se referir ao(à) professor(a) pelo seu nome próprio, use APENAS o seu primeiro nome "${teacherFirstName}" de forma discreta. NUNCA mencione o nome completo dele(a) no texto.`;
+          
+          let contextSectionText = "";
+          if (!["Pontos Fortes da Aula", "Oportunidades de Aprimoramento", "Síntese da Observação", "Orientações Pedagógicas", "Combinados e Encaminhamentos"].includes(section)) {
+            const indicators = aiContext?.indicators || [];
+            const indicatorsText = indicators.map(ind => `- ${ind.label}: ${ind.score ? `Nota ${ind.score}/4` : 'Não avaliado'}`).join('\n');
+            contextSectionText = `Esta observação refere-se especificamente ao eixo "${section}" da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
 Abaixo estão as pontuações registradas para este eixo (escala de 1 a 4):
 ${indicatorsText}`;
-        } else {
-          const allScores = aiContext?.allScores || [];
-          const allScoresText = allScores.map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n');
-          contextSectionText = `Esta observação refere-se ao campo "${section}" da Devolutiva da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+          } else {
+            const allScores = aiContext?.allScores || [];
+            const allScoresText = allScores.map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n');
+            contextSectionText = `Esta observação refere-se ao campo "${section}" da Devolutiva da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
 Abaixo estão as notas gerais registradas em toda a visita de sala (escala de 1 a 4):
 ${allScoresText}`;
-        }
+          }
 
-        promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é aprimorar o rascunho de observação pedagógica escrito pelo coordenador pedagógico, tornando-o pedagogicamente técnico, formal e claro, porém preservando totalmente a alma, a percepção humana, a sensibilidade e os fatos reais observados pela coordenadora em sala de aula.
+          if (isSegmentEnhancement) {
+            promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é aprimorar o trecho selecionado de uma observação pedagógica, tornando-o pedagogicamente técnico, formal e claro, utilizando as notas e o contexto do eixo pedagógico como guia para refinar a percepção.
+
+IMPORTANTE (AUTONOMIA DA IA):
+- O trecho selecionado deve ser aprimorado garantindo total alinhamento e consistência com o contexto da aula e com as notas avaliadas listadas abaixo.
+- Enriqueça o trecho incorporando as avaliações reais das notas: se houver indicadores avaliados com notas baixas (1 ou 2), certifique-se de que o texto final apresente propostas e caminhos práticos e claros para superar essas fragilidades, sem qualquer timidez ou rodeios. Se houver notas altas (3 ou 4), reforce a validação positiva dessas boas práticas.
+- Preserve a essência e os fatos descritos pela coordenadora no trecho selecionado.
+- EVITE CLICHÊS DE INTELIGÊNCIA ARTIFICIAL: NUNCA use termos mecânicos, pomposos ou transições artificiais típicas de robôs (como "Ademais", "Outrossim", "Em suma", "Sob essa ótica", "Urge salientar", "É imperioso destacar", "Impulsionar/Potencializar de forma contínua"). Escreva com uma linguagem natural, fluida, elegante e humana.
+- O resultado deve ser o aprimoramento direto do trecho fornecido, mantendo a extensão aproximada do trecho e integrando-se perfeitamente de volta ao contexto de onde foi extraído.
+- REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
+  * GÊNERO E NOME DO PROFESSOR: ${genderRule}
+  * NUNCA escreva ou mencione notas ou pontuações numéricas no texto final (ex: NÃO use "nota 3", "escala 2").
+  * NUNCA use saudações, vocativos ou cabeçalhos de carta.
+
+Contexto pedagógico da aula e pontuações:
+${contextSectionText}
+
+Trecho selecionado escrito pelo coordenador:
+"${draftToEnhance}"
+
+Retorne APENAS o trecho aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.${getVerbosityInstruction(detailLevel)}`;
+          } else {
+            promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é aprimorar o rascunho de observação pedagógica escrito pelo coordenador pedagógico, tornando-o pedagogicamente técnico, formal e claro, porém preservando totalmente a alma, a percepção humana, a sensibilidade e os fatos reais observados pela coordenadora em sala de aula.
 
 IMPORTANTE: Você deve refinar o rascunho garantindo total alinhamento e consistência com o contexto da aula e com as notas avaliadas listadas abaixo:
 - PRESERVAÇÃO DA ALMA E VOZ DA COORDENADORA: Mantenha a sensibilidade, o tom de proximidade e a percepção empírica do texto original. Preserve fatos específicos descritos (como menções a dinâmicas reais, comportamento de alunos ou recursos usados). Não transforme o texto em uma redação fria, padronizada ou robótica. Melhore o vocabulário, adicione termos pedagógicos mais técnicos, mas garanta que o chefe dela leia o relatório e identifique a percepção pessoal e calorosa de quem esteve fisicamente na sala de aula.
@@ -244,7 +329,7 @@ IMPORTANTE: Você deve refinar o rascunho garantindo total alinhamento e consist
 REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
 - GÊNERO E NOME DO PROFESSOR: ${genderRule}
 - NUNCA escreva ou mencione explicitamente notas ou pontuações numéricas no texto final (ex: NÃO use termos como "nota 3", "nota 2/4", "pontuação 4", etc.). Refira-se ao desempenho de forma puramente qualitativa e pedagógica (ex: "excelente", "adequado", "em desenvolvimento", "requer acompanhamento") de forma sutil e natural, sem citar números.
-- NUNCA use saudações, vocativos ou cabeçalhos de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Olá"). O texto deve ser redigido como um registro formal de acompanhamento do coordenador.
+- NUNCA use saudações, vocativos ou cabeçalhos de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Olá").
 - EVITE iniciar o texto diretamente com o nome do(a) professor(a). Comece descrevendo as ações didáticas, a aula ou o cenário pedagógico de forma técnica e formal (ex: "A aula observada demonstrou...", "Durante a regência de classe...").
 - Refira-se ao professor de maneira elegante e seletiva, citando o seu primeiro nome próprio de forma sutil e natural no meio das frases apenas se for estritamente necessário.
 
@@ -255,6 +340,8 @@ Rascunho original escrito pelo coordenador:
 "${value}"
 
 Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.${getVerbosityInstruction(detailLevel)}`;
+          }
+        }
       } else {
         const teacher = aiContext?.teacherName || "o(a) professor(a)";
         const teacherGender = aiContext?.teacherGender || "F";
@@ -467,8 +554,14 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
         throw lastError || new Error('Nenhuma chave de API válida funcionou.');
       }
 
-      setOriginalValue(value);
-      onChange({ target: { value: enhancedText } });
+      if (isSegmentEnhancement) {
+        const newValue = value.substring(0, selectionStart) + enhancedText + value.substring(selectionEnd);
+        setOriginalValue(value);
+        onChange({ target: { value: newValue } });
+      } else {
+        setOriginalValue(value);
+        onChange({ target: { value: enhancedText } });
+      }
     } catch (err) {
       console.error('Erro no aprimoramento por IA:', err);
       let friendlyMsg = err.message || 'Erro ao conectar à IA.';
@@ -530,6 +623,7 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <textarea
+        ref={textareaRef}
         className="form-input"
         rows={rows}
         placeholder={placeholder}
@@ -543,7 +637,7 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
         }}
       />
 
-      {/* AI Detail Level Toggle — discrete, right-aligned below the textarea */}
+      {/* AI Controls Container (Autonomy & Detail Level) — discrete, left-aligned below the textarea */}
       <div
         style={{
           position: 'absolute',
@@ -551,40 +645,93 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
           left: '8px',
           display: 'flex',
           alignItems: 'center',
-          gap: '2px',
+          gap: '8px',
           zIndex: 10,
-          opacity: 0.55,
+          opacity: 0.7,
           transition: 'opacity 0.2s'
         }}
-        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.55'}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
       >
-        <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '3px', userSelect: 'none', whiteSpace: 'nowrap' }}>IA:</span>
-        {DETAIL_LEVELS.map(level => (
+        {/* Autonomy Mode */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Autonomia:</span>
           <button
-            key={level.id}
             type="button"
-            title={level.title}
+            onClick={() => handleAutonomyChange('ia')}
+            title="Autonomia da IA: Lê notas do item, série, disciplina, professor e regras da Rede para sugerir observações completas."
             onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setDetailLevel(level.id)}
             style={{
               padding: '1px 6px',
               fontSize: '9px',
-              fontWeight: detailLevel === level.id ? '700' : '400',
-              border: detailLevel === level.id ? '1px solid #a855f7' : '1px solid #e5e7eb',
+              fontWeight: autonomy === 'ia' ? '700' : '400',
+              border: autonomy === 'ia' ? '1px solid #6366f1' : '1px solid #e5e7eb',
               borderRadius: '4px',
-              backgroundColor: detailLevel === level.id ? '#faf5ff' : 'transparent',
-              color: detailLevel === level.id ? '#7c3aed' : 'var(--text-muted)',
+              backgroundColor: autonomy === 'ia' ? '#eef2ff' : 'transparent',
+              color: autonomy === 'ia' ? '#4f46e5' : 'var(--text-muted)',
               cursor: 'pointer',
               lineHeight: '1.6',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap'
             }}
           >
-            <span className="detail-level-label-full">{level.label}</span>
-            <span className="detail-level-label-short" style={{ display: 'none' }}>{level.id === 1 ? '—' : level.id === 2 ? '≡' : '⊞'}</span>
+            IA
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => handleAutonomyChange('coordination')}
+            title="Autonomia da Coordenação: Respeita estritamente o seu texto original/trecho, apenas aprimorando gramática e vocabulário pedagógico sem ler notas ou dados extras."
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              padding: '1px 6px',
+              fontSize: '9px',
+              fontWeight: autonomy === 'coordination' ? '700' : '400',
+              border: autonomy === 'coordination' ? '1px solid #10b981' : '1px solid #e5e7eb',
+              borderRadius: '4px',
+              backgroundColor: autonomy === 'coordination' ? '#ecfdf5' : 'transparent',
+              color: autonomy === 'coordination' ? '#059669' : 'var(--text-muted)',
+              cursor: 'pointer',
+              lineHeight: '1.6',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Coord.
+          </button>
+        </div>
+
+        {/* Separator */}
+        <div style={{ width: '1px', height: '10px', backgroundColor: 'var(--border)' }} />
+
+        {/* Detail Level Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Tamanho:</span>
+          {DETAIL_LEVELS.map(level => (
+            <button
+              key={level.id}
+              type="button"
+              title={level.title}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => setDetailLevel(level.id)}
+              style={{
+                padding: '1px 6px',
+                fontSize: '9px',
+                fontWeight: detailLevel === level.id ? '700' : '400',
+                border: detailLevel === level.id ? '1px solid #a855f7' : '1px solid #e5e7eb',
+                borderRadius: '4px',
+                backgroundColor: detailLevel === level.id ? '#faf5ff' : 'transparent',
+                color: detailLevel === level.id ? '#7c3aed' : 'var(--text-muted)',
+                cursor: 'pointer',
+                lineHeight: '1.6',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <span className="detail-level-label-full">{level.label}</span>
+              <span className="detail-level-label-short" style={{ display: 'none' }}>{level.id === 1 ? '—' : level.id === 2 ? '≡' : '⊞'}</span>
+            </button>
+          ))}
+        </div>
       </div>
       
       {/* Action Container */}
