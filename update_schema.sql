@@ -43,3 +43,7 @@ ALTER TABLE observations ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES scho
 ALTER TABLE observations ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id);
 ALTER TABLE observations ADD COLUMN IF NOT EXISTS subject_ids UUID[];
 
+-- 8. Add Gender column to Teachers table
+ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT 'F';
+
+

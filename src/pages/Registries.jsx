@@ -968,6 +968,7 @@ function TeachersCrud({ schoolId }) {
   const [teacherType, setTeacherType] = useState('regente');
   const [selectedSeries, setSelectedSeries] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [gender, setGender] = useState('F');
   
   const [editingItem, setEditingItem] = useState(null);
   
@@ -1027,7 +1028,7 @@ function TeachersCrud({ schoolId }) {
     if (!name.trim() || saving || !isOnline) return;
     
     setSaving(true);
-    const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email: email || null, teacher_type: teacherType, school_id: schoolId }]).select().single();
+    const { data: newTeacher, error } = await supabase.from('teachers').insert([{ name, email: email || null, teacher_type: teacherType, school_id: schoolId, gender }]).select().single();
     
     if (error) {
       setToast({ message: `Erro ao adicionar professor: ${error.message}`, type: 'error' });
@@ -1061,6 +1062,7 @@ function TeachersCrud({ schoolId }) {
 
     setName('');
     setEmail('');
+    setGender('F');
     setTeacherType('regente');
     setSelectedSeries([]);
     setSelectedSubjects([]);
@@ -1076,7 +1078,8 @@ function TeachersCrud({ schoolId }) {
     const { error } = await supabase.from('teachers').update({ 
       name: editingItem.name, 
       email: editingItem.email || null, 
-      teacher_type: editingItem.teacher_type 
+      teacher_type: editingItem.teacher_type,
+      gender: editingItem.gender
     }).eq('id', editingItem.id);
 
     if (error) {
@@ -1111,6 +1114,7 @@ function TeachersCrud({ schoolId }) {
       name: t.name,
       email: t.email || '',
       teacher_type: t.teacher_type || 'regente',
+      gender: t.gender || 'F',
       selectedSeries: t.teacher_series?.map(ts => ts.series_id) || [],
       selectedSubjects: t.teacher_subjects?.map(ts => ts.subject_id) || []
     });
@@ -1180,6 +1184,21 @@ function TeachersCrud({ schoolId }) {
         <div className="flex gap-4 items-center flex-wrap">
           <div style={{ flex: '1 1 200px' }}><Input placeholder="Nome do Professor" value={name} onChange={e => setName(e.target.value)} required disabled={saving || !isOnline} /></div>
           <div style={{ flex: '1 1 200px' }}><Input type="email" placeholder="E-mail (opcional)" value={email} onChange={e => setEmail(e.target.value)} disabled={saving || !isOnline} /></div>
+          <div style={{ flex: '1 1 150px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <select 
+                value={gender} 
+                onChange={e => setGender(e.target.value)} 
+                className="form-input"
+                style={{ height: '42px' }}
+                required
+                disabled={saving || !isOnline}
+              >
+                <option value="F">Feminino</option>
+                <option value="M">Masculino</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-6 items-center flex-wrap" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
@@ -1249,12 +1268,13 @@ function TeachersCrud({ schoolId }) {
       <div className="table-container">
         <table className="table">
           <thead>
-            <tr><th>Nome</th><th>Tipo</th><th>Disciplinas</th><th>Séries</th><th style={{ width: '100px' }}>Ações</th></tr>
+            <tr><th>Nome</th><th>Gênero</th><th>Tipo</th><th>Disciplinas</th><th>Séries</th><th style={{ width: '100px' }}>Ações</th></tr>
           </thead>
           <tbody>
             {teachers.map(t => (
               <tr key={t.id} id={`teacher-${t.id}`} style={{ transition: 'background-color 0.5s' }}>
                 <td>{t.name}<br/><span className="text-xs text-muted">{t.email}</span></td>
+                <td>{t.gender === 'M' ? 'Masculino' : 'Feminino'}</td>
                 <td style={{ textTransform: 'capitalize' }}>{t.teacher_type || 'N/A'}</td>
                 <td className="text-xs text-muted">
                   {t.teacher_subjects?.map(ts => ts.subjects?.name).join(', ') || '-'}
@@ -1285,6 +1305,21 @@ function TeachersCrud({ schoolId }) {
             <div className="flex gap-4 flex-wrap">
               <div style={{ flex: '1 1 200px' }}><Input label="Nome" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required disabled={saving} /></div>
               <div style={{ flex: '1 1 200px' }}><Input label="E-mail" type="email" value={editingItem.email} onChange={e => setEditingItem({...editingItem, email: e.target.value})} disabled={saving} /></div>
+              <div style={{ flex: '1 1 150px' }}>
+                <div className="form-group">
+                  <label className="form-label">Gênero</label>
+                  <select 
+                    value={editingItem.gender || 'F'} 
+                    onChange={e => setEditingItem({...editingItem, gender: e.target.value})} 
+                    className="form-input"
+                    required
+                    disabled={saving}
+                  >
+                    <option value="F">Feminino</option>
+                    <option value="M">Masculino</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-6 items-center flex-wrap" style={{ padding: 'var(--space-3)', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
