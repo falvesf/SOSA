@@ -35,3 +35,4 @@ O projeto está estabilizado, com autenticação Google Workspace funcionando e 
 ## ⚠️ Atenção ao Desenvolver
 - **Não use TailwindCSS** a menos que solicitado. O projeto usa um sistema de design baseado em variáveis CSS em `index.css`.
 - **Preserve o Contexto**: Sempre verifique o `SchoolContext` para garantir que as operações estão vinculadas à Unidade Escolar selecionada.
+ 
