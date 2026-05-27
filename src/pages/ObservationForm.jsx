@@ -1367,19 +1367,13 @@ export default function ObservationForm() {
           visit_objectives_other: prev.visit_objectives_other
         };
 
-        newData.comments_v2 = {
-          planning_observations: prev.planning_observations,
-          methodology_observations: prev.methodology_observations,
-          learning_observations: prev.learning_observations,
-          management_observations: prev.management_observations,
-          identity_observations: prev.identity_observations
-        };
+        newData.comments_v2 = {};
 
       } else if (num === 3) {
         newData.revisit_date_2 = new Date().toISOString().split('T')[0];
         newData.scores_v3 = { ...prev.scores_v2 };
         newData.evaluations_v3 = { ...prev.evaluations_v2 };
-        newData.comments_v3 = { ...prev.comments_v2 };
+        newData.comments_v3 = {};
       }
       return newData;
     });
@@ -1401,13 +1395,13 @@ export default function ObservationForm() {
     const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     setFormData(prev => {
       if (num === 2) {
-        const comments = { strong_points: prev.strong_points, improvement_opportunities: prev.improvement_opportunities, observation_synthesis: prev.observation_synthesis, pedagogical_guidelines: prev.pedagogical_guidelines, forwarding: prev.forwarding };
+        const comments = {};
         const evaluations = { planning_evaluation: prev.planning_evaluation, methodology_evaluation: prev.methodology_evaluation, learning_evaluation: prev.learning_evaluation, management_evaluation: prev.management_evaluation, identity_evaluation: prev.identity_evaluation };
         const scores = {};
         Object.keys(prev).forEach(key => { if(key.endsWith('_score')) scores[key] = prev[key]; });
         return { ...prev, revisit_date_1: localDate, comments_v2: comments, evaluations_v2: evaluations, scores_v2: scores };
       } else if (num === 3) {
-        return { ...prev, revisit_date_2: localDate, comments_v3: { ...prev.comments_v2 }, evaluations_v3: { ...prev.evaluations_v2 }, scores_v3: { ...prev.scores_v2 } };
+        return { ...prev, revisit_date_2: localDate, comments_v3: {}, evaluations_v3: { ...prev.evaluations_v2 }, scores_v3: { ...prev.scores_v2 } };
       }
       return prev;
     });
@@ -1578,13 +1572,9 @@ export default function ObservationForm() {
     const v2 = formData.comments_v2?.[field];
     const v3 = formData.comments_v3?.[field];
 
-    if (activeTab === 1) return v1;
-    if (activeTab === 2) return (v2 !== undefined && v2 !== null) ? v2 : v1;
-    if (activeTab === 3) {
-      if (v3 !== undefined && v3 !== null) return v3;
-      if (v2 !== undefined && v2 !== null) return v2;
-      return v1;
-    }
+    if (activeTab === 1) return v1 || '';
+    if (activeTab === 2) return v2 || '';
+    if (activeTab === 3) return v3 || '';
     return '';
   };
   const setComment = (field, val) => {

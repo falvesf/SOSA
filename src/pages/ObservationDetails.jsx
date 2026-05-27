@@ -537,8 +537,12 @@ export default function ObservationDetails({ observation }) {
         }
 
         if (visitNum === 1) return val1;
-        if (visitNum === 2) return (val2 !== undefined && val2 !== null) ? val2 : val1;
+        if (visitNum === 2) {
+          if (type === 'comment') return val2 || '';
+          return (val2 !== undefined && val2 !== null) ? val2 : val1;
+        }
         if (visitNum === 3) {
+          if (type === 'comment') return val3 || '';
           if (val3 !== undefined && val3 !== null) return val3;
           if (val2 !== undefined && val2 !== null) return val2;
           return val1;
@@ -600,7 +604,15 @@ export default function ObservationDetails({ observation }) {
       };
     };
 
-    const visitCount = observation.revisit_date_2 ? 3 : (observation.revisit_date_1 ? 2 : 1);
+    const hasV3Data = observation.revisit_date_2 || 
+      Object.keys(observation.scores_v3 || {}).length > 0 || 
+      Object.keys(observation.comments_v3 || {}).length > 0 || 
+      Object.keys(observation.evaluations_v3 || {}).length > 0;
+    const hasV2Data = observation.revisit_date_1 || 
+      Object.keys(observation.scores_v2 || {}).length > 0 || 
+      Object.keys(observation.comments_v2 || {}).length > 0 || 
+      Object.keys(observation.evaluations_v2 || {}).length > 0;
+    const visitCount = hasV3Data ? 3 : (hasV2Data ? 2 : 1);
     const pages = [];
 
     const isChecked = (val, target) => {
