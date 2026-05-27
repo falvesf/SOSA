@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, Toast } from '../components/ui';
-import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings, Sparkles, Undo } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings, Sparkles, Undo, Eye, EyeOff } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui';
@@ -135,11 +135,14 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [inputKey, setInputKey] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showKeyPlain, setShowKeyPlain] = useState(false);
 
   const handleEnhance = async () => {
     let rawKey = localStorage.getItem('sosa_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
-    let apiKey = sanitizeApiKey(rawKey);
-    if (!apiKey) {
+    const rawKeys = rawKey.split(/[,;]/).map(k => k.trim()).filter(Boolean);
+    const sanitizedKeys = rawKeys.map(k => sanitizeApiKey(k)).filter(Boolean);
+
+    if (sanitizedKeys.length === 0) {
       const currentKey = localStorage.getItem('sosa_gemini_api_key') || '';
       setInputKey(currentKey);
       setShowKeyInput(true);
@@ -258,50 +261,122 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
         }
       }
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
+      let success = false;
+      let lastError = null;
+      let enhancedText = '';
+
+      for (let i = 0; i < sanitizedKeys.length; i++) {
+        const apiKey = sanitizedKeys[i];
+        try {
+          console.log(`Tentando chamada da IA com a chave ${i + 1}/${sanitizedKeys.length}...`);
+          
+          let response;
+          try {
+            response = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
               {
-                parts: [
-                  {
-                    text: promptText
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        {
+                          text: promptText
+                        }
+                      ]
+                    }
+                  ],
+                  generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 4096,
+                    thinkingConfig: {
+                      thinkingBudget: 0
+                    }
                   }
-                ]
+                })
               }
-            ],
-            generationConfig: {
-              temperature: 0.3,
-              maxOutputTokens: 1024
-            }
-          })
+            );
+          } catch (fetchErr) {
+            console.warn('Falha na requisição com thinkingConfig, tentando sem...', fetchErr);
+          }
+
+          // Se a resposta falhou ou retornou um status de erro (ex: parâmetro não reconhecido)
+          if (!response || !response.ok) {
+            console.warn('Tentando requisição de fallback sem thinkingConfig...');
+            response = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        {
+                          text: promptText
+                        }
+                      ]
+                    }
+                  ],
+                  generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 4096
+                  }
+                })
+              }
+            );
+          }
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData?.error?.message || `Erro HTTP ${response.status}`);
+          }
+
+          const resData = await response.json();
+          const parts = resData?.candidates?.[0]?.content?.parts || [];
+          const nonThoughtParts = parts.filter(p => !p.thought);
+
+          if (nonThoughtParts.length > 0) {
+            enhancedText = nonThoughtParts.map(p => p.text).filter(Boolean).join('');
+          } else if (parts.length > 0) {
+            enhancedText = parts[0]?.text || '';
+          }
+
+          if (!enhancedText) {
+            throw new Error('Não foi possível obter uma resposta válida do Gemini.');
+          }
+
+          enhancedText = enhancedText.trim().replace(/^"|"$/g, '').trim();
+          
+          success = true;
+          break; // Sai do loop se der certo!
+
+        } catch (err) {
+          console.error(`Erro com a chave ${i + 1}/${sanitizedKeys.length}:`, err);
+          lastError = err;
+          // Continua o loop para a próxima chave de API
         }
-      );
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData?.error?.message || `Erro HTTP ${response.status}`);
       }
 
-      const resData = await response.json();
-      let enhancedText = resData?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!enhancedText) {
-        throw new Error('Não foi possível obter uma resposta válida do Gemini.');
+      if (!success) {
+        throw lastError || new Error('Nenhuma chave de API válida funcionou.');
       }
-
-      enhancedText = enhancedText.trim().replace(/^"|"$/g, '').trim();
 
       setOriginalValue(value);
       onChange({ target: { value: enhancedText } });
     } catch (err) {
       console.error('Erro no aprimoramento por IA:', err);
-      setErrorMsg(err.message || 'Erro ao conectar à IA.');
+      let friendlyMsg = err.message || 'Erro ao conectar à IA.';
+      const lowerMsg = friendlyMsg.toLowerCase();
+      if (lowerMsg.includes('quota') || lowerMsg.includes('limit') || lowerMsg.includes('rate') || lowerMsg.includes('429')) {
+        friendlyMsg = 'Limite de cliques rápidos por minuto excedido em todas as suas chaves gratuitas do Gemini. Por favor, aguarde alguns segundos e clique no botão IA novamente!';
+      }
+      setErrorMsg(friendlyMsg);
     } finally {
       setIsEnhancing(false);
     }
@@ -316,7 +391,10 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
 
   const handleSaveKey = () => {
     if (inputKey.trim()) {
-      const sanitized = sanitizeApiKey(inputKey);
+      const parts = inputKey.split(/[,;]/).map(k => k.trim()).filter(Boolean);
+      const sanitizedParts = parts.map(p => sanitizeApiKey(p)).filter(Boolean);
+      const sanitized = sanitizedParts.join(', ');
+
       localStorage.setItem('sosa_gemini_api_key', sanitized);
       if (onSaveKey) {
         onSaveKey(sanitized);
@@ -483,54 +561,86 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
             Configurar Chave do Gemini
           </h4>
           <p style={{ margin: '0 0 8px 0', fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.3' }}>
-            Para usar o aprimoramento inteligente gratuito, insira sua chave da API do Gemini. 
-            Pegue uma <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: '600', textDecoration: 'underline' }}>aqui gratuitamente</a>.
+            Cole uma ou mais chaves da API do Gemini (separadas por vírgula) para failover automático caso alguma atinja o limite! Pegue chaves grátis <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: '600', textDecoration: 'underline' }}>aqui</a>.
           </p>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <input 
-              type="password"
-              placeholder="Cole sua API Key aqui..."
-              value={inputKey}
-              onChange={(e) => setInputKey(e.target.value)}
-              style={{
-                flex: 1,
-                fontSize: '11px',
-                padding: '6px 8px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                outline: 'none'
-              }}
-            />
-            <button 
-              type="button"
-              onClick={handleSaveKey}
-              style={{
-                backgroundColor: '#6366f1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '6px 12px',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              Salvar
-            </button>
-            <button 
-              type="button"
-              onClick={() => { setShowKeyInput(false); setInputKey(''); }}
-              style={{
-                backgroundColor: '#f1f5f9',
-                color: 'var(--text-secondary)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                padding: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              <X size={12} />
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input 
+                type={showKeyPlain ? "text" : "password"}
+                placeholder="Cole sua(s) API Key(s) separadas por vírgula..."
+                value={inputKey}
+                onChange={(e) => setInputKey(e.target.value)}
+                style={{
+                  flex: 1,
+                  fontSize: '11px',
+                  padding: '6px 28px 6px 8px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  outline: 'none',
+                  width: '100%'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowKeyPlain(!showKeyPlain)}
+                style={{
+                  position: 'absolute',
+                  right: '6px',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={showKeyPlain ? "Ocultar Chaves" : "Mostrar Chaves"}
+              >
+                {showKeyPlain ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button 
+                type="button"
+                onClick={handleSaveKey}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#6366f1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px'
+                }}
+              >
+                <CheckCircle size={12} /> Salvar Chaves
+              </button>
+              <button 
+                type="button"
+                onClick={() => { setShowKeyInput(false); setInputKey(''); }}
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={12} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1454,7 +1564,7 @@ export default function ObservationForm() {
           if (error) throw error;
         } catch (dbError) {
           const errorMsg = dbError?.message || '';
-          if (errorMsg.includes('subject_ids') && errorMsg.includes('does not exist')) {
+          if (errorMsg.includes('subject_ids')) {
             console.warn('Database does not have subject_ids column yet. Retrying without it.');
             const fallbackPayload = { ...dbPayload };
             delete fallbackPayload.subject_ids;
