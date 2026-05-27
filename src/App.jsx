@@ -16,6 +16,7 @@ function Layout({ children, onLogout, session }) {
   const { schools, selectedSchoolId, setSelectedSchoolId, selectedBimestre, updateBimestre, loading, userRole } = useSchool()
   const { isOnline } = useSync()
   const location = useLocation()
+  const isFormPage = location.pathname.startsWith('/observacao')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [pendingCount, setPendingCount] = useState(0)
@@ -305,7 +306,16 @@ function Layout({ children, onLogout, session }) {
                     }}
                     className="font-medium text-muted"
                     value={selectedSchoolId}
-                    onChange={(e) => setSelectedSchoolId(e.target.value)}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      if (isFormPage) {
+                        const confirmChange = window.confirm(
+                          "Atenção: Você está na página de Observação Pedagógica. Mudar a Unidade Escolar agora poderá fazer com que o registro em andamento/rascunho seja salvo na unidade errada ou cause inconsistências nos dados dos professores.\n\nDeseja mesmo mudar a Unidade Escolar?"
+                        );
+                        if (!confirmChange) return;
+                      }
+                      setSelectedSchoolId(newId);
+                    }}
                   >
                     {schools.map(s => (
                       <option key={s.id} value={s.id}>{s.code ? `${s.code} - ${s.name}` : s.name}</option>
@@ -339,7 +349,16 @@ function Layout({ children, onLogout, session }) {
                 }}
                 className="font-bold"
                 value={selectedBimestre}
-                onChange={(e) => updateBimestre(e.target.value)}
+                onChange={(e) => {
+                  const newBimestre = e.target.value;
+                  if (isFormPage) {
+                    const confirmChange = window.confirm(
+                      "Atenção: Você está na página de Observação Pedagógica. Mudar o Bimestre agora fará com que o registro em andamento/rascunho seja salvo no novo bimestre selecionado.\n\nDeseja mesmo mudar o Bimestre?"
+                    );
+                    if (!confirmChange) return;
+                  }
+                  updateBimestre(newBimestre);
+                }}
               >
                 <option value="1º Bimestre">1º Bimestre</option>
                 <option value="2º Bimestre">2º Bimestre</option>
