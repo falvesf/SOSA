@@ -171,7 +171,9 @@ export default function ObservationDetails({ observation }) {
             <p className="text-sm font-medium">{observation.teachers?.name || 'N/A'}</p>
           </div>
           <div>
-            <label className="text-xs font-bold text-muted uppercase block">Data da Visita Original</label>
+            <label className="text-xs font-bold text-muted uppercase block">
+              {observation.revisit_date_1 || observation.revisit_date_2 ? "1ª Visita" : "Data da Visita"}
+            </label>
             <p className="text-sm font-medium">{observation.visit_date ? observation.visit_date.split('-').reverse().join('/') : 'N/A'}</p>
           </div>
           <div>
@@ -180,13 +182,13 @@ export default function ObservationDetails({ observation }) {
           </div>
           {observation.revisit_date_1 && (
             <div>
-              <label className="text-xs font-bold text-muted uppercase block" style={{ color: 'var(--success)' }}>1ª Revisita</label>
+              <label className="text-xs font-bold text-muted uppercase block" style={{ color: 'var(--success)' }}>2ª Visita</label>
               <p className="text-sm font-medium">{observation.revisit_date_1.split('-').reverse().join('/')}</p>
             </div>
           )}
           {observation.revisit_date_2 && (
             <div>
-              <label className="text-xs font-bold text-muted uppercase block" style={{ color: 'var(--warning)' }}>2ª Revisita</label>
+              <label className="text-xs font-bold text-muted uppercase block" style={{ color: 'var(--warning)' }}>3ª Visita</label>
               <p className="text-sm font-medium">{observation.revisit_date_2.split('-').reverse().join('/')}</p>
             </div>
           )}

@@ -1418,10 +1418,10 @@ export default function ObservationForm() {
       setFormData(prev => ({ ...prev, ...updateData }));
       setDbVisitCount(visitToDelete - 1);
       setActiveTab(visitToDelete - 1);
-      setToast({ message: 'Revisita excluída com sucesso!' });
+      setToast({ message: 'Visita excluída com sucesso!' });
     } catch (error) {
-      console.error('Error deleting revisit:', error);
-      setToast({ message: 'Erro ao excluir revisita.', type: 'error' });
+      console.error('Error deleting visit:', error);
+      setToast({ message: 'Erro ao excluir visita.', type: 'error' });
     } finally {
       setLoading(false);
       setShowDeleteModal(false);
@@ -2186,7 +2186,7 @@ export default function ObservationForm() {
                 flexShrink: 0
               }}
             >
-              <PlusCircle size={14} /> Adicionar Revisita
+              <PlusCircle size={14} /> Adicionar 2ª Visita
             </button>
           ))}
 
@@ -2251,7 +2251,7 @@ export default function ObservationForm() {
                 flexShrink: 0
               }}
             >
-              <PlusCircle size={14} /> Adicionar Revisita
+              <PlusCircle size={14} /> Adicionar 3ª Visita
             </button>
           ))}
         </div>
@@ -2910,10 +2910,10 @@ export default function ObservationForm() {
           </div>
         </Modal>
 
-        <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Excluir Revisita">
+        <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Excluir Visita">
           <div style={{ padding: 'var(--space-2)' }}>
             <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-6)' }}>
-              Deseja realmente excluir a <strong>{visitToDelete - 1}ª Revisita</strong>? Todos os dados preenchidos nesta aba serão perdidos.
+              Deseja realmente excluir a <strong>{visitToDelete}ª Visita</strong>? Todos os dados preenchidos nesta aba serão perdidos.
             </p>
             <div className="flex justify-end gap-3">
               <Button type="button" variant="secondary" onClick={() => setShowDeleteModal(false)}>Não, Manter</Button>
