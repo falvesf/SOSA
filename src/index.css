@@ -384,8 +384,8 @@ input, select, textarea {
 /* Print Styles */
 @media print {
   @page {
-    margin: 1cm;
-    size: A4Portrait;
+    margin: 0.7cm 1cm;
+    size: A4 portrait;
   }
 
   /* Hide the main app content (everything inside #root) */
@@ -402,6 +402,7 @@ input, select, textarea {
     margin: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    font-size: 12px !important;
   }
 
   .print-only {
@@ -470,30 +471,89 @@ input, select, textarea {
     height: 0;
   }
 
+  /* ===== SOSA MODEL — COMPACT PRINT STYLES ===== */
+  /* Reduces from ~5 pages to ~2 pages for text-heavy observations */
+
   .card {
     border: 1px solid #ddd !important;
-    margin-bottom: 0.75rem !important;
+    margin-bottom: 0.3rem !important;
     break-inside: avoid;
     box-shadow: none !important;
     background-color: white !important;
+    padding: 0.35rem 0.55rem !important;
   }
 
   .detail-section {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-    margin-bottom: 1.25rem !important;
+    /* Allow page breaks inside evaluation sections to avoid huge blank spaces */
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin-bottom: 0.45rem !important;
   }
 
-  .evaluations-container {
-    display: block !important;
-    width: 100% !important;
-  }
-
+  /* Keep signature and final blocks together */
   .devolutiva-section,
   .signature-container,
   .registro-final-section {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+  }
+
+  /* Compact section headers */
+  .detail-section h3, .detail-section .h3 {
+    font-size: 0.82rem !important;
+    padding-bottom: 0.2rem !important;
+    margin-bottom: 0.3rem !important;
+  }
+
+  /* ScoreProgression rows */
+  .detail-section .flex.justify-between.items-center.py-2 {
+    padding-top: 0.15rem !important;
+    padding-bottom: 0.15rem !important;
+  }
+
+  /* Compact text inside SOSA model */
+  .detail-section p,
+  .detail-section span,
+  .detail-section td,
+  .detail-section th,
+  .detail-section label {
+    font-size: 0.77rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .detail-section .text-sm {
+    font-size: 0.77rem !important;
+  }
+
+  .detail-section .text-xs {
+    font-size: 0.68rem !important;
+  }
+
+  /* Score badges compact */
+  .detail-section span[style*="width: 24px"] {
+    width: 18px !important;
+    height: 18px !important;
+    font-size: 0.65rem !important;
+  }
+
+  /* Grid gap reduction */
+  .detail-section .grid {
+    gap: 0.3rem !important;
+  }
+
+  /* Observation text sub-cards */
+  .detail-section div[style*="padding: var(--space-2)"] {
+    padding: 3px 6px !important;
+  }
+
+  /* Identification section grid */
+  .detail-section .grid.grid-cols-2 {
+    gap: 0.25rem 0.5rem !important;
+  }
+
+  .evaluations-container {
+    display: block !important;
+    width: 100% !important;
   }
 
   /* Font and Color Fixes */
@@ -513,6 +573,18 @@ input, select, textarea {
     justify-content: space-around !important;
     align-items: flex-start !important;
     width: 100% !important;
+  }
+}
+
+
+/* AI Detail Level Toggle — mobile responsive */
+@media (max-width: 400px) {
+  /* On very small screens, show the short symbol instead of full label */
+  .detail-level-label-full {
+    display: none;
+  }
+  .detail-level-label-short {
+    display: inline !important;
   }
 }
 

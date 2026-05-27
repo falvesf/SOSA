@@ -129,6 +129,28 @@ const sanitizeApiKey = (rawKey) => {
   return key;
 };
 
+const DETAIL_LEVELS = [
+  { id: 1, label: 'Direto', labelShort: '—', title: 'Direto: resposta curta e direta ao ponto (2-3 frases)' },
+  { id: 2, label: 'Detalhado', labelShort: '≡', title: 'Detalhado: resposta equilibrada com parágrafo completo (padrão)' },
+  { id: 3, label: 'Profundo', labelShort: '≡+', title: 'Profundo: análise abrangente e detalhada, pode ser mais longa' },
+];
+
+const getVerbosityInstruction = (level) => {
+  if (level === 1) return '\n\nINSTRUÇÃO DE EXTENSÃO: Seja EXTREMAMENTE conciso e direto. O texto final deve ter NO MÁXIMO 2 a 3 frases curtas. Vá direto ao ponto, sem introduções, contextualizações ou frases de transição desnecessárias.';
+  if (level === 3) return '\n\nINSTRUÇÃO DE EXTENSÃO: Seja ABRANGENTE e aprofundado. Explore todos os aspectos relevantes com riqueza de detalhes pedagógicos. Pode usar múltiplos parágrafos ou um parágrafo longo se necessário para cobrir bem o tema.';
+  return ''; // Nível 2 (Detalhado) é o padrão dos prompts existentes
+};
+
+const AI_MODELS = [
+  // Groq models
+  { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B — Melhor qualidade', provider: 'groq' },
+  { value: 'llama-3.1-8b-instant',    label: 'Llama 3.1 8B — Mais rápido',      provider: 'groq' },
+  { value: 'gemma2-9b-it',            label: 'Gemma 2 9B — Google via Groq',    provider: 'groq' },
+  // Gemini models
+  { value: 'gemini-2.0-flash',        label: 'Gemini 2.0 Flash — Padrão',       provider: 'gemini' },
+  { value: 'gemini-1.5-flash',        label: 'Gemini 1.5 Flash — Estável',      provider: 'gemini' },
+];
+
 const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, activeThemeColor = "var(--primary)", onSaveKey, aiContext }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [originalValue, setOriginalValue] = useState(null);
@@ -136,6 +158,32 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
   const [inputKey, setInputKey] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [showKeyPlain, setShowKeyPlain] = useState(false);
+  const [detailLevel, setDetailLevel] = useState(2);
+  const [aiModel, setAiModel] = useState(() => localStorage.getItem('sosa_ai_model') || 'llama-3.3-70b-versatile');
+
+  // Hydrate AI configurations from Supabase User Metadata (recurrence per user)
+  useEffect(() => {
+    async function loadUserAiConfig() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.user_metadata) {
+          const cloudKey = session.user.user_metadata.custom_ai_key;
+          const cloudModel = session.user.user_metadata.custom_ai_model;
+          
+          if (cloudKey) {
+            localStorage.setItem('sosa_gemini_api_key', cloudKey);
+          }
+          if (cloudModel) {
+            localStorage.setItem('sosa_ai_model', cloudModel);
+            setAiModel(cloudModel);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao sincronizar chaves de IA com a nuvem do Supabase:', err);
+      }
+    }
+    loadUserAiConfig();
+  }, []);
 
   const handleEnhance = async () => {
     let rawKey = localStorage.getItem('sosa_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -182,13 +230,18 @@ IMPORTANTE: Você deve refinar o rascunho garantindo total alinhamento e consist
 - Enriqueça o texto incorporando as avaliações reais das notas: se houver indicadores avaliados com notas baixas (1 ou 2), certifique-se de que o texto final apresente propostas e caminhos práticos e claros para superar essas fragilidades, sem qualquer timidez ou rodeios. Se houver notas altas (3 ou 4), reforce a validação positiva dessas boas práticas.
 - O resultado deve parecer um único parágrafo fluido, coeso e extremamente profissional de 3 a 6 linhas.
 
+REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
+- NUNCA use saudações, vocativos ou cabeçalhos de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Prezada professora ${teacher}", "Olá"). O texto deve ser redigido como um registro formal de acompanhamento do coordenador.
+- EVITE iniciar o texto diretamente com o nome do(a) professor(a). Comece descrevendo as ações didáticas, a aula ou o cenário pedagógico de forma técnica e formal (ex: "A aula observada demonstrou...", "Durante a regência de classe...").
+- Refira-se ao professor de maneira elegante e seletiva (ex: "o(a) docente", "o(a) professor(a)"), citando o nome próprio dele(a) de forma sutil e natural no meio das frases apenas se for estritamente necessário.
+
 Contexto pedagógico da aula e pontuações:
 ${contextSectionText}
 
 Rascunho original escrito pelo coordenador:
 "${value}"
 
-Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.`;
+Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.${getVerbosityInstruction(detailLevel)}`;
       } else {
         const teacher = aiContext?.teacherName || "o(a) professor(a)";
         const series = aiContext?.seriesName || "a série";
@@ -201,35 +254,44 @@ Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explic
             ? highScores.map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n')
             : "Práticas positivas de engajamento dos alunos e gestão de sala.";
             
-          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir uma redação formal e profissional de Pontos Fortes da Aula observados para o(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir uma redação formal e profissional de Pontos Fortes da Aula observados para a aula da série "${series}" na(s) disciplina(s) "${subjects}".
 
 Aqui estão indicadores da aula que foram bem avaliados (notas 3 e 4) durante a observação:
 ${highScoresText}
 
 Redija um texto descritivo e muito positivo (1 parágrafo com 3 a 5 linhas), extremamente profissional e pedagógico, destacando essas boas práticas observadas em sala.
-Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+
+REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
+- NUNCA comece com saudações ou vocativos (ex: NÃO use "Prezado(a) professor(a)", "Olá", "Prezada professora").
+- NÃO inicie o parágrafo com o nome do(a) professor(a) "${teacher}". Comece diretamente descrevendo as boas práticas didáticas ou a dinâmica da aula de forma técnica.
+- Refira-se ao professor de maneira elegante e seletiva (ex: "o(a) docente", "o(a) professor(a)"), usando o nome próprio dele(a) de forma discreta no meio do texto apenas se agregar valor.
+- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.${getVerbosityInstruction(detailLevel)}`;
         } else if (section === "Oportunidades de Aprimoramento") {
           const lowScores = (aiContext?.allScores || []).filter(s => s.score <= 2);
           const lowScoresText = lowScores.length > 0
             ? lowScores.map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n')
             : "Pontos gerais de desenvolvimento e aperfeiçoamento contínuo.";
 
-          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir orientações formativas diretas, claras e construtivas para o campo Oportunidades de Aprimoramento para o(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir orientações formativas diretas, claras e construtivas para o campo Oportunidades de Aprimoramento da aula da série "${series}" na(s) disciplina(s) "${subjects}".
 
 Aqui estão os indicadores da aula que foram identificados com oportunidade de desenvolvimento (notas 1 e 2):
 ${lowScoresText}
 
 Redija um texto formal (1 parágrafo com 3 a 5 linhas). 
-REGRAS CRÍTICAS:
+
+REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
 - Seja extremamente propositivo, oferecendo recomendações formativas claras e caminhos práticos de superação para as fragilidades identificadas.
 - NÃO hesite ou seja vago ao sugerir as melhorias específicas; descreva-as de forma direta, clara, profissional e respeitosa.
-- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+- NUNCA comece com saudações ou vocativos (ex: NÃO use "Prezado(a) professor(a)", "Olá").
+- NÃO inicie o parágrafo com o nome do(a) professor(a) "${teacher}". Comece diretamente com as propostas de aperfeiçoamento didático.
+- Refira-se ao professor de forma técnica e indireta (ex: "o(a) docente", "o(a) professor(a)"), de forma muito discreta.
+- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.${getVerbosityInstruction(detailLevel)}`;
         } else if (["Síntese da Observação", "Orientações Pedagógicas", "Combinados e Encaminhamentos"].includes(section)) {
           const allScoresText = (aiContext?.allScores || []).length > 0
             ? (aiContext?.allScores || []).map(s => `- ${s.label}: Nota ${s.score}/4`).join('\n')
             : "Indicadores gerais de regência e gestão de sala.";
 
-          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir um texto inicial para o campo "${section}" da Devolutiva Pedagógica do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir um texto inicial para o campo "${section}" da Devolutiva Pedagógica da aula da série "${series}" na(s) disciplina(s) "${subjects}".
 
 Abaixo está o resumo dos indicadores e notas avaliadas durante a visita de sala de aula:
 ${allScoresText}
@@ -239,25 +301,33 @@ Com base nisso, redija uma redação de 1 parágrafo formal, coerente e tecnicam
 - Se for Orientações Pedagógicas: ofereça orientações de aperfeiçoamento didático coerentes com a aula.
 - Se for Combinados e Encaminhamentos: proponha ações práticas conjuntas para as próximas semanas.
 
-Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+REGRAS CRÍTICAS DE ESTILO E FORMATAÇÃO:
+- NUNCA use saudações, vocativos ou formato de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Prezada professora ${teacher}", "Olá"). O texto deve ser redigido como um registro formal de acompanhamento do coordenador.
+- EVITE iniciar o texto com o nome do(a) professor(a) "${teacher}". Dê preferência por iniciar abordando a regência, as orientações didáticas ou os encaminhamentos pedagógicos estabelecidos.
+- Refira-se ao professor de forma técnica e natural (ex: "o(a) docente", "o(a) professor(a)"), usando o nome próprio apenas de forma pontual e integrada ao fluxo do texto.
+- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.${getVerbosityInstruction(detailLevel)}`;
         } else {
           // Standard Rubric Section (Planning, Methodology, Learning, Management, Confessional Identity)
           const localIndicatorsText = (aiContext?.indicators || []).length > 0
             ? (aiContext?.indicators || []).map(ind => `- ${ind.label}: ${ind.score ? `Nota ${ind.score}/4` : 'Não avaliado'}`).join('\n')
             : "Práticas gerais deste eixo pedagógico.";
 
-          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir um texto inicial de observação pedagógica técnica, formal, direto e construtivo para a seção "${section}" referente à visita da aula do(a) professor(a) "${teacher}" da série "${series}" na(s) disciplina(s) "${subjects}".
+          promptText = `Você é um assistente pedagógico especializado na Rede Adventista de Ensino. Sua tarefa é sugerir um texto inicial de observação pedagógica técnica, formal, direto e construtivo para a seção "${section}" referente à visita da aula da série "${series}" na(s) disciplina(s) "${subjects}".
 
 Abaixo estão os indicadores específicos desta seção e suas respectivas avaliações (escala de 1 a 4, onde 1 é Necessita de Acompanhamento, 2 é Em Desenvolvimento, 3 é Adequado e 4 é Excelente):
 ${localIndicatorsText}
 
 Escreva uma observação técnica de 1 parágrafo (3 a 5 linhas). 
+
 REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
 - Seja extremamente claro, direto e assertivo ao apontar pontos de atenção. 
 - Se algum indicador obteve nota 1 ou 2, NÃO seja tímido ou superficial: descreva a fragilidade de forma respeitosa, mas declare explicitamente o que precisa de melhoria e proponha IMEDIATAMENTE uma ação ou recomendação didática prática e clara para que o(a) docente se desenvolva (por exemplo, se recebeu nota 1 em instrumentos de avaliação, aponte a falta de evidências observadas e recomende a introdução de critérios claros ou avaliações formativas pontuais).
 - Se houver indicadores com notas 3 ou 4, valide o bom desempenho correspondente de forma elogiosa, destacando o impacto positivo na aula.
 - O texto final deve mesclar de forma muito fluida e profissional tanto as validações (notas 3 e 4) quanto as propostas concretas de melhoria para os itens com nota 1 e 2.
-- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.`;
+- NUNCA use saudações ou vocativos (ex: NÃO use "Prezado(a) professor(a)", "Olá").
+- NÃO comece o parágrafo diretamente com o nome do(a) professor(a) "${teacher}". Prefira introduzir a observação focando nos aspectos didáticos e pedagógicos da aula.
+- Refira-se ao professor de forma formal e fluida (ex: "o(a) docente", "o(a) professor(a)"), usando o nome próprio apenas de forma esporádica e natural no meio das frases se necessário.
+- Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.${getVerbosityInstruction(detailLevel)}`;
         }
       }
 
@@ -271,43 +341,36 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
           console.log(`Tentando chamada da IA com a chave ${i + 1}/${sanitizedKeys.length}...`);
           
           let response;
-          try {
+          
+          // Auto-detect provider: Groq keys start with 'gsk_', Gemini keys start with 'AIza'
+          const isGroqKey = apiKey.startsWith('gsk_');
+
+          if (isGroqKey) {
+            // ── GROQ API ──────────────────────────────────────────────────
+            const groqModel = AI_MODELS.find(m => m.value === aiModel && m.provider === 'groq')?.value || 'llama-3.3-70b-versatile';
             response = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+              'https://api.groq.com/openai/v1/chat/completions',
               {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${apiKey}`
                 },
                 body: JSON.stringify({
-                  contents: [
-                    {
-                      parts: [
-                        {
-                          text: promptText
-                        }
-                      ]
-                    }
+                  model: groqModel,
+                  messages: [
+                    { role: 'user', content: promptText }
                   ],
-                  generationConfig: {
-                    temperature: 0.3,
-                    maxOutputTokens: 4096,
-                    thinkingConfig: {
-                      thinkingBudget: 0
-                    }
-                  }
+                  max_tokens: 1024,
+                  temperature: 0.4
                 })
               }
             );
-          } catch (fetchErr) {
-            console.warn('Falha na requisição com thinkingConfig, tentando sem...', fetchErr);
-          }
-
-          // Se a resposta falhou ou retornou um status de erro (ex: parâmetro não reconhecido)
-          if (!response || !response.ok) {
-            console.warn('Tentando requisição de fallback sem thinkingConfig...');
+          } else {
+            // ── GEMINI API ──────────────────────────────────────────────
+            const geminiModel = AI_MODELS.find(m => m.value === aiModel && m.provider === 'gemini')?.value || 'gemini-2.0-flash';
             response = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
               {
                 method: 'POST',
                 headers: {
@@ -324,8 +387,8 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
                     }
                   ],
                   generationConfig: {
-                    temperature: 0.3,
-                    maxOutputTokens: 4096
+                    temperature: 0.4,
+                    maxOutputTokens: 1024
                   }
                 })
               }
@@ -338,13 +401,19 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
           }
 
           const resData = await response.json();
-          const parts = resData?.candidates?.[0]?.content?.parts || [];
-          const nonThoughtParts = parts.filter(p => !p.thought);
-
-          if (nonThoughtParts.length > 0) {
-            enhancedText = nonThoughtParts.map(p => p.text).filter(Boolean).join('');
-          } else if (parts.length > 0) {
-            enhancedText = parts[0]?.text || '';
+          
+          // Handle both Groq (OpenAI-compatible) and Gemini response formats
+          const isGroqResponse = apiKey.startsWith('gsk_');
+          if (isGroqResponse) {
+            enhancedText = resData?.choices?.[0]?.message?.content || '';
+          } else {
+            const parts = resData?.candidates?.[0]?.content?.parts || [];
+            const nonThoughtParts = parts.filter(p => !p.thought);
+            if (nonThoughtParts.length > 0) {
+              enhancedText = nonThoughtParts.map(p => p.text).filter(Boolean).join('');
+            } else if (parts.length > 0) {
+              enhancedText = parts[0]?.text || '';
+            }
           }
 
           if (!enhancedText) {
@@ -389,13 +458,32 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
     }
   };
 
-  const handleSaveKey = () => {
+  const handleSaveKey = async () => {
     if (inputKey.trim()) {
       const parts = inputKey.split(/[,;]/).map(k => k.trim()).filter(Boolean);
       const sanitizedParts = parts.map(p => sanitizeApiKey(p)).filter(Boolean);
       const sanitized = sanitizedParts.join(', ');
 
+      // 1. Save to Local Cache
       localStorage.setItem('sosa_gemini_api_key', sanitized);
+      localStorage.setItem('sosa_ai_model', aiModel);
+
+      // 2. Synchronize to Supabase User Metadata (User Persistence)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase.auth.updateUser({
+            data: { 
+              custom_ai_key: sanitized,
+              custom_ai_model: aiModel
+            }
+          });
+          console.log('Chaves e configurações de IA sincronizadas no Supabase.');
+        }
+      } catch (err) {
+        console.warn('Erro ao sincronizar com nuvem (salvo apenas localmente):', err);
+      }
+
       if (onSaveKey) {
         onSaveKey(sanitized);
       }
@@ -419,9 +507,54 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
         style={{
           width: '100%',
           paddingRight: originalValue ? '160px' : '84px',
-          resize: 'vertical'
+          resize: 'vertical',
+          paddingBottom: '28px'
         }}
       />
+
+      {/* AI Detail Level Toggle — discrete, right-aligned below the textarea */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '8px',
+          left: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+          zIndex: 10,
+          opacity: 0.55,
+          transition: 'opacity 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.55'}
+      >
+        <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '3px', userSelect: 'none', whiteSpace: 'nowrap' }}>IA:</span>
+        {DETAIL_LEVELS.map(level => (
+          <button
+            key={level.id}
+            type="button"
+            title={level.title}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setDetailLevel(level.id)}
+            style={{
+              padding: '1px 6px',
+              fontSize: '9px',
+              fontWeight: detailLevel === level.id ? '700' : '400',
+              border: detailLevel === level.id ? '1px solid #a855f7' : '1px solid #e5e7eb',
+              borderRadius: '4px',
+              backgroundColor: detailLevel === level.id ? '#faf5ff' : 'transparent',
+              color: detailLevel === level.id ? '#7c3aed' : 'var(--text-muted)',
+              cursor: 'pointer',
+              lineHeight: '1.6',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span className="detail-level-label-full">{level.label}</span>
+            <span className="detail-level-label-short" style={{ display: 'none' }}>{level.id === 1 ? '—' : level.id === 2 ? '≡' : '⊞'}</span>
+          </button>
+        ))}
+      </div>
       
       {/* Action Container */}
       <div 
@@ -507,7 +640,7 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
           </span>
         </button>
 
-        {/* Edit Key Gear Button */}
+        {/* Edit Key Gear Button — Always visible so the user can switch models or update custom keys */}
         <button
           type="button"
           onClick={() => {
@@ -552,17 +685,81 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
             padding: '12px',
             boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
             zIndex: 100,
-            width: '280px',
+            width: '290px',
             textAlign: 'left'
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
           <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-            Configurar Chave do Gemini
+            Configurar Chave de IA
           </h4>
           <p style={{ margin: '0 0 8px 0', fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.3' }}>
-            Cole uma ou mais chaves da API do Gemini (separadas por vírgula) para failover automático caso alguma atinja o limite! Pegue chaves grátis <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: '600', textDecoration: 'underline' }}>aqui</a>.
+            Cole uma chave do <strong>Groq</strong> (começa com <code>gsk_</code>) ou do <strong>Gemini</strong> (começa com <code>AIza</code>).
           </p>
+
+          {/* Collapsible Key Instructions */}
+          <details style={{ marginBottom: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 6px', backgroundColor: '#f8fafc' }}>
+            <summary style={{ fontSize: '10px', fontWeight: '600', color: '#4f46e5', cursor: 'pointer', outline: 'none', userSelect: 'none' }}>
+              🔑 Como obter sua chave grátis?
+            </summary>
+            <div style={{ marginTop: '4px', fontSize: '9px', lineHeight: '1.3', color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: '6px' }}>
+                <strong style={{ color: '#7c3aed' }}>🟣 Opção 1: Groq (100% Grátis)</strong>
+                <ol style={{ margin: '2px 0 0 12px', padding: 0 }}>
+                  <li>Acesse <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" style={{ color: '#4f46e5', textDecoration: 'underline' }}>console.groq.com</a></li>
+                  <li>Faça login ou crie sua conta (sem cartão)</li>
+                  <li>Vá em <strong>API Keys</strong> → <strong>Create API Key</strong></li>
+                  <li>Copie o código gerado (começa com <code>gsk_</code>)</li>
+                </ol>
+              </div>
+              <div>
+                <strong style={{ color: '#2563eb' }}>🔵 Opção 2: Gemini (Google)</strong>
+                <ol style={{ margin: '2px 0 0 12px', padding: 0 }}>
+                  <li>Acesse <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#4f46e5', textDecoration: 'underline' }}>aistudio.google.com</a></li>
+                  <li>Faça login com seu Gmail comum</li>
+                  <li>Clique em <strong>Get API Key</strong> → <strong>Create API Key</strong></li>
+                  <li>Copie o código gerado (começa com <code>AIza</code>)</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          {/* Model Selector */}
+          <div style={{ marginBottom: '8px' }}>
+            <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+              Modelo de IA
+            </label>
+            <select
+              value={aiModel}
+              onChange={(e) => {
+                setAiModel(e.target.value);
+                localStorage.setItem('sosa_ai_model', e.target.value);
+              }}
+              style={{
+                width: '100%',
+                fontSize: '11px',
+                padding: '5px 8px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                outline: 'none',
+                backgroundColor: 'white',
+                color: 'var(--text-primary)',
+                cursor: 'pointer'
+              }}
+            >
+              <optgroup label="🟣 Groq (grátis, sem cartão)">
+                {AI_MODELS.filter(m => m.provider === 'groq').map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="🔵 Gemini (Google)">
+                {AI_MODELS.filter(m => m.provider === 'gemini').map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <input 
@@ -644,6 +841,7 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
           </div>
         </div>
       )}
+
 
       {/* Error Message */}
       {errorMsg && (
@@ -761,7 +959,15 @@ export default function ObservationForm() {
       if (cachedDraft) {
         try {
           const parsed = JSON.parse(cachedDraft);
-          setFormData(parsed);
+          // Remove internal-only fields that must never reach the database
+          delete parsed.is_new_offline;
+          // Normalize subject_ids: handle old drafts that only had a single subject_id field
+          setFormData({
+            ...parsed,
+            subject_ids: parsed.subject_ids?.length > 0
+              ? parsed.subject_ids
+              : (parsed.subject_id ? [parsed.subject_id] : [])
+          });
           setIsDirty(true);
           setDraftRecovered(true);
           setToast({ message: 'Rascunho recuperado automaticamente!', type: 'info' });
@@ -924,6 +1130,8 @@ export default function ObservationForm() {
       if (cachedDraft) {
         try {
           const parsed = JSON.parse(cachedDraft);
+          // Remove internal-only fields that must never reach the database
+          delete parsed.is_new_offline;
           setFormData(parsed);
           setIsDirty(true);
           setDraftRecovered(true);
@@ -1513,7 +1721,7 @@ export default function ObservationForm() {
 
       const selectedSeriesObj = seriesList.find(s => s.id === formData.series_id);
       const segment_id = selectedSeriesObj ? selectedSeriesObj.segment_id : null;
-      const { id: _id, created_at, updated_at, teachers: _unused_t, subjects: _unused_s, series: _unused_ser, segments: _unused_seg, ...cleanData } = formData;
+      const { id: _id, created_at, updated_at, is_new_offline: _offline_flag, teachers: _unused_t, subjects: _unused_s, series: _unused_ser, segments: _unused_seg, ...cleanData } = formData;
       const payload = { 
         ...cleanData, 
         school_id: selectedSchoolId, 
@@ -1554,6 +1762,7 @@ export default function ObservationForm() {
         window.scrollTo(0,0);
       } else {
         const dbPayload = { ...payload };
+        // Remove internal-only fields that are NOT database columns
         delete dbPayload.is_new_offline;
         
         let saveError = null;
