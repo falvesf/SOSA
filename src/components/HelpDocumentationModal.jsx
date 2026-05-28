@@ -435,6 +435,18 @@ export default function HelpDocumentationModal({ isOpen, onClose }) {
                       Nossos prompts instruem as LLMs a banirem clichês robóticos artificiais (como <em>"Ademais", "Outrossim", "Em suma", "Sob essa ótica", "É imperioso destacar"</em>) para produzir redações que pareçam 100% redigidas por um coordenador humano especializado. Além disso, a IA respeita rigidamente o gênero do professor observado cadastrado no banco de dados, utilizando pronomes perfeitamente adequados (Ex: "o docente", "a professora") e ocultando qualquer menção a pontuações numéricas diretas, substituindo-as por avaliações qualitativas elegantes.
                     </p>
                   </div>
+
+                  <div style={{ backgroundColor: 'var(--surface)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '4px' }}>Diretrizes Customizadas por Usuário (Sincronizadas na Nuvem)</h4>
+                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '8px' }}>
+                      Cada coordenador pode personalizar o estilo de escrita da IA clicando na engrenagem de configurações no rodapé de qualquer caixa de texto e selecionando <strong>"Personalizar Diretrizes IA"</strong>.
+                    </p>
+                    <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                      <li><strong>Injeção Direta no Prompt:</strong> Suas regras personalizadas (Ex: <em>"Enfatize metodologias ativas", "Escreva em tom empático"</em>) são acopladas no topo do prompt de execução, moldando a resposta do modelo para o seu estilo pessoal.</li>
+                      <li><strong>Sincronização em Tempo Real na Tela:</strong> A edição de suas regras a partir de qualquer caixa de texto propaga as alterações instantaneamente para todos os outros campos na tela ativa.</li>
+                      <li><strong>Nuvem & Multi-Dispositivo:</strong> Suas diretrizes são gravadas diretamente no <code style={{ fontSize: '10px' }}>user_metadata</code> da sua conta de autenticação no Supabase, sincronizando e aplicando-se automaticamente em qualquer computador ou navegador onde você realizar o login.</li>
+                    </ul>
+                  </div>
                 </div>
 
                 <div style={{ backgroundColor: 'var(--surface)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)' }}>
