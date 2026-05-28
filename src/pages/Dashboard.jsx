@@ -441,24 +441,27 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards Grid */}
-      <div className={`dashboard-grid ${isPinned ? 'sticky-metrics-container' : ''}`} style={{ marginBottom: isPinned ? 'var(--space-6)' : 0 }}>
+      <div className={`dashboard-grid ${isCompactMode ? 'grid-compact' : 'grid-expanded'} ${isPinned ? 'sticky-metrics-container' : ''}`} style={{ marginBottom: isPinned ? 'var(--space-6)' : 0 }}>
         {/* Total Card */}
         <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--primary)' }}>
-          <div className="flex justify-between items-start mb-2">
-            <div style={{ backgroundColor: 'var(--primary-light)', padding: '6px', borderRadius: '6px' }}>
-              <Calendar size={18} className="text-primary" />
-            </div>
-            <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '600' }}>Por Data</span>
-          </div>
-          <div className="flex-1 flex flex-col justify-between">
-            <p style={cardLabelStyle}>Total de Observações</p>
-            <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.total}</p>
-              <div className="chart-container" style={{ flex: 1 }}>
+          {isCompactMode ? (
+            <div className="metrics-compact-layout">
+              <div className="metrics-compact-info">
+                <div className="metrics-compact-header">
+                  <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: 'var(--primary-light)' }}>
+                    <Calendar size={13} className="text-primary" />
+                  </div>
+                  <span className="metrics-compact-value">{stats.total}</span>
+                </div>
+                <div className="metrics-compact-meta">
+                  <p className="metrics-compact-label">Observações</p>
+                  <span className="metrics-compact-sub">Por Data</span>
+                </div>
+              </div>
+              <div className="metrics-compact-chart-container">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.total}>
-                    <Bar dataKey="value" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                    {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
+                  <BarChart data={chartData.total} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                    <Bar dataKey="value" fill="var(--primary)" radius={[3, 3, 0, 0]} />
                     <Tooltip 
                       formatter={(value) => [value, 'Quantidade']}
                       contentStyle={{ 
@@ -476,30 +479,113 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="metrics-expanded-layout">
+              <div className="metrics-expanded-header">
+                <div className="metrics-expanded-title-block">
+                  <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: 'var(--primary-light)' }}>
+                    <Calendar size={14} className="text-primary" />
+                  </div>
+                  <span className="metrics-expanded-label">Total de Observações:</span>
+                  <span className="metrics-expanded-value text-primary">{stats.total}</span>
+                </div>
+                <span className="metrics-expanded-sub">Por Data</span>
+              </div>
+              <div className="metrics-expanded-chart-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.total} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
+                    <Bar dataKey="value" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Quantidade']}
+                      contentStyle={{ 
+                        fontSize: '10px', 
+                        borderRadius: '8px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        backgroundColor: '#ffffff',
+                        color: 'var(--text-primary)'
+                      }} 
+                      itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
+                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Period Card */}
         <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--success)' }}>
-          <div className="flex justify-between items-start mb-2">
-            <div style={{ backgroundColor: '#ecfdf5', padding: '6px', borderRadius: '6px' }}>
-              <TrendingUp size={18} style={{ color: 'var(--success)' }} />
-            </div>
-            <select style={cardSelectStyle} value={periodRange} onChange={(e) => setPeriodRange(e.target.value)}>
-              <option value="semana">Nesta Semana</option>
-              <option value="mes">Neste Mês</option>
-              <option value="bimestre">Neste Bimestre</option>
-              <option value="semestre">Neste Semestre</option>
-              <option value="ano">Neste Ano</option>
-            </select>
-          </div>
-          <div className="flex-1 flex flex-col justify-between">
-            <p style={cardLabelStyle}>Tendência do Período</p>
-            <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.period}</p>
-              <div className="chart-container" style={{ flex: 1 }}>
+          {isCompactMode ? (
+            <div className="metrics-compact-layout">
+              <div className="metrics-compact-info">
+                <div className="metrics-compact-header">
+                  <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: '#ecfdf5' }}>
+                    <TrendingUp size={13} style={{ color: 'var(--success)' }} />
+                  </div>
+                  <span className="metrics-compact-value">{stats.period}</span>
+                </div>
+                <div className="metrics-compact-meta">
+                  <p className="metrics-compact-label">Tendência</p>
+                  <select style={cardSelectStyle} value={periodRange} onChange={(e) => setPeriodRange(e.target.value)}>
+                    <option value="semana">Semana</option>
+                    <option value="mes">Mês</option>
+                    <option value="bimestre">Bimestre</option>
+                    <option value="semestre">Semestre</option>
+                    <option value="ano">Ano</option>
+                  </select>
+                </div>
+              </div>
+              <div className="metrics-compact-chart-container">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData.period}>
+                  <AreaChart data={chartData.period} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                    <defs>
+                      <linearGradient id="colorValueCompact" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValueCompact)" strokeWidth={1.5} />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Quantidade']}
+                      contentStyle={{ 
+                        fontSize: '10px', 
+                        borderRadius: '8px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        backgroundColor: '#ffffff',
+                        color: 'var(--text-primary)'
+                      }} 
+                      itemStyle={{ color: 'var(--success)', fontWeight: 'bold' }}
+                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <div className="metrics-expanded-layout">
+              <div className="metrics-expanded-header">
+                <div className="metrics-expanded-title-block">
+                  <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: '#ecfdf5' }}>
+                    <TrendingUp size={14} style={{ color: 'var(--success)' }} />
+                  </div>
+                  <span className="metrics-expanded-label">Tendência do Período:</span>
+                  <span className="metrics-expanded-value text-success">{stats.period}</span>
+                </div>
+                <select style={cardSelectStyle} value={periodRange} onChange={(e) => setPeriodRange(e.target.value)}>
+                  <option value="semana">Nesta Semana</option>
+                  <option value="mes">Neste Mês</option>
+                  <option value="bimestre">Neste Bimestre</option>
+                  <option value="semestre">Neste Semestre</option>
+                  <option value="ano">Neste Ano</option>
+                </select>
+              </div>
+              <div className="metrics-expanded-chart-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData.period} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
@@ -524,35 +610,38 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
+          )}
         </Card>
 
         {/* Status Card */}
         <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--warning)' }}>
-          <div className="flex justify-between items-start mb-2">
-            <div style={{ backgroundColor: '#fffbeb', padding: '6px', borderRadius: '6px' }}>
-              <Filter size={18} style={{ color: 'var(--warning)' }} />
-            </div>
-            <select style={cardSelectStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="Atende plenamente">Plenamente</option>
-              <option value="Atende parcialmente">Parcialmente</option>
-              <option value="Não atende">Não Atende</option>
-              <option value="Não observado">Não Obs.</option>
-            </select>
-          </div>
-          <div className="flex-1 flex flex-col justify-between">
-            <p style={cardLabelStyle}>Frequência do Status</p>
-            <div className="flex items-end justify-between gap-4 flex-1">
-              <p className="h2" style={{ margin: 0, lineHeight: 1 }}>{stats.status}</p>
-              <div className="chart-container" style={{ flex: 1 }}>
+          {isCompactMode ? (
+            <div className="metrics-compact-layout">
+              <div className="metrics-compact-info">
+                <div className="metrics-compact-header">
+                  <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: '#fffbeb' }}>
+                    <Filter size={13} style={{ color: 'var(--warning)' }} />
+                  </div>
+                  <span className="metrics-compact-value">{stats.status}</span>
+                </div>
+                <div className="metrics-compact-meta">
+                  <p className="metrics-compact-label">Frequência</p>
+                  <select style={cardSelectStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="Atende plenamente">Plenamente</option>
+                    <option value="Atende parcialmente">Parcialmente</option>
+                    <option value="Não atende">Não Atende</option>
+                    <option value="Não observado">Não Obs.</option>
+                  </select>
+                </div>
+              </div>
+              <div className="metrics-compact-chart-container">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.status}>
-                    <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
+                  <BarChart data={chartData.status} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                    <Bar dataKey="value" fill="var(--warning)" radius={[3, 3, 0, 0]}>
                       {chartData.status.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
+                        <Cell key={`cell-compact-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
                       ))}
                     </Bar>
-                    {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={9} tickLine={false} axisLine={false} />}
                     <Tooltip 
                       formatter={(value) => [value, 'Quantidade']}
                       contentStyle={{ 
@@ -570,7 +659,50 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="metrics-expanded-layout">
+              <div className="metrics-expanded-header">
+                <div className="metrics-expanded-title-block">
+                  <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: '#fffbeb' }}>
+                    <Filter size={14} style={{ color: 'var(--warning)' }} />
+                  </div>
+                  <span className="metrics-expanded-label">Frequência do Status:</span>
+                  <span className="metrics-expanded-value text-warning">{stats.status}</span>
+                </div>
+                <select style={cardSelectStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="Atende plenamente">Plenamente</option>
+                  <option value="Atende parcialmente">Parcialmente</option>
+                  <option value="Não atende">Não Atende</option>
+                  <option value="Não observado">Não Obs.</option>
+                </select>
+              </div>
+              <div className="metrics-expanded-chart-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.status} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
+                    <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
+                      {chartData.status.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
+                      ))}
+                    </Bar>
+                    <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Quantidade']}
+                      contentStyle={{ 
+                        fontSize: '10px', 
+                        borderRadius: '8px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        backgroundColor: '#ffffff',
+                        color: 'var(--text-primary)'
+                      }} 
+                      itemStyle={{ color: 'var(--warning)', fontWeight: 'bold' }}
+                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 

@@ -599,9 +599,16 @@ input, select, textarea {
 /* Dashboard Metrics Responsive Cards Styles */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-8);
+}
+
+.dashboard-grid.grid-expanded {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-grid.grid-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .metrics-card {
@@ -615,48 +622,256 @@ input, select, textarea {
 .metrics-card.mode-normal {
   min-height: 180px;
 }
-.metrics-card.mode-normal .chart-container {
-  height: 80px;
+
+/* Metrics Card Expanded Layout */
+.metrics-expanded-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  gap: var(--space-3);
+  flex: 1;
+}
+
+.metrics-expanded-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.metrics-expanded-title-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.metrics-expanded-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.metrics-expanded-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.metrics-expanded-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.metrics-expanded-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.metrics-expanded-header select {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  padding: 0;
+  outline: none;
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 600;
+  text-align: right;
+}
+
+.metrics-expanded-chart-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 110px;
 }
 
 /* Card Heights: Compact Mode (Desktop) */
 .metrics-card.mode-compact {
-  min-height: 120px;
+  min-height: 96px;
+  padding: var(--space-3) !important;
 }
-.metrics-card.mode-compact .chart-container {
-  height: 45px;
+
+/* Metrics Card Compact Layout */
+.metrics-compact-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  gap: var(--space-4);
+  flex: 1;
+}
+
+.metrics-compact-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 42%;
+  min-width: 90px;
+  gap: var(--space-2);
+}
+
+.metrics-compact-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.metrics-compact-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.metrics-compact-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.metrics-compact-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metrics-compact-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: 0.05em;
+}
+
+.metrics-compact-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary);
+  line-height: 1.2;
+}
+
+.metrics-compact-meta select {
+  border: none;
+  background: transparent;
+  font-size: 10px;
+  padding: 0;
+  outline: none;
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 600;
+  width: 100%;
+}
+
+.metrics-compact-chart-container {
+  flex: 1;
+  height: 100%;
+  min-height: 55px;
+  display: flex;
+  align-items: flex-end;
 }
 
 /* Mobile Responsiveness (< 768px) */
 @media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr)) !important; /* Cada card em uma linha */
+  /* Expanded Mode Grid: 1 column stacked (exactly 3 lines) */
+  .dashboard-grid.grid-expanded {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
     gap: var(--space-3);
     margin-bottom: var(--space-6);
   }
   
-  /* Normal Mode Mobile */
+  /* Compact Mode Grid: 2 columns (exactly 1.5 lines/rows) */
+  .dashboard-grid.grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+  }
+  .dashboard-grid.grid-compact > *:nth-child(3) {
+    grid-column: span 2;
+  }
+  
+  /* Normal Mode Mobile (Expanded) */
   .metrics-card.mode-normal {
     min-height: 115px !important;
     padding: var(--space-3) !important;
   }
-  .metrics-card.mode-normal .chart-container {
-    height: 45px !important;
-  }
-  .metrics-card.mode-normal .h2 {
-    font-size: 1.4rem !important;
+  
+  .metrics-expanded-layout {
+    gap: var(--space-2) !important;
   }
 
-  /* Compact Mode Mobile */
+  .metrics-expanded-label {
+    font-size: 9px !important;
+  }
+
+  .metrics-expanded-value {
+    font-size: 1rem !important;
+  }
+
+  .metrics-expanded-sub,
+  .metrics-expanded-header select {
+    font-size: 9px !important;
+  }
+
+  .metrics-expanded-chart-container {
+    min-height: 65px !important;
+  }
+
+  /* Compact Mode Mobile (Super optimized to take minimal vertical space) */
   .metrics-card.mode-compact {
-    min-height: 85px !important;
-    padding: var(--space-2) var(--space-3) !important;
+    min-height: 72px !important;
+    padding: 8px 10px !important;
   }
-  .metrics-card.mode-compact .chart-container {
-    height: 25px !important;
+  
+  .metrics-compact-layout {
+    gap: var(--space-2) !important;
   }
-  .metrics-card.mode-compact .h2 {
-    font-size: 1.2rem !important;
+
+  .metrics-compact-info {
+    width: 38% !important;
+    min-width: 75px !important;
+    gap: var(--space-1) !important;
+  }
+
+  .metrics-compact-value {
+    font-size: 1.25rem !important;
+  }
+  
+  .metrics-compact-icon-wrapper {
+    padding: 3px !important;
+    border-radius: 4px !important;
+  }
+
+  .metrics-compact-icon-wrapper svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  .metrics-compact-label {
+    font-size: 8px !important;
+  }
+
+  .metrics-compact-sub,
+  .metrics-compact-meta select {
+    font-size: 9px !important;
+  }
+
+  .metrics-compact-chart-container {
+    min-height: 48px !important;
   }
   
   .metrics-card .flex-1.flex.flex-col {

@@ -1084,7 +1084,7 @@ function App() {
                 )}
 
                 <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>E-mail</label>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase' }}>E-mail</label>
                   <input
                     type="email"
                     placeholder="admin@sosa.com"
@@ -1096,7 +1096,7 @@ function App() {
                 </div>
 
                 <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Senha</label>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase' }}>Senha</label>
                   <input
                     type="password"
                     placeholder="••••••••"
@@ -1114,7 +1114,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => { setShowAdminLogin(false); setAdminError(''); }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px', marginTop: '6px', alignSelf: 'center' }}
+                  style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: '12px', marginTop: '6px', alignSelf: 'center', textDecoration: 'underline' }}
                 >
                   Voltar para Acesso Google
                 </button>
