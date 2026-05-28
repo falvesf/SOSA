@@ -1,7 +1,7 @@
 import { useLocation, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from './lib/supabase'
-import { ClipboardList, Users, BookOpen, LogOut, Info, AlertTriangle } from 'lucide-react'
+import { ClipboardList, Users, BookOpen, LogOut, Info, AlertTriangle, HelpCircle } from 'lucide-react'
 import Registries from './pages/Registries'
 import Instructions from './pages/Instructions'
 import ObservationForm from './pages/ObservationForm'
@@ -10,6 +10,7 @@ import { SchoolProvider, useSchool } from './contexts/SchoolContext'
 import Dashboard from './pages/Dashboard'
 import { SyncProvider, useSync } from './contexts/SyncContext'
 import { ConfirmModal } from './components/ui.jsx'
+import HelpDocumentationModal from './components/HelpDocumentationModal'
 
 import { Menu, X as CloseIcon, Trophy, Code, Rocket, Shield } from 'lucide-react'
 
@@ -24,6 +25,7 @@ function Layout({ children, onLogout, session }) {
   const [confirmBimestreModal, setConfirmBimestreModal] = useState({ isOpen: false, pendingBimestre: null })
   const [pendingCount, setPendingCount] = useState(0)
   const [showCredits, setShowCredits] = useState(false)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
   const clickRef = useRef({ count: 0, timer: null })
 
   const handleIconClick = () => {
@@ -405,17 +407,58 @@ function Layout({ children, onLogout, session }) {
             <Info size={16} /> Instruções e Rubrica
           </Link>
         </nav>
-        <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--border)' }}>
-          <button onClick={onLogout} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', border: 'none', color: 'var(--error)', padding: '8px 12px', fontSize: '13px' }}>
+        <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <button onClick={onLogout} className="btn btn-secondary" style={{ flex: 1, justifyContent: 'flex-start', border: 'none', color: 'var(--error)', padding: '8px 12px', fontSize: '13px' }}>
             <LogOut size={16} /> Sair
           </button>
+          <span style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-tertiary)', backgroundColor: 'var(--background)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', letterSpacing: '0.5px' }}>v1.01</span>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, backgroundColor: 'var(--background)', overflowY: 'auto', padding: isMobile ? 'var(--space-4)' : '0' }}>
+      <main style={{ flex: 1, backgroundColor: 'var(--background)', overflowY: 'auto', padding: isMobile ? 'var(--space-4)' : '0', position: 'relative' }}>
         {children}
+
+        {/* Floating Help Button */}
+        <button
+          onClick={() => setIsHelpOpen(true)}
+          title="Abrir Central de Ajuda & Documentação"
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            width: '42px',
+            height: '42px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            color: '#6366f1',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)',
+            zIndex: 9999,
+            transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.12) translateY(-2px)';
+            e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.2)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.25)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1) translateY(0)';
+            e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.12)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.15)';
+          }}
+        >
+          <HelpCircle size={20} />
+        </button>
       </main>
+
+      {/* Global Interactive Help Modal */}
+      <HelpDocumentationModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
       {/* Premium Credits Modal */}
       {showCredits && (
@@ -650,7 +693,7 @@ function Layout({ children, onLogout, session }) {
                 </div>
                 <div>
                   <span style={{ display: 'block', fontSize: '9px', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Versão</span>
-                  <span style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>1.0</span>
+                  <span style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>1.01</span>
                 </div>
               </div>
 
@@ -1122,8 +1165,9 @@ function App() {
             )}
           </div>
 
-          <div className="login-footer">
+          <div className="login-footer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
             <span>Desenvolvido com tecnologia de ponta para gestão escolar.</span>
+            <span style={{ fontSize: '10px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.4)', marginTop: '2px' }}>v1.01</span>
           </div>
         </div>
       </div>

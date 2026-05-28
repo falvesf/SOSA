@@ -164,6 +164,45 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
 
   const textareaRef = useRef(null);
 
+  // Dynamic automatic height adjustment based on text length + preferred user manual resize
+  const adjustHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const savedHeight = localStorage.getItem('sosa_devolutiva_textarea_height');
+      const minHeight = savedHeight ? parseInt(savedHeight, 10) : 120; // Default to 120px height instead of tiny 60px
+      const scrollHeight = textarea.scrollHeight;
+      const finalHeight = Math.max(scrollHeight + 12, minHeight);
+      textarea.style.height = `${finalHeight}px`;
+    }
+  };
+
+  // Run on mount and value changes
+  useEffect(() => {
+    adjustHeight();
+  }, [value]);
+
+  // Synchronize height changes dynamically across all observation form textareas
+  useEffect(() => {
+    const handleGlobalHeightChange = () => {
+      adjustHeight();
+    };
+    window.addEventListener('sosa_textarea_height_change', handleGlobalHeightChange);
+    return () => window.removeEventListener('sosa_textarea_height_change', handleGlobalHeightChange);
+  }, []);
+
+  const handleMouseUp = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const currentHeightStyle = textarea.style.height;
+      if (currentHeightStyle) {
+        localStorage.setItem('sosa_devolutiva_textarea_height', currentHeightStyle);
+        // Alert other textareas on the screen to adopt the new preference
+        window.dispatchEvent(new Event('sosa_textarea_height_change'));
+      }
+    }
+  };
+
   // Sync global autonomy mode across all AiTextarea instances
   useEffect(() => {
     const handleGlobalAutonomyChange = () => {
@@ -622,23 +661,48 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
+      <style>{`
+        @media (max-width: 600px) {
+          .sosa-ai-label {
+            display: none !important;
+          }
+          .sosa-ai-btn-full {
+            display: none !important;
+          }
+          .sosa-ai-btn-short {
+            display: inline-block !important;
+          }
+          .sosa-ai-controls {
+            gap: 4px !important;
+          }
+          .sosa-ai-separator {
+            margin: 0 2px !important;
+          }
+        }
+      `}</style>
       <textarea
         ref={textareaRef}
         className="form-input"
         rows={rows}
         placeholder={placeholder}
         value={value || ''}
-        onChange={onChange}
+        onChange={(e) => {
+          onChange(e);
+          setTimeout(adjustHeight, 0);
+        }}
+        onMouseUp={handleMouseUp}
         style={{
           width: '100%',
           paddingRight: originalValue ? '160px' : '84px',
           resize: 'vertical',
-          paddingBottom: '28px'
+          paddingBottom: '28px',
+          minHeight: '120px'
         }}
       />
 
       {/* AI Controls Container (Autonomy & Detail Level) — discrete, left-aligned below the textarea */}
       <div
+        className="sosa-ai-controls"
         style={{
           position: 'absolute',
           bottom: '8px',
@@ -655,7 +719,7 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
       >
         {/* Autonomy Mode */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-          <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Autonomia:</span>
+          <span className="sosa-ai-label" style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Autonomia:</span>
           <button
             type="button"
             onClick={() => handleAutonomyChange('ia')}
@@ -701,11 +765,11 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
         </div>
 
         {/* Separator */}
-        <div style={{ width: '1px', height: '10px', backgroundColor: 'var(--border)' }} />
+        <div className="sosa-ai-separator" style={{ width: '1px', height: '10px', backgroundColor: 'var(--border)' }} />
 
         {/* Detail Level Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-          <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Tamanho:</span>
+          <span className="sosa-ai-label" style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Tamanho:</span>
           {DETAIL_LEVELS.map(level => (
             <button
               key={level.id}
@@ -727,8 +791,10 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
                 whiteSpace: 'nowrap'
               }}
             >
-              <span className="detail-level-label-full">{level.label}</span>
-              <span className="detail-level-label-short" style={{ display: 'none' }}>{level.id === 1 ? '—' : level.id === 2 ? '≡' : '⊞'}</span>
+              <span className="sosa-ai-btn-full">{level.label}</span>
+              <span className="sosa-ai-btn-short" style={{ display: 'none' }}>
+                {level.id === 1 ? 'Dir.' : level.id === 2 ? 'Det.' : 'Prof.'}
+              </span>
             </button>
           ))}
         </div>
