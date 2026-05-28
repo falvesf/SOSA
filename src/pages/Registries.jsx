@@ -1396,9 +1396,12 @@ function TeachersCrud({ schoolId }) {
 }
 
 // Custom Premium Multi-Select Combobox for School Units
-function MultiSelectSchool({ userId, visibleSchools, uScopes, handleToggleScope, saving }) {
+function MultiSelectSchool({ userId, visibleSchools, uScopes, uRequests = [], handleToggleScope, saving }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  const { userRole, userScopes } = useSchool();
+  const safeUserScopes = Array.isArray(userScopes) ? userScopes : [];
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -1414,6 +1417,8 @@ function MultiSelectSchool({ userId, visibleSchools, uScopes, handleToggleScope,
 
   const assignedSchools = visibleSchools.filter(s => uScopes.includes(s.id));
   const assignedNames = assignedSchools.map(s => s.name).join('; ');
+
+  const pendingSchools = visibleSchools.filter(s => uRequests.some(r => r.school_id === s.id && r.status === 'pending'));
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
@@ -1457,6 +1462,12 @@ function MultiSelectSchool({ userId, visibleSchools, uScopes, handleToggleScope,
         }}>
           {visibleSchools.map(s => {
             const isAssigned = uScopes.includes(s.id);
+            const pendingReq = uRequests.find(r => r.school_id === s.id && r.status === 'pending');
+            const isPending = !!pendingReq;
+
+            // A school admin cannot remove/deassign an active/approved scope unless they manage that school unit themselves
+            const isReadOnlyScope = isAssigned && userRole === 'school_admin' && !safeUserScopes.includes(s.id);
+
             return (
               <label
                 key={s.id}
@@ -1466,23 +1477,56 @@ function MultiSelectSchool({ userId, visibleSchools, uScopes, handleToggleScope,
                   gap: '8px',
                   padding: '6px 8px',
                   borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer',
+                  cursor: isReadOnlyScope ? 'not-allowed' : 'pointer',
                   fontSize: '12px',
-                  color: isAssigned ? 'var(--primary)' : 'var(--text)',
-                  backgroundColor: isAssigned ? 'var(--primary-light)' : 'transparent',
+                  color: isAssigned ? (isReadOnlyScope ? 'var(--text-muted)' : 'var(--primary)') : isPending ? '#b45309' : 'var(--text)',
+                  backgroundColor: isAssigned ? (isReadOnlyScope ? '#f1f5f9' : 'var(--primary-light)') : isPending ? '#fef3c7' : 'transparent',
                   transition: 'background-color 0.15s',
                   userSelect: 'none'
                 }}
-                className="dropdown-item-hover"
+                className={isReadOnlyScope ? '' : 'dropdown-item-hover'}
               >
                 <input
                   type="checkbox"
-                  checked={isAssigned}
+                  checked={isAssigned || isPending}
                   onChange={() => handleToggleScope(userId, s.id, isAssigned)}
-                  disabled={saving}
+                  disabled={saving || isReadOnlyScope}
                   style={{ margin: 0 }}
                 />
-                <span style={{ fontWeight: isAssigned ? '500' : 'normal' }}>{s.name}</span>
+                <span style={{ fontWeight: isAssigned ? '500' : 'normal', display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
+                  <span>{s.name}</span>
+                  {isReadOnlyScope && (
+                    <span style={{
+                      fontSize: '8px',
+                      fontWeight: 'bold',
+                      color: 'var(--text-muted)',
+                      backgroundColor: '#e2e8f0',
+                      border: '1px solid #cbd5e1',
+                      padding: '1px 4px',
+                      borderRadius: '8px',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }}>
+                      🔒 Ativo
+                    </span>
+                  )}
+                  {isPending && (
+                    <span style={{
+                      fontSize: '8px',
+                      fontWeight: 'bold',
+                      color: '#d97706',
+                      backgroundColor: '#fef3c7',
+                      border: '1px solid #fde68a',
+                      padding: '1px 4px',
+                      borderRadius: '8px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      Pendente
+                    </span>
+                  )}
+                </span>
               </label>
             );
           })}
@@ -1506,6 +1550,28 @@ function MultiSelectSchool({ userId, visibleSchools, uScopes, handleToggleScope,
           {assignedNames}
         </div>
       )}
+
+      {pendingSchools.length > 0 && (
+        <div style={{ 
+          marginTop: '6px', 
+          fontSize: '11px', 
+          color: '#d97706',
+          lineHeight: '1.4',
+          wordBreak: 'break-word',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px'
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+            <span style={{ fontStyle: 'italic', fontWeight: '500' }}>Pendentes:</span>
+            {pendingSchools.map(s => (
+              <span key={s.id} style={{ backgroundColor: '#fef3c7', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '600' }}>
+                {s.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1515,6 +1581,7 @@ function UsersCrud() {
   const [users, setUsers] = useState([]);
   const [schools, setSchools] = useState([]);
   const [scopes, setScopes] = useState([]);
+  const [userRequests, setUserRequests] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -1523,6 +1590,7 @@ function UsersCrud() {
     userId: null,
     schoolId: null,
     isAssigned: false,
+    isPending: false,
     schoolName: '',
     userEmail: '',
     totalScopesCount: 0
@@ -1535,12 +1603,14 @@ function UsersCrud() {
     const userObj = users.find(u => u.id === userId);
     const schoolObj = schools.find(s => s.id === schoolId);
     const userScopesCount = scopes.filter(sc => sc.user_id === userId).length;
+    const isPending = userRequests.some(r => r.user_id === userId && r.school_id === schoolId && r.status === 'pending');
     
     setConfirmModal({
       isOpen: true,
       userId,
       schoolId,
       isAssigned,
+      isPending,
       schoolName: schoolObj ? schoolObj.name : '',
       userEmail: userObj ? userObj.email : '',
       totalScopesCount: userScopesCount
@@ -1551,19 +1621,22 @@ function UsersCrud() {
     setLoadingUsers(true);
     try {
       if (!isOnline) return;
-      const [uRes, sRes, scRes] = await Promise.all([
+      const [uRes, sRes, scRes, rRes] = await Promise.all([
         supabase.from('user_profiles').select('*').order('email'),
         supabase.from('schools').select('*').order('name'),
-        supabase.from('user_school_scopes').select('*')
+        supabase.from('user_school_scopes').select('*'),
+        supabase.from('user_school_requests').select('*')
       ]);
 
       if (uRes.error) throw uRes.error;
       if (sRes.error) throw sRes.error;
       if (scRes.error) throw scRes.error;
+      if (rRes.error) throw rRes.error;
 
       setUsers(uRes.data || []);
       setSchools(sRes.data || []);
       setScopes(scRes.data || []);
+      setUserRequests(rRes.data || []);
     } catch (err) {
       if (handleAuthError(err)) return;
       console.error('Error fetching users/scopes:', err);
@@ -1606,8 +1679,18 @@ function UsersCrud() {
 
   const handleToggleScope = async (userId, schoolId, isAssigned) => {
     if (!isOnline || saving) return;
+
+    const safeUserScopes = Array.isArray(userScopes) ? userScopes : [];
+    // Safety check: local admins cannot remove active scopes for schools they do not manage
+    if (isAssigned && userRole === 'school_admin' && !safeUserScopes.includes(schoolId)) {
+      setToast({ message: 'Você não tem permissão para remover o acesso de uma unidade que não gerencia.', type: 'error' });
+      return;
+    }
+
     setSaving(true);
     try {
+      const existingReq = userRequests.find(r => r.user_id === userId && r.school_id === schoolId);
+
       if (isAssigned) {
         // Remove scope
         const { error } = await supabase
@@ -1616,17 +1699,60 @@ function UsersCrud() {
           .eq('user_id', userId)
           .eq('school_id', schoolId);
         if (error) throw error;
+
+        // Clean up requests too
+        if (existingReq) {
+          await supabase
+            .from('user_school_requests')
+            .delete()
+            .eq('id', existingReq.id);
+        }
+        setToast({ message: 'Acesso removido com sucesso!' });
       } else {
-        // Add scope
-        const { error } = await supabase
-          .from('user_school_scopes')
-          .insert([{ user_id: userId, school_id: schoolId }]);
-        if (error) throw error;
+        if (existingReq && existingReq.status === 'pending') {
+          // Cancel pending request
+          const { error } = await supabase
+            .from('user_school_requests')
+            .delete()
+            .eq('id', existingReq.id);
+          if (error) throw error;
+          setToast({ message: 'Solicitação de vínculo cancelada com sucesso.' });
+        } else {
+          if (userRole === 'school_admin' && !userScopes.includes(schoolId)) {
+            // Must request pending
+            if (existingReq) {
+              const { error } = await supabase
+                .from('user_school_requests')
+                .update({ status: 'pending', updated_at: new Date().toISOString() })
+                .eq('id', existingReq.id);
+              if (error) throw error;
+            } else {
+              const { error } = await supabase
+                .from('user_school_requests')
+                .insert([{ user_id: userId, school_id: schoolId, status: 'pending' }]);
+              if (error) throw error;
+            }
+            setToast({ message: 'Solicitação de vínculo enviada com sucesso! Aguardando aprovação.' });
+          } else {
+            // Direct scope add
+            const { error } = await supabase
+              .from('user_school_scopes')
+              .insert([{ user_id: userId, school_id: schoolId }]);
+            if (error) throw error;
+
+            if (existingReq) {
+              await supabase
+                .from('user_school_requests')
+                .update({ status: 'approved', updated_at: new Date().toISOString() })
+                .eq('id', existingReq.id);
+            }
+            setToast({ message: 'Acesso concedido com sucesso!' });
+          }
+        }
       }
 
       await fetchData();
       await reloadSchools(); // Live reload schools scopes in Sidebar!
-      setToast({ message: 'Escolas associadas atualizadas com sucesso!' });
     } catch (err) {
       console.error(err);
       setToast({ message: 'Erro ao atualizar escopo do usuário.', type: 'error' });
@@ -1672,16 +1798,15 @@ function UsersCrud() {
 
   // If the logged-in user is a school_admin, only show users who are approved (scoped) to at least one school they manage
   if (userRole === 'school_admin') {
+    const safeUserScopes = Array.isArray(userScopes) ? userScopes : [];
     displayedUsers = displayedUsers.filter(u => {
       const userScopesList = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
-      return userScopesList.some(schoolId => userScopes.includes(schoolId));
+      return userScopesList.some(schoolId => safeUserScopes.includes(schoolId));
     });
   }
 
-  // For school admins, only show the school units they manage in the checkbox lists
-  const visibleSchools = userRole === 'school_admin'
-    ? schools.filter(s => userScopes.includes(s.id))
-    : schools;
+  // For school admins, show all school units so they can see other units available
+  const visibleSchools = schools;
 
   return (
     <div>
@@ -1706,6 +1831,8 @@ function UsersCrud() {
             <tbody>
               {displayedUsers.map(u => {
                 const uScopes = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
+                const uRequests = userRequests.filter(r => r.user_id === u.id);
+
                 return (
                   <tr key={u.id}>
                     <td style={{ verticalAlign: 'middle', fontWeight: '500' }}>{u.email}</td>
@@ -1745,6 +1872,7 @@ function UsersCrud() {
                           userId={u.id}
                           visibleSchools={visibleSchools}
                           uScopes={uScopes}
+                          uRequests={uRequests}
                           handleToggleScope={triggerToggleScope}
                           saving={saving}
                         />
@@ -1781,7 +1909,15 @@ function UsersCrud() {
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
         onConfirm={() => handleToggleScope(confirmModal.userId, confirmModal.schoolId, confirmModal.isAssigned)}
-        title={confirmModal.isAssigned && confirmModal.totalScopesCount === 1 ? "⚠️ ALERTA CRÍTICO: Perda de Acesso" : "Confirmar Alteração de Acesso"}
+        title={
+          confirmModal.isAssigned && confirmModal.totalScopesCount === 1 
+            ? "⚠️ ALERTA CRÍTICO: Perda de Acesso" 
+            : confirmModal.isPending 
+              ? "Cancelar Solicitação de Vínculo" 
+              : !confirmModal.isAssigned && (userRole === 'school_admin' && !(Array.isArray(userScopes) ? userScopes : []).includes(confirmModal.schoolId))
+                ? "Solicitar Vínculo de Unidade"
+                : "Confirmar Alteração de Acesso"
+        }
         message={
           confirmModal.isAssigned ? (
             confirmModal.totalScopesCount === 1 ? (
@@ -1799,15 +1935,35 @@ function UsersCrud() {
                 Deseja realmente remover a permissão de acesso da unidade escolar <strong>{confirmModal.schoolName}</strong> para o usuário <strong>{confirmModal.userEmail}</strong>?
               </span>
             )
+          ) : confirmModal.isPending ? (
+            <span>
+              Já existe uma solicitação de vínculo pendente para a unidade escolar <strong>{confirmModal.schoolName}</strong> para o usuário <strong>{confirmModal.userEmail}</strong>.
+              <br /><br />
+              Deseja realmente <strong>cancelar</strong> esta solicitação pendente?
+            </span>
+          ) : !confirmModal.isAssigned && (userRole === 'school_admin' && !(Array.isArray(userScopes) ? userScopes : []).includes(confirmModal.schoolId)) ? (
+            <span>
+              Deseja realmente solicitar permissão de acesso da unidade escolar <strong>{confirmModal.schoolName}</strong> para o usuário <strong>{confirmModal.userEmail}</strong>?
+              <br /><br />
+              Esta unidade escolar é diferente da sua. A solicitação entrará na fila de **Solicitações de Vínculo** como pendente para aprovação do Administrador Local da unidade de destino.
+            </span>
           ) : (
             <span>
               Deseja realmente conceder permissão de acesso da unidade escolar <strong>{confirmModal.schoolName}</strong> para o usuário <strong>{confirmModal.userEmail}</strong>?
             </span>
           )
         }
-        confirmText={confirmModal.isAssigned ? (confirmModal.totalScopesCount === 1 ? "Sim, Remover e Bloquear" : "Sim, Remover") : "Sim, Associar"}
+        confirmText={
+          confirmModal.isAssigned 
+            ? (confirmModal.totalScopesCount === 1 ? "Sim, Remover e Bloquear" : "Sim, Remover") 
+            : confirmModal.isPending
+              ? "Sim, Cancelar Solicitação"
+              : !confirmModal.isAssigned && (userRole === 'school_admin' && !(Array.isArray(userScopes) ? userScopes : []).includes(confirmModal.schoolId))
+                ? "Sim, Solicitar Vínculo"
+                : "Sim, Associar"
+        }
         cancelText="Cancelar"
-        variant={confirmModal.isAssigned ? "danger" : "primary"}
+        variant={confirmModal.isAssigned || confirmModal.isPending ? "danger" : "primary"}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
