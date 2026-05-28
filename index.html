@@ -14,6 +14,58 @@
       linkManifest.rel = 'manifest';
       linkManifest.href = '/SOSA/manifest.json';
       document.head.appendChild(linkManifest);
+
+      // Global error handler to catch resource loading errors (e.g. script/style 404s due to SW/Vite mismatch)
+      window.addEventListener('error', (e) => {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          const url = e.target.src || e.target.href;
+          console.warn('SOSA: Failed to load resource:', url);
+          const lastReload = sessionStorage.getItem('sosa_asset_fail_reload');
+          const now = Date.now();
+          if (!lastReload || now - parseInt(lastReload) > 10000) {
+            sessionStorage.setItem('sosa_asset_fail_reload', now.toString());
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                  registration.update();
+                }
+              }).finally(() => {
+                window.location.reload();
+              });
+            } else {
+              window.location.reload();
+            }
+          }
+        }
+      }, true); // Use capture phase to catch resource loading errors
+
+      // Catch dynamic import errors
+      window.addEventListener('unhandledrejection', (e) => {
+        const reason = (e.reason && e.reason.message) ? e.reason.message : '';
+        if (
+          reason.includes('Failed to fetch dynamically imported module') || 
+          reason.includes('Importing a module script failed') ||
+          reason.includes('ChunkLoadError')
+        ) {
+          console.warn('SOSA: Dynamic module import failed:', reason);
+          const lastReload = sessionStorage.getItem('sosa_asset_fail_reload');
+          const now = Date.now();
+          if (!lastReload || now - parseInt(lastReload) > 10000) {
+            sessionStorage.setItem('sosa_asset_fail_reload', now.toString());
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                  registration.update();
+                }
+              }).finally(() => {
+                window.location.reload();
+              });
+            } else {
+              window.location.reload();
+            }
+          }
+        }
+      });
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#6366f1" />
