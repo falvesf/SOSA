@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Select, Toast } from '../components/ui';
-import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings, Sparkles, Undo, Eye, EyeOff } from 'lucide-react';
+import { Save, CheckCircle, AlertCircle, Edit3, Trash2, X, PlusCircle, User, Target, ClipboardList, Zap, ArrowLeft, Award, Heart, Settings, Sparkles, Undo, Eye, EyeOff, Cpu } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui';
@@ -161,8 +162,43 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
   const [detailLevel, setDetailLevel] = useState(2);
   const [aiModel, setAiModel] = useState(() => localStorage.getItem('sosa_ai_model') || 'llama-3.3-70b-versatile');
   const [autonomy, setAutonomy] = useState(() => localStorage.getItem('sosa_ai_autonomy') || 'ia');
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+  const [customInstructions, setCustomInstructions] = useState(() => localStorage.getItem('sosa_custom_ai_instructions') || '');
 
   const textareaRef = useRef(null);
+
+  // Sync custom instructions changes across all instances
+  useEffect(() => {
+    const handleGlobalInstructionsChange = () => {
+      setCustomInstructions(localStorage.getItem('sosa_custom_ai_instructions') || '');
+    };
+    window.addEventListener('sosa_custom_ai_instructions_change', handleGlobalInstructionsChange);
+    return () => window.removeEventListener('sosa_custom_ai_instructions_change', handleGlobalInstructionsChange);
+  }, []);
+
+  const handleSaveInstructions = async (newVal) => {
+    const trimmed = newVal.trim();
+    localStorage.setItem('sosa_custom_ai_instructions', trimmed);
+    setCustomInstructions(trimmed);
+    
+    // Alert other instances
+    window.dispatchEvent(new Event('sosa_custom_ai_instructions_change'));
+
+    // Sync to Supabase auth metadata
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase.auth.updateUser({
+          data: {
+            custom_ai_instructions: trimmed || null
+          }
+        });
+        console.log('Diretrizes de IA sincronizadas no Supabase.');
+      }
+    } catch (err) {
+      console.warn('Erro ao sincronizar diretrizes de IA com a nuvem:', err);
+    }
+  };
 
   // Dynamic automatic height adjustment based on text length + preferred user manual resize
   const adjustHeight = () => {
@@ -227,6 +263,7 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
         if (session?.user?.user_metadata) {
           const cloudKey = session.user.user_metadata.custom_ai_key;
           const cloudModel = session.user.user_metadata.custom_ai_model;
+          const cloudInstructions = session.user.user_metadata.custom_ai_instructions;
           
           if (cloudKey) {
             localStorage.setItem('sosa_gemini_api_key', cloudKey);
@@ -234,6 +271,10 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
           if (cloudModel) {
             localStorage.setItem('sosa_ai_model', cloudModel);
             setAiModel(cloudModel);
+          }
+          if (cloudInstructions !== undefined) {
+            localStorage.setItem('sosa_custom_ai_instructions', cloudInstructions || '');
+            window.dispatchEvent(new Event('sosa_custom_ai_instructions_change'));
           }
         }
       } catch (err) {
@@ -483,9 +524,14 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
 - O texto final deve mesclar de forma muito fluida e profissional tanto as validações (notas 3 e 4) quanto as propostas concretas de melhoria para os itens com desenvolvimento pendente.
 - NUNCA use saudações ou vocativos (ex: NÃO use "Prezado(a) professor(a)", "Olá").
 - NÃO comece o parágrafo diretamente com o nome do(a) professor(a) "${teacher}". Prefira introduzir a observação focando nos aspectos didáticos e pedagógicos da aula.
-- Refira-se ao professor de forma formal e fluida, usando o primeiro nome próprio apenas de forma esporádica e natural no meio das frases se necessário.
 - Retorne APENAS o texto sugerido final, sem introduções, aspas extras ou comentários.${getVerbosityInstruction(detailLevel)}`;
         }
+      }
+
+      // Inject Custom AI Guidelines if present
+      const customInstructions = localStorage.getItem('sosa_custom_ai_instructions') || '';
+      if (customInstructions && customInstructions.trim()) {
+        promptText += `\n\nREGRAS E DIRETRIZES PERSONALIZADAS ADICIONAIS DO USUÁRIO (ATENÇÃO RIGOROSA):\n${customInstructions.trim()}`;
       }
 
       let success = false;
@@ -1042,6 +1088,42 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
               </button>
             </div>
             
+            {/* Custom Prompt Toggle Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowInstructionsModal(true);
+                setShowKeyInput(false);
+              }}
+              style={{
+                width: '100%',
+                backgroundColor: 'var(--background)',
+                color: '#6366f1',
+                border: '1px dashed rgba(99, 102, 241, 0.4)',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+                marginBottom: '4px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f5f3ff';
+                e.currentTarget.style.borderStyle = 'solid';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--background)';
+                e.currentTarget.style.borderStyle = 'dashed';
+              }}
+            >
+              <Cpu size={12} /> Personalizar Diretrizes IA
+            </button>
+
             <div style={{ display: 'flex', gap: '6px' }}>
               <button 
                 type="button"
@@ -1084,6 +1166,193 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
             </div>
           </div>
         </div>
+      )}
+
+      {/* Custom AI Instructions Modal Overlay */}
+      {showInstructionsModal && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(15, 23, 42, 0.4)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            animation: 'sosaFadeIn 0.2s ease-out'
+          }}
+          onClick={() => setShowInstructionsModal(false)}
+        >
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes sosaFadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes sosaScaleUp {
+              from { transform: scale(0.96) translateY(12px); opacity: 0; }
+              to { transform: scale(1) translateY(0); opacity: 1; }
+            }
+          ` }} />
+          <div
+            style={{
+              backgroundColor: 'white',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              width: '500px',
+              maxWidth: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              animation: 'sosaScaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              textAlign: 'left'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white'
+                }}>
+                  <Cpu size={14} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>Diretrizes Customizadas de IA</h3>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Defina suas próprias regras de estilo e tom para a IA</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInstructionsModal(false)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4', margin: 0 }}>
+              Estas diretrizes serão mescladas no topo das regras padrão do SOSA. Suas instruções são salvas de forma permanente na sua conta e sincronizadas entre dispositivos.
+            </p>
+
+            {/* Collapsible Read-Only Base Prompt Instructions */}
+            <details style={{ border: '1px solid var(--border)', borderRadius: '8px', backgroundColor: '#f8fafc', padding: '6px 10px' }}>
+              <summary style={{ fontSize: '11px', fontWeight: 'bold', color: '#4f46e5', cursor: 'pointer', outline: 'none' }}>
+                📋 Visualizar Regras Base Padrão (Leitura)
+              </summary>
+              <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-secondary)', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div>• <strong>Gênero Gramatical:</strong> Respeita o gênero masculino ou feminino do professor observado.</div>
+                <div>• <strong>Vocabulário Técnico:</strong> Converte termos comuns em termos pedagógicos formais.</div>
+                <div>• <strong>Clichês Banidos:</strong> Bloqueia expressões como <em>"Ademais", "Outrossim", "Em suma", "Urge salientar"</em>.</div>
+                <div>• <strong>Omissão de Notas:</strong> Oculta pontuações numéricas diretas, utilizando adjetivos qualitativos.</div>
+              </div>
+            </details>
+
+            {/* Custom Guidelines Input Textarea */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                Suas Regras Adicionais
+              </label>
+              <textarea
+                rows="6"
+                placeholder="Ex: 'Sempre mencione referências sobre metodologias ativas baseadas em jogos.', 'Foque em dar conselhos práticos e rápidos.', 'Escreva em um tom extremamente encorajador e acolhedor.'"
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                style={{
+                  width: '100%',
+                  fontSize: '11px',
+                  padding: '8px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  lineHeight: '1.4'
+                }}
+              />
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                💡 <em>Dica: Escreva diretivas claras de tom, termos a evitar ou focar, ou abordagens didáticas desejadas.</em>
+              </span>
+            </div>
+
+            {/* Actions Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomInstructions('');
+                  handleSaveInstructions('');
+                  setShowInstructionsModal(false);
+                }}
+                style={{
+                  backgroundColor: '#fee2e2',
+                  color: '#ef4444',
+                  border: '1px solid #fecaca',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Restaurar Padrão
+              </button>
+              
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowInstructionsModal(false)}
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSaveInstructions(customInstructions);
+                    setShowInstructionsModal(false);
+                  }}
+                  style={{
+                    backgroundColor: '#6366f1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 16px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Salvar Diretrizes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
 
@@ -2245,7 +2514,7 @@ export default function ObservationForm() {
               justifyContent: 'center',
               color: 'var(--text-muted)'
             }}
-            title="Configurações (Rigor & IA)"
+            title="Configurações (Rigor)"
           >
             <Settings size={20} />
           </button>
@@ -2255,7 +2524,7 @@ export default function ObservationForm() {
           <div className="mb-4 p-5 bg-white rounded-xl border border-gray-200 shadow-lg animate-fade-in" style={{ margin: 'var(--space-2) 0' }}>
             <div className="flex items-center gap-2 mb-5 text-sm font-bold text-gray-800">
               <Settings size={18} className="text-primary" /> 
-              <span>Configurações do Sistema (Rigor & IA)</span>
+              <span>Configurações do Sistema (Rigor)</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="flex flex-col gap-4">
@@ -2281,30 +2550,6 @@ export default function ObservationForm() {
                   onChange={(e) => updateThresholds({ ...thresholds, partial: Number(e.target.value) })}
                   className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-success"
                 />
-              </div>
-            </div>
-            
-            {/* Gemini API Key Section */}
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <div className="flex items-center gap-2 mb-3 text-xs font-bold text-gray-850">
-                <Sparkles size={14} style={{ color: '#a855f7' }} />
-                <span>Integração com Inteligência Artificial (Gemini API)</span>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                <div style={{ flex: 1, width: '100%' }}>
-                  <input 
-                    type="password"
-                    placeholder="Chave de API do Gemini (ex: AIzaSy...)"
-                    className="form-input w-full"
-                    style={{ fontSize: '12px', padding: '8px 12px' }}
-                    value={geminiApiKey}
-                    onChange={(e) => updateGeminiApiKey(e.target.value)}
-                  />
-                </div>
-                <p className="text-[11px] text-muted leading-relaxed" style={{ flex: 1, margin: 0 }}>
-                  Insira sua chave de API para ativar o aprimoramento de observações por IA.
-                  Obtenha uma chave <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: '650', textDecoration: 'underline' }}>gratuita aqui</a>.
-                </p>
               </div>
             </div>
 
