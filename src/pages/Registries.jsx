@@ -1595,6 +1595,14 @@ function UsersCrud() {
     userEmail: '',
     totalScopesCount: 0
   });
+  const [deleteUserModal, setDeleteUserModal] = useState({
+    isOpen: false,
+    userId: null,
+    userEmail: '',
+    scopesCount: 0,
+    hasMultipleSchools: false,
+    deleteAll: false
+  });
   
   const { isOnline } = useSync();
   const { reloadSchools, userRole, userScopes, selectedSchoolId } = useSchool();
@@ -1761,22 +1769,69 @@ function UsersCrud() {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
+  const triggerDeleteUser = (userObj) => {
+    const userScopesCount = scopes.filter(sc => sc.user_id === userObj.id).length;
+    setDeleteUserModal({
+      isOpen: true,
+      userId: userObj.id,
+      userEmail: userObj.email,
+      scopesCount: userScopesCount,
+      hasMultipleSchools: userScopesCount > 1,
+      deleteAll: false
+    });
+  };
+
+  const confirmDeleteUser = async () => {
     if (!isOnline || saving) return;
-    if (!window.confirm('Tem certeza que deseja excluir o perfil e todas as permissões deste usuário?')) return;
-    
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .delete()
-        .eq('id', userId);
+      const { userId, hasMultipleSchools, deleteAll } = deleteUserModal;
+      const shouldDeleteComplete = !hasMultipleSchools || (userRole === 'superadmin' && deleteAll);
 
-      if (error) throw error;
+      if (shouldDeleteComplete) {
+        await supabase
+          .from('user_school_scopes')
+          .delete()
+          .eq('user_id', userId);
 
+        await supabase
+          .from('user_school_requests')
+          .delete()
+          .eq('user_id', userId);
+
+        const { error } = await supabase
+          .from('user_profiles')
+          .delete()
+          .eq('id', userId);
+
+        if (error) throw error;
+        setToast({ message: 'Usuário excluído permanentemente.' });
+      } else {
+        const targetSchoolId = selectedSchoolId || (scopes.find(s => s.user_id === userId)?.school_id);
+        if (targetSchoolId) {
+          const { error } = await supabase
+            .from('user_school_scopes')
+            .delete()
+            .eq('user_id', userId)
+            .eq('school_id', targetSchoolId);
+
+          if (error) throw error;
+
+          await supabase
+            .from('user_school_requests')
+            .delete()
+            .eq('user_id', userId)
+            .eq('school_id', targetSchoolId);
+
+          setToast({ message: 'Acesso removido para esta unidade escolar.' });
+        } else {
+          throw new Error('Nenhuma unidade escolar selecionada para desvincular o usuário.');
+        }
+      }
+
+      setDeleteUserModal(prev => ({ ...prev, isOpen: false }));
       await fetchData();
-      await reloadSchools(); // Live reload schools scopes in Sidebar!
-      setToast({ message: 'Usuário excluído com sucesso.' });
+      await reloadSchools();
     } catch (err) {
       console.error(err);
       setToast({ message: 'Erro ao excluir usuário.', type: 'error' });
@@ -1879,7 +1934,7 @@ function UsersCrud() {
                       )}
                     </td>
                     <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
-                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => handleDeleteUser(u.id)} disabled={saving}>
+                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => triggerDeleteUser(u)} disabled={saving}>
                         <Trash2 size={16} />
                       </Button>
                     </td>
@@ -1965,6 +2020,105 @@ function UsersCrud() {
         cancelText="Cancelar"
         variant={confirmModal.isAssigned || confirmModal.isPending ? "danger" : "primary"}
       />
+
+      <Modal 
+        isOpen={deleteUserModal.isOpen} 
+        onClose={() => setDeleteUserModal(prev => ({ ...prev, isOpen: false }))} 
+        title="Confirmar Exclusão de Usuário"
+      >
+        <div style={{ padding: 'var(--space-2)' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '12px', 
+            padding: 'var(--space-3)', 
+            backgroundColor: '#fee2e2', 
+            border: '1px solid #fecaca', 
+            borderRadius: 'var(--radius-md)',
+            color: '#b91c1c',
+            marginBottom: 'var(--space-4)'
+          }}>
+            <Trash2 size={24} style={{ flexShrink: 0 }} />
+            <div>
+              <p style={{ fontWeight: '600', margin: 0 }}>Atenção: Excluir {deleteUserModal.userEmail}</p>
+              <p style={{ fontSize: '12px', margin: '2px 0 0 0', opacity: 0.9 }}>
+                Esta ação gerencia o acesso do usuário no sistema.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 'var(--space-5)', lineHeight: '1.5', fontSize: '14px' }}>
+            {deleteUserModal.hasMultipleSchools ? (
+              <div>
+                <p>
+                  O usuário <strong>{deleteUserModal.userEmail}</strong> está vinculado a <strong>{deleteUserModal.scopesCount} unidades escolares</strong>.
+                </p>
+                
+                {selectedSchoolId ? (
+                  <p style={{ color: 'var(--text-secondary)' }}>
+                    Por padrão, esta ação removerá apenas o acesso deste usuário na unidade selecionada: <strong>{schools.find(s => s.id === selectedSchoolId)?.name}</strong>. Ele continuará ativo nas outras escolas.
+                  </p>
+                ) : (
+                  <p style={{ color: 'var(--text-secondary)' }}>
+                    Para desvincular este usuário de apenas uma escola específica, selecione-a no painel lateral. Caso contrário, a exclusão total será aplicada.
+                  </p>
+                )}
+
+                {userRole === 'superadmin' && selectedSchoolId && (
+                  <div style={{ 
+                    padding: '12px', 
+                    backgroundColor: '#f8fafc', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: '12px' 
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={deleteUserModal.deleteAll} 
+                        onChange={(e) => setDeleteUserModal(prev => ({ ...prev, deleteAll: e.target.checked }))}
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <span style={{ fontWeight: '600', color: deleteUserModal.deleteAll ? '#b91c1c' : 'var(--text)' }}>
+                          Excluir este usuário permanentemente do banco de dados (remover perfil de acesso)
+                        </span>
+                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                          {deleteUserModal.deleteAll 
+                            ? "⚠️ Cuidado: Isso apagará completamente o perfil do usuário e todas as suas permissões em todas as escolas definitiva e irrevogavelmente."
+                            : "Se mantiver desmarcado (padrão), o usuário será apenas desvinculado da escola selecionada no momento."}
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <p>
+                  O usuário <strong>{deleteUserModal.userEmail}</strong> está associado a apenas <strong>1 unidade escolar</strong>.
+                </p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  A confirmação desta ação irá <strong>excluí-lo permanentemente</strong> do banco de dados e remover seu perfil do sistema por completo.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setDeleteUserModal(prev => ({ ...prev, isOpen: false }))} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="danger" 
+              onClick={confirmDeleteUser} 
+              disabled={saving}
+            >
+              {saving ? 'Processando...' : (deleteUserModal.hasMultipleSchools && !deleteUserModal.deleteAll ? 'Desvincular da Escola' : 'Excluir Usuário')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
