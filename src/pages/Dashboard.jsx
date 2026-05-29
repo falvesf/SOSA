@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, handleAuthError } from '../lib/supabase';
 import { Card, Button, Modal, ConfirmModal, Toast } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown, Plus, Settings, X, Palette } from 'lucide-react';
 import ObservationDetails from './ObservationDetails';
 import { useSync } from '../contexts/SyncContext';
 import { removeQueueItem, cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
@@ -19,7 +19,15 @@ import {
   Bar, 
   Cell,
   AreaChart,
-  Area
+  Area,
+  PieChart,
+  Pie,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Legend
 } from 'recharts';
 
 export default function Dashboard() {
@@ -73,11 +81,101 @@ export default function Dashboard() {
     return obs.subjects?.name || 'N/A';
   };
 
-  // Card Selectors State
-  const totalFilter = 'data';
-  const [periodRange, setPeriodRange] = useState('mes'); // semana, mes, bimestre, semestre, ano
-  const [statusFilter, setStatusFilter] = useState('Atende plenamente');
+  // Card Selectors & Customization States
+  const [customCards, setCustomCards] = useState([]);
+  const [editingCard, setEditingCard] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [savingCard, setSavingCard] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+
+  // Default cards definitions
+  const getDefaultCards = () => [
+    {
+      id: 'default_total',
+      title: 'TOTAL DE OBSERVAÇÕES',
+      dataType: 'total',
+      dataFilter: 'data',
+      chartType: 'bar',
+      color: '#4f46e5', // Indigo
+      showLabels: true
+    },
+    {
+      id: 'default_period',
+      title: 'TENDÊNCIA DO PERÍODO',
+      dataType: 'period',
+      dataFilter: 'mes',
+      chartType: 'area',
+      color: '#10b981', // Emerald
+      showLabels: false
+    },
+    {
+      id: 'default_status',
+      title: 'FREQUÊNCIA DO STATUS',
+      dataType: 'status',
+      dataFilter: 'Atende plenamente',
+      chartType: 'bar',
+      color: '#f59e0b', // Amber
+      showLabels: true
+    }
+  ];
+
+  const premiumColors = [
+    { name: 'Indigo', value: '#4f46e5' },
+    { name: 'Esmeralda', value: '#10b981' },
+    { name: 'Âmbar', value: '#f59e0b' },
+    { name: 'Laranja', value: '#f97316' },
+    { name: 'Rubi', value: '#ef4444' },
+    { name: 'Violeta', value: '#8b5cf6' },
+    { name: 'Ciano', value: '#06b6d4' },
+    { name: 'Menta', value: '#14b8a6' },
+    { name: 'Rosa', value: '#ec4899' },
+    { name: 'Grafite', value: '#64748b' }
+  ];
+
+  const saveCardsToCloud = async (newCards) => {
+    try {
+      localStorage.setItem('sosa_custom_dashboard_cards', JSON.stringify(newCards));
+      if (navigator.onLine) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase.auth.updateUser({
+            data: { dashboard_config: newCards }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save dashboard cards:', err);
+    }
+  };
+
+  const loadCardsFromCloud = async () => {
+    let cards = [];
+    const local = localStorage.getItem('sosa_custom_dashboard_cards');
+    if (local) {
+      try {
+        cards = JSON.parse(local);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    if (navigator.onLine) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.user_metadata?.dashboard_config) {
+          cards = session.user.user_metadata.dashboard_config;
+          localStorage.setItem('sosa_custom_dashboard_cards', JSON.stringify(cards));
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard cards from cloud:', err);
+      }
+    }
+
+    if (!cards || cards.length === 0) {
+      cards = getDefaultCards();
+    }
+    setCustomCards(cards);
+  };
 
   // Compact Mode State (persisted in localStorage)
   const [isCompactMode, setIsCompactMode] = useState(() => {
@@ -143,9 +241,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchObservations();
+    loadCardsFromCloud();
 
     const handleSyncCompleted = () => {
       fetchObservations();
+      loadCardsFromCloud();
     };
     window.addEventListener('sosa_sync_completed', handleSyncCompleted);
     return () => window.removeEventListener('sosa_sync_completed', handleSyncCompleted);
@@ -174,112 +274,240 @@ export default function Dashboard() {
     return [...localOfflineObs, ...filteredOnline];
   }, [localOfflineObs, observations]);
 
-  const chartData = useMemo(() => {
-    if (allObservations.length === 0) return { total: [], period: [], status: [] };
+  const getDynamicChartData = (card, observationsList = allObservations) => {
+    if (!card || observationsList.length === 0) return { data: [], value: 0 };
 
-    // 1. Total Card Data
-    let totalData = [];
-    if (totalFilter === 'data') {
-      const counts = {};
-      allObservations.forEach(obs => {
-        const date = obs.visit_date;
-        counts[date] = (counts[date] || 0) + 1;
+    let data = [];
+    let value = 0;
+
+    if (card.dataType === 'total') {
+      if (card.dataFilter === 'data') {
+        const counts = {};
+        observationsList.forEach(obs => {
+          const date = obs.visit_date;
+          if (date) counts[date] = (counts[date] || 0) + 1;
+        });
+        data = Object.entries(counts)
+          .map(([date, count]) => ({
+            dateKey: date,
+            label: date ? date.split('-').reverse().slice(0, 2).join('/') : 'N/A',
+            value: count
+          }))
+          .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+      } else if (card.dataFilter === 'nome') {
+        const counts = {};
+        observationsList.forEach(obs => {
+          const name = obs.teachers?.name?.split(' ')[0] || 'N/A';
+          counts[name] = (counts[name] || 0) + 1;
+        });
+        data = Object.entries(counts)
+          .map(([name, count]) => ({ label: name, value: count }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5);
+      } else if (card.dataFilter === 'serie' || card.dataFilter === 'turma') {
+        const counts = {};
+        observationsList.forEach(obs => {
+          const name = obs.series?.name || 'N/A';
+          counts[name] = (counts[name] || 0) + 1;
+        });
+        data = Object.entries(counts)
+          .map(([name, count]) => ({ label: name, value: count }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5);
+      }
+      value = observationsList.length;
+    } else if (card.dataType === 'period') {
+      const now = new Date();
+      if (card.dataFilter === 'semana') {
+        const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+        const counts = days.reduce((acc, d) => ({ ...acc, [d]: 0 }), {});
+        observationsList.forEach(obs => {
+          const d = new Date(obs.visit_date);
+          const weekAgo = new Date(); weekAgo.setDate(now.getDate() - 7);
+          if (d >= weekAgo) counts[days[d.getDay()]] += 1;
+        });
+        data = days.map(d => ({ label: d, value: counts[d] }));
+      } else if (card.dataFilter === 'mes') {
+        const counts = { 'Sem 1': 0, 'Sem 2': 0, 'Sem 3': 0, 'Sem 4+': 0 };
+        observationsList.forEach(obs => {
+          const d = new Date(obs.visit_date);
+          if (d.getMonth() === now.getMonth()) {
+            const day = d.getDate();
+            if (day <= 7) counts['Sem 1']++;
+            else if (day <= 14) counts['Sem 2']++;
+            else if (day <= 21) counts['Sem 3']++;
+            else counts['Sem 4+']++;
+          }
+        });
+        data = Object.entries(counts).map(([l, v]) => ({ label: l, value: v }));
+      } else {
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const counts = months.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
+        observationsList.forEach(obs => {
+          const d = new Date(obs.visit_date);
+          if (d.getFullYear() === now.getFullYear()) {
+            counts[months[d.getMonth()]] += 1;
+          }
+        });
+        data = months
+          .map(m => ({ label: m, value: counts[m] }))
+          .filter(m => m.value > 0 || (months.indexOf(m.label) <= now.getMonth()));
+      }
+      value = data.reduce((a, b) => a + b.value, 0);
+    } else if (card.dataType === 'status') {
+      const dimensions = [
+        { key: 'planning_evaluation', label: 'Plan.' },
+        { key: 'methodology_evaluation', label: 'Metod.' },
+        { key: 'learning_evaluation', label: 'Aprend.' },
+        { key: 'management_evaluation', label: 'Gestão' },
+        { key: 'identity_evaluation', label: 'Ident.' }
+      ];
+      
+      data = dimensions.map(dim => {
+        const count = observationsList.filter(obs => obs[dim.key] === card.dataFilter).length;
+        return { label: dim.label, value: count };
       });
-      totalData = Object.entries(counts)
-        .map(([date, count]) => ({ 
-          dateKey: date,
-          label: date ? date.split('-').reverse().slice(0, 2).join('/') : 'N/A', 
-          value: count 
-        }))
-        .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-    } else if (totalFilter === 'nome') {
-      const counts = {};
-      allObservations.forEach(obs => {
-        const name = obs.teachers?.name?.split(' ')[0] || 'N/A';
-        counts[name] = (counts[name] || 0) + 1;
-      });
-      totalData = Object.entries(counts)
-        .map(([name, count]) => ({ label: name, value: count }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
-    } else if (totalFilter === 'serie' || totalFilter === 'turma') {
-      const counts = {};
-      allObservations.forEach(obs => {
-        const name = obs.series?.name || 'N/A';
-        counts[name] = (counts[name] || 0) + 1;
-      });
-      totalData = Object.entries(counts)
-        .map(([name, count]) => ({ label: name, value: count }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
+      
+      value = observationsList.reduce((sum, obs) => {
+        const evals = [obs.planning_evaluation, obs.methodology_evaluation, obs.learning_evaluation, obs.management_evaluation, obs.identity_evaluation];
+        return sum + evals.filter(e => e === card.dataFilter).length;
+      }, 0);
     }
 
-    // 2. Period Card Data (Trends)
-    let periodData = [];
-    const now = new Date();
-    if (periodRange === 'semana') {
-      const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
-      const counts = days.reduce((acc, d) => ({ ...acc, [d]: 0 }), {});
-      allObservations.forEach(obs => {
-        const d = new Date(obs.visit_date);
-        const weekAgo = new Date(); weekAgo.setDate(now.getDate() - 7);
-        if (d >= weekAgo) counts[days[d.getDay()]] += 1;
-      });
-      periodData = days.map(d => ({ label: d, value: counts[d] }));
-    } else if (periodRange === 'mes') {
-      // Group by weeks
-      const counts = { 'Sem 1': 0, 'Sem 2': 0, 'Sem 3': 0, 'Sem 4+': 0 };
-      allObservations.forEach(obs => {
-        const d = new Date(obs.visit_date);
-        if (d.getMonth() === now.getMonth()) {
-          const day = d.getDate();
-          if (day <= 7) counts['Sem 1']++;
-          else if (day <= 14) counts['Sem 2']++;
-          else if (day <= 21) counts['Sem 3']++;
-          else counts['Sem 4+']++;
-        }
-      });
-      periodData = Object.entries(counts).map(([l, v]) => ({ label: l, value: v }));
-    } else {
-      // Group by months for Bimestre, Semestre, Ano
-      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      const counts = months.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
-      allObservations.forEach(obs => {
-        const d = new Date(obs.visit_date);
-        if (d.getFullYear() === now.getFullYear()) {
-          counts[months[d.getMonth()]] += 1;
-        }
-      });
-      periodData = months.map(m => ({ label: m, value: counts[m] })).filter(m => m.value > 0 || (months.indexOf(m.label) <= now.getMonth()));
+    return { data, value };
+  };
+
+  const renderCardChart = (card, data, cardColor) => {
+    if (!data || data.length === 0) {
+      return <div className="flex items-center justify-center h-full text-tiny text-muted italic">Sem dados</div>;
     }
 
-    // 3. Status Card Data: Frequência do status selecionado por dimensão pedagógica
-    const dimensions = [
-      { key: 'planning_evaluation', label: 'Plan.' },
-      { key: 'methodology_evaluation', label: 'Metod.' },
-      { key: 'learning_evaluation', label: 'Aprend.' },
-      { key: 'management_evaluation', label: 'Gestão' },
-      { key: 'identity_evaluation', label: 'Ident.' }
-    ];
-    
-    const statusData = dimensions.map(dim => {
-      const count = allObservations.filter(obs => obs[dim.key] === statusFilter).length;
-      return { label: dim.label, value: count };
+    const renderTooltip = () => (
+      <Tooltip 
+        formatter={(value) => [value, 'Quantidade']}
+        contentStyle={{ 
+          fontSize: '10px', 
+          borderRadius: '8px', 
+          border: 'none', 
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          backgroundColor: '#ffffff',
+          color: 'var(--text-primary)'
+        }} 
+        itemStyle={{ color: cardColor, fontWeight: 'bold' }}
+        labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
+      />
+    );
+
+    switch (card.chartType) {
+      case 'line':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
+              <Line type="monotone" dataKey="value" stroke={cardColor} strokeWidth={2} dot={{ r: isCompactMode ? 1 : 2 }} />
+              {!isCompactMode && card.showLabels && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
+              {renderTooltip()}
+            </LineChart>
+          </ResponsiveContainer>
+        );
+      case 'area':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
+              <defs>
+                <linearGradient id={`colorValue-${card.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={cardColor} stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor={cardColor} stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <Area type="monotone" dataKey="value" stroke={cardColor} fillOpacity={1} fill={`url(#colorValue-${card.id})`} strokeWidth={2} />
+              {!isCompactMode && card.showLabels && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
+              {renderTooltip()}
+            </AreaChart>
+          </ResponsiveContainer>
+        );
+      case 'pie':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={isCompactMode ? 8 : 16}
+                outerRadius={isCompactMode ? 18 : 34}
+                paddingAngle={3}
+                dataKey="value"
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={premiumColors[index % premiumColors.length].value} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value) => [value, 'Quantidade']}
+                contentStyle={{ fontSize: '9px', borderRadius: '6px', border: 'none' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      case 'radar':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart cx="50%" cy="50%" outerRadius={isCompactMode ? 14 : 32} data={data}>
+              <PolarGrid stroke="var(--border)" />
+              <PolarAngleAxis dataKey="label" fontSize={isCompactMode ? 6 : 8} tickLine={false} />
+              <Radar name="Valor" dataKey="value" stroke={cardColor} fill={cardColor} fillOpacity={0.4} />
+              <Tooltip 
+                formatter={(value) => [value, 'Quantidade']}
+                contentStyle={{ fontSize: '9px', borderRadius: '6px', border: 'none' }}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        );
+      case 'bar':
+      default:
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
+              <Bar dataKey="value" fill={cardColor} radius={isCompactMode ? [3, 3, 0, 0] : [4, 4, 0, 0]} />
+              {!isCompactMode && card.showLabels && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
+              {renderTooltip()}
+            </BarChart>
+          </ResponsiveContainer>
+        );
+    }
+  };
+
+  const handleAddNewCard = () => {
+    setEditingCard({
+      id: 'card_' + Date.now(),
+      title: 'NOVA MÉTRICA',
+      dataType: 'total',
+      dataFilter: 'data',
+      chartType: 'bar',
+      color: '#4f46e5',
+      showLabels: true,
+      isNew: true
     });
+    setIsEditModalOpen(true);
+  };
 
-    return { total: totalData, period: periodData, status: statusData };
-  }, [allObservations, totalFilter, periodRange, statusFilter]);
+  const handleEditCard = (card) => {
+    setEditingCard({ ...card });
+    setIsEditModalOpen(true);
+  };
 
-  const stats = useMemo(() => {
-    const totalCount = allObservations.length;
-    const periodCount = chartData.period.reduce((a, b) => a + b.value, 0);
-    // Soma total das avaliações que correspondem ao status selecionado nas 5 dimensões
-    const statusCount = allObservations.reduce((sum, obs) => {
-      const evals = [obs.planning_evaluation, obs.methodology_evaluation, obs.learning_evaluation, obs.management_evaluation, obs.identity_evaluation];
-      return sum + evals.filter(e => e === statusFilter).length;
-    }, 0);
-    return { total: totalCount, period: periodCount, status: statusCount };
-  }, [allObservations, chartData, statusFilter]);
+  const handleRemoveCard = async (cardId) => {
+    const updated = customCards.filter(c => c.id !== cardId);
+    setCustomCards(updated);
+    await saveCardsToCloud(updated);
+    setToast({ message: 'Gráfico removido com sucesso!' });
+  };
+
+  const handleCardFilterChange = async (cardId, newFilterValue) => {
+    const updated = customCards.map(c => c.id === cardId ? { ...c, dataFilter: newFilterValue } : c);
+    setCustomCards(updated);
+    await saveCardsToCloud(updated);
+  };
 
   const requestSort = (key) => {
     setSortConfig(prev => {
@@ -442,268 +670,205 @@ export default function Dashboard() {
 
       {/* Stats Cards Grid */}
       <div className={`dashboard-grid ${isCompactMode ? 'grid-compact' : 'grid-expanded'} ${isPinned ? 'sticky-metrics-container' : ''}`} style={{ marginBottom: isPinned ? 'var(--space-6)' : 0 }}>
-        {/* Total Card */}
-        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--primary)' }}>
-          {isCompactMode ? (
-            <div className="metrics-compact-layout">
-              <div className="metrics-compact-info">
-                <div className="metrics-compact-header">
-                  <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: 'var(--primary-light)' }}>
-                    <Calendar size={13} className="text-primary" />
-                  </div>
-                  <span className="metrics-compact-value">{stats.total}</span>
-                </div>
-                <div className="metrics-compact-meta">
-                  <p className="metrics-compact-label">Observações</p>
-                  <span className="metrics-compact-sub">Por Data</span>
-                </div>
-              </div>
-              <div className="metrics-compact-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.total} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-                    <Bar dataKey="value" fill="var(--primary)" radius={[3, 3, 0, 0]} />
-                    <Tooltip 
-                      formatter={(value) => [value, 'Quantidade']}
-                      contentStyle={{ 
-                        fontSize: '10px', 
-                        borderRadius: '8px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        backgroundColor: '#ffffff',
-                        color: 'var(--text-primary)'
-                      }} 
-                      itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
-                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          ) : (
-            <div className="metrics-expanded-layout">
-              <div className="metrics-expanded-header">
-                <div className="metrics-expanded-title-block">
-                  <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: 'var(--primary-light)' }}>
-                    <Calendar size={14} className="text-primary" />
-                  </div>
-                  <span className="metrics-expanded-label">Total de Observações:</span>
-                  <span className="metrics-expanded-value text-primary">{stats.total}</span>
-                </div>
-                <span className="metrics-expanded-sub">Por Data</span>
-              </div>
-              <div className="metrics-expanded-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.total} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
-                    <Bar dataKey="value" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                    <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />
-                    <Tooltip 
-                      formatter={(value) => [value, 'Quantidade']}
-                      contentStyle={{ 
-                        fontSize: '10px', 
-                        borderRadius: '8px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        backgroundColor: '#ffffff',
-                        color: 'var(--text-primary)'
-                      }} 
-                      itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
-                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-        </Card>
+        {customCards.map((card) => {
+          const { data, value } = getDynamicChartData(card);
+          const cardColor = card.color || '#4f46e5';
 
-        {/* Period Card */}
-        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--success)' }}>
-          {isCompactMode ? (
-            <div className="metrics-compact-layout">
-              <div className="metrics-compact-info">
-                <div className="metrics-compact-header">
-                  <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: '#ecfdf5' }}>
-                    <TrendingUp size={13} style={{ color: 'var(--success)' }} />
-                  </div>
-                  <span className="metrics-compact-value">{stats.period}</span>
-                </div>
-                <div className="metrics-compact-meta">
-                  <p className="metrics-compact-label">Tendência</p>
-                  <select style={cardSelectStyle} value={periodRange} onChange={(e) => setPeriodRange(e.target.value)}>
-                    <option value="semana">Semana</option>
-                    <option value="mes">Mês</option>
-                    <option value="bimestre">Bimestre</option>
-                    <option value="semestre">Semestre</option>
-                    <option value="ano">Ano</option>
-                  </select>
-                </div>
-              </div>
-              <div className="metrics-compact-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData.period} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-                    <defs>
-                      <linearGradient id="colorValueCompact" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValueCompact)" strokeWidth={1.5} />
-                    <Tooltip 
-                      formatter={(value) => [value, 'Quantidade']}
-                      contentStyle={{ 
-                        fontSize: '10px', 
-                        borderRadius: '8px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        backgroundColor: '#ffffff',
-                        color: 'var(--text-primary)'
-                      }} 
-                      itemStyle={{ color: 'var(--success)', fontWeight: 'bold' }}
-                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          ) : (
-            <div className="metrics-expanded-layout">
-              <div className="metrics-expanded-header">
-                <div className="metrics-expanded-title-block">
-                  <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: '#ecfdf5' }}>
-                    <TrendingUp size={14} style={{ color: 'var(--success)' }} />
-                  </div>
-                  <span className="metrics-expanded-label">Tendência do Período:</span>
-                  <span className="metrics-expanded-value text-success">{stats.period}</span>
-                </div>
-                <select style={cardSelectStyle} value={periodRange} onChange={(e) => setPeriodRange(e.target.value)}>
-                  <option value="semana">Nesta Semana</option>
-                  <option value="mes">Neste Mês</option>
-                  <option value="bimestre">Neste Bimestre</option>
-                  <option value="semestre">Neste Semestre</option>
-                  <option value="ano">Neste Ano</option>
-                </select>
-              </div>
-              <div className="metrics-expanded-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData.period} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
-                    <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="value" stroke="var(--success)" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
-                    <Tooltip 
-                      formatter={(value) => [value, 'Quantidade']}
-                      contentStyle={{ 
-                        fontSize: '10px', 
-                        borderRadius: '8px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        backgroundColor: '#ffffff',
-                        color: 'var(--text-primary)'
-                      }} 
-                      itemStyle={{ color: 'var(--success)', fontWeight: 'bold' }}
-                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-        </Card>
+          // Curated icons based on dataType
+          let CardIcon = Calendar;
+          if (card.dataType === 'period') CardIcon = TrendingUp;
+          else if (card.dataType === 'status') CardIcon = Filter;
 
-        {/* Status Card */}
-        <Card className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'}`} style={{ borderLeft: '4px solid var(--warning)' }}>
-          {isCompactMode ? (
-            <div className="metrics-compact-layout">
-              <div className="metrics-compact-info">
-                <div className="metrics-compact-header">
-                  <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: '#fffbeb' }}>
-                    <Filter size={13} style={{ color: 'var(--warning)' }} />
+          return (
+            <Card 
+              key={card.id} 
+              className={`card-compact overflow-hidden metrics-card ${isCompactMode ? 'mode-compact' : 'mode-normal'} group`} 
+              style={{ 
+                borderLeft: `4px solid ${cardColor}`, 
+                position: 'relative',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+            >
+              {/* Quick Hover Actions */}
+              <div 
+                className="card-actions" 
+                style={{ 
+                  position: 'absolute', 
+                  top: '8px', 
+                  right: '8px', 
+                  display: 'flex', 
+                  gap: '4px', 
+                  zIndex: 20,
+                  opacity: 0.8
+                }}
+              >
+                <button 
+                  onClick={() => handleEditCard(card)} 
+                  style={{ 
+                    border: 'none', 
+                    background: '#ffffffeb', 
+                    cursor: 'pointer', 
+                    padding: '4px', 
+                    borderRadius: '4px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Editar Card"
+                >
+                  <Settings size={11} className="text-muted" />
+                </button>
+                <button 
+                  onClick={() => handleRemoveCard(card.id)} 
+                  style={{ 
+                    border: 'none', 
+                    background: '#ffffffeb', 
+                    cursor: 'pointer', 
+                    padding: '4px', 
+                    borderRadius: '4px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Remover Card"
+                >
+                  <X size={11} className="text-danger" />
+                </button>
+              </div>
+
+              {isCompactMode ? (
+                <div className="metrics-compact-layout">
+                  <div className="metrics-compact-info">
+                    <div className="metrics-compact-header">
+                      <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: cardColor + '15' }}>
+                        <CardIcon size={13} style={{ color: cardColor }} />
+                      </div>
+                      <span className="metrics-compact-value">{value}</span>
+                    </div>
+                    <div className="metrics-compact-meta">
+                      <p className="metrics-compact-label" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '100px' }}>
+                        {card.title}
+                      </p>
+                      {card.dataType === 'total' && (
+                        <select 
+                          style={cardSelectStyle} 
+                          value={card.dataFilter} 
+                          onChange={(e) => handleCardFilterChange(card.id, e.target.value)}
+                        >
+                          <option value="data">Por Data</option>
+                          <option value="nome">Por Professor</option>
+                          <option value="serie">Por Série</option>
+                        </select>
+                      )}
+                      {card.dataType === 'period' && (
+                        <select 
+                          style={cardSelectStyle} 
+                          value={card.dataFilter} 
+                          onChange={(e) => handleCardFilterChange(card.id, e.target.value)}
+                        >
+                          <option value="semana">Semana</option>
+                          <option value="mes">Mês</option>
+                          <option value="bimestre">Bimestre</option>
+                          <option value="ano">Ano</option>
+                        </select>
+                      )}
+                      {card.dataType === 'status' && (
+                        <select 
+                          style={cardSelectStyle} 
+                          value={card.dataFilter} 
+                          onChange={(e) => handleCardFilterChange(card.id, e.target.value)}
+                        >
+                          <option value="Atende plenamente">Plenamente</option>
+                          <option value="Atende parcialmente">Parcialmente</option>
+                          <option value="Não atende">Não Atende</option>
+                          <option value="Não observado">Não Obs.</option>
+                        </select>
+                      )}
+                    </div>
                   </div>
-                  <span className="metrics-compact-value">{stats.status}</span>
-                </div>
-                <div className="metrics-compact-meta">
-                  <p className="metrics-compact-label">Frequência</p>
-                  <select style={cardSelectStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                    <option value="Atende plenamente">Plenamente</option>
-                    <option value="Atende parcialmente">Parcialmente</option>
-                    <option value="Não atende">Não Atende</option>
-                    <option value="Não observado">Não Obs.</option>
-                  </select>
-                </div>
-              </div>
-              <div className="metrics-compact-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.status} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-                    <Bar dataKey="value" fill="var(--warning)" radius={[3, 3, 0, 0]}>
-                      {chartData.status.map((entry, index) => (
-                        <Cell key={`cell-compact-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
-                      ))}
-                    </Bar>
-                    <Tooltip 
-                      formatter={(value) => [value, 'Quantidade']}
-                      contentStyle={{ 
-                        fontSize: '10px', 
-                        borderRadius: '8px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        backgroundColor: '#ffffff',
-                        color: 'var(--text-primary)'
-                      }} 
-                      itemStyle={{ color: 'var(--warning)', fontWeight: 'bold' }}
-                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          ) : (
-            <div className="metrics-expanded-layout">
-              <div className="metrics-expanded-header">
-                <div className="metrics-expanded-title-block">
-                  <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: '#fffbeb' }}>
-                    <Filter size={14} style={{ color: 'var(--warning)' }} />
+                  <div className="metrics-compact-chart-container">
+                    {renderCardChart(card, data, cardColor)}
                   </div>
-                  <span className="metrics-expanded-label">Frequência do Status:</span>
-                  <span className="metrics-expanded-value text-warning">{stats.status}</span>
                 </div>
-                <select style={cardSelectStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="Atende plenamente">Plenamente</option>
-                  <option value="Atende parcialmente">Parcialmente</option>
-                  <option value="Não atende">Não Atende</option>
-                  <option value="Não observado">Não Obs.</option>
-                </select>
-              </div>
-              <div className="metrics-expanded-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.status} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
-                    <Bar dataKey="value" fill="var(--warning)" radius={[4, 4, 0, 0]}>
-                      {chartData.status.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--warning)' : '#fef3c7'} />
-                      ))}
-                    </Bar>
-                    <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />
-                    <Tooltip 
-                      formatter={(value) => [value, 'Quantidade']}
-                      contentStyle={{ 
-                        fontSize: '10px', 
-                        borderRadius: '8px', 
-                        border: 'none', 
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        backgroundColor: '#ffffff',
-                        color: 'var(--text-primary)'
-                      }} 
-                      itemStyle={{ color: 'var(--warning)', fontWeight: 'bold' }}
-                      labelStyle={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              ) : (
+                <div className="metrics-expanded-layout">
+                  <div className="metrics-expanded-header">
+                    <div className="metrics-expanded-title-block" style={{ paddingRight: '40px' }}>
+                      <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: cardColor + '15' }}>
+                        <CardIcon size={14} style={{ color: cardColor }} />
+                      </div>
+                      <span className="metrics-expanded-label">{card.title}:</span>
+                      <span className="metrics-expanded-value" style={{ color: cardColor }}>{value}</span>
+                    </div>
+                    {card.dataType === 'total' && (
+                      <select 
+                        style={cardSelectStyle} 
+                        value={card.dataFilter} 
+                        onChange={(e) => handleCardFilterChange(card.id, e.target.value)}
+                      >
+                        <option value="data">Por Data</option>
+                        <option value="nome">Por Professor</option>
+                        <option value="serie">Por Série</option>
+                      </select>
+                    )}
+                    {card.dataType === 'period' && (
+                      <select 
+                        style={cardSelectStyle} 
+                        value={card.dataFilter} 
+                        onChange={(e) => handleCardFilterChange(card.id, e.target.value)}
+                      >
+                        <option value="semana">Nesta Semana</option>
+                        <option value="mes">Neste Mês</option>
+                        <option value="bimestre">Neste Bimestre</option>
+                        <option value="ano">Neste Ano</option>
+                      </select>
+                    )}
+                    {card.dataType === 'status' && (
+                      <select 
+                        style={cardSelectStyle} 
+                        value={card.dataFilter} 
+                        onChange={(e) => handleCardFilterChange(card.id, e.target.value)}
+                      >
+                        <option value="Atende plenamente">Plenamente</option>
+                        <option value="Atende parcialmente">Parcialmente</option>
+                        <option value="Não atende">Não Atende</option>
+                        <option value="Não observado">Não Obs.</option>
+                      </select>
+                    )}
+                  </div>
+                  <div className="metrics-expanded-chart-container" style={{ minHeight: '92px' }}>
+                    {renderCardChart(card, data, cardColor)}
+                  </div>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+
+        {/* Dynamic Add Card Slot */}
+        {customCards.length < 4 && (
+          <Card 
+            className={`card-compact metrics-card flex flex-col items-center justify-center cursor-pointer transition-all duration-200`}
+            onClick={handleAddNewCard}
+            style={{ 
+              border: '2px dashed var(--border)', 
+              minHeight: isCompactMode ? '68px' : '154px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              backgroundColor: '#fafafa',
+              borderRadius: 'var(--radius-lg)',
+              cursor: 'pointer'
+            }}
+          >
+            <div className="flex flex-col items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+              <Plus size={isCompactMode ? 16 : 24} />
+              {!isCompactMode && <span style={{ fontSize: '11px', fontWeight: '600' }}>Adicionar Gráfico</span>}
             </div>
-          )}
-        </Card>
+          </Card>
+        )}
       </div>
 
       {/* Recent Observations */}
@@ -795,6 +960,246 @@ export default function Dashboard() {
         onConfirm={confirmDelete}
         message="Tem certeza que deseja excluir esta observação? Esta ação não pode ser desfeita."
       />
+
+      <Modal 
+        isOpen={isEditModalOpen} 
+        onClose={() => setIsEditModalOpen(false)} 
+        title={editingCard?.isNew ? "Adicionar Novo Gráfico" : "Personalizar Gráfico"}
+      >
+        {editingCard && (() => {
+          const previewCard = { ...editingCard };
+          const { data: previewData, value: previewValue } = getDynamicChartData(previewCard);
+          const previewColor = previewCard.color || '#4f46e5';
+
+          let PreviewIcon = Calendar;
+          if (previewCard.dataType === 'period') PreviewIcon = TrendingUp;
+          else if (previewCard.dataType === 'status') PreviewIcon = Filter;
+
+          const handleSave = async () => {
+            setSavingCard(true);
+            try {
+              let updatedCards = [];
+              if (editingCard.isNew) {
+                const { isNew, ...cardToSave } = editingCard;
+                updatedCards = [...customCards, cardToSave];
+              } else {
+                updatedCards = customCards.map(c => c.id === editingCard.id ? editingCard : c);
+              }
+              setCustomCards(updatedCards);
+              await saveCardsToCloud(updatedCards);
+              setIsEditModalOpen(false);
+              setToast({ message: editingCard.isNew ? 'Gráfico adicionado com sucesso!' : 'Gráfico atualizado com sucesso!' });
+            } catch (err) {
+              console.error(err);
+              setToast({ message: 'Erro ao salvar gráfico', type: 'error' });
+            } finally {
+              setSavingCard(false);
+            }
+          };
+
+          return (
+            <div className="flex flex-col gap-6" style={{ minWidth: '320px', maxWidth: '500px' }}>
+              
+              {/* LIVE PREVIEW CONTAINER */}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-muted uppercase tracking-wider">Visualização em Tempo Real</span>
+                <div 
+                  className="metrics-card card-compact mode-normal" 
+                  style={{ 
+                    borderLeft: `4px solid ${previewColor}`,
+                    background: 'var(--surface-card)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 'var(--space-4)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                    border: '1px solid var(--border)',
+                    position: 'relative'
+                  }}
+                >
+                  <div className="metrics-expanded-layout">
+                    <div className="metrics-expanded-header">
+                      <div className="metrics-expanded-title-block">
+                        <div className="metrics-expanded-icon-wrapper" style={{ backgroundColor: previewColor + '15' }}>
+                          <PreviewIcon size={14} style={{ color: previewColor }} />
+                        </div>
+                        <span className="metrics-expanded-label" style={{ fontWeight: '700', fontSize: '10px' }}>
+                          {previewCard.title || 'TÍTULO DO GRÁFICO'}:
+                        </span>
+                        <span className="metrics-expanded-value" style={{ color: previewColor, fontWeight: '700' }}>
+                          {previewValue}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted" style={{ fontWeight: '600' }}>
+                        {previewCard.dataType === 'total' && (previewCard.dataFilter === 'data' ? 'Por Data' : previewCard.dataFilter === 'nome' ? 'Por Professor' : 'Por Série')}
+                        {previewCard.dataType === 'period' && `Neste ${previewCard.dataFilter === 'mes' ? 'Mês' : previewCard.dataFilter === 'semana' ? 'Semana' : previewCard.dataFilter === 'bimestre' ? 'Bimestre' : 'Ano'}`}
+                        {previewCard.dataType === 'status' && previewCard.dataFilter}
+                      </span>
+                    </div>
+                    <div className="metrics-expanded-chart-container" style={{ minHeight: '92px', marginTop: 'var(--space-2)' }}>
+                      {renderCardChart(previewCard, previewData, previewColor)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FORM FIELDS */}
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-muted uppercase">Título do Card</label>
+                  <input 
+                    type="text" 
+                    value={editingCard.title} 
+                    onChange={(e) => setEditingCard({ ...editingCard, title: e.target.value.toUpperCase() })} 
+                    placeholder="DIGITE O TÍTULO..."
+                    className="input text-xs font-medium"
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-muted uppercase">Métrica Principal</label>
+                    <select 
+                      value={editingCard.dataType}
+                      onChange={(e) => {
+                        const newType = e.target.value;
+                        let defaultFilter = 'data';
+                        if (newType === 'period') defaultFilter = 'mes';
+                        else if (newType === 'status') defaultFilter = 'Atende plenamente';
+                        setEditingCard({ ...editingCard, dataType: newType, dataFilter: defaultFilter });
+                      }}
+                      className="select text-xs font-medium"
+                    >
+                      <option value="total">Total de Observações</option>
+                      <option value="period">Tendência do Período</option>
+                      <option value="status">Frequência do Status</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-muted uppercase">Métrica Detalhada</label>
+                    {editingCard.dataType === 'total' && (
+                      <select 
+                        value={editingCard.dataFilter}
+                        onChange={(e) => setEditingCard({ ...editingCard, dataFilter: e.target.value })}
+                        className="select text-xs font-medium"
+                      >
+                        <option value="data">Agrupado por Data</option>
+                        <option value="nome">Por Professor (Top 5)</option>
+                        <option value="serie">Por Série/Turma (Top 5)</option>
+                      </select>
+                    )}
+                    {editingCard.dataType === 'period' && (
+                      <select 
+                        value={editingCard.dataFilter}
+                        onChange={(e) => setEditingCard({ ...editingCard, dataFilter: e.target.value })}
+                        className="select text-xs font-medium"
+                      >
+                        <option value="semana">Nesta Semana</option>
+                        <option value="mes">Neste Mês</option>
+                        <option value="bimestre">Neste Bimestre</option>
+                        <option value="ano">Neste Ano</option>
+                      </select>
+                    )}
+                    {editingCard.dataType === 'status' && (
+                      <select 
+                        value={editingCard.dataFilter}
+                        onChange={(e) => setEditingCard({ ...editingCard, dataFilter: e.target.value })}
+                        className="select text-xs font-medium"
+                      >
+                        <option value="Atende plenamente">Plenamente</option>
+                        <option value="Atende parcialmente">Parcialmente</option>
+                        <option value="Não atende">Não Atende</option>
+                        <option value="Não observado">Não Observado</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-muted uppercase">Tipo de Gráfico</label>
+                    <select 
+                      value={editingCard.chartType}
+                      onChange={(e) => setEditingCard({ ...editingCard, chartType: e.target.value })}
+                      className="select text-xs font-medium"
+                    >
+                      <option value="bar">📊 Gráfico de Barras</option>
+                      <option value="line">📈 Gráfico de Linha</option>
+                      <option value="area">📉 Gráfico de Área</option>
+                      <option value="pie">🍕 Gráfico de Pizza</option>
+                      <option value="radar">🕸️ Gráfico de Radar</option>
+                    </select>
+                  </div>
+
+                  {['bar', 'line', 'area'].includes(editingCard.chartType) && (
+                    <div className="flex flex-col justify-end gap-1.5 pb-2">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-muted">
+                        <input 
+                          type="checkbox" 
+                          checked={editingCard.showLabels} 
+                          onChange={(e) => setEditingCard({ ...editingCard, showLabels: e.target.checked })} 
+                          style={{ accentColor: previewColor }}
+                        />
+                        Exibir Rótulos no Gráfico
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2.5">
+                  <label className="text-xs font-bold text-muted uppercase flex items-center gap-1">
+                    <Palette size={13} /> Selecione a Cor Premium
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {premiumColors.map((colorItem) => {
+                      const isSelected = editingCard.color === colorItem.value;
+                      return (
+                        <button
+                          key={colorItem.name}
+                          type="button"
+                          onClick={() => setEditingCard({ ...editingCard, color: colorItem.value })}
+                          style={{
+                            backgroundColor: colorItem.value,
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            border: isSelected ? '2.5px solid var(--text-primary)' : '1px solid rgba(0,0,0,0.1)',
+                            boxShadow: isSelected ? '0 0 0 2px #ffffff, 0 4px 8px rgba(0,0,0,0.15)' : 'none',
+                            cursor: 'pointer',
+                            transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={colorItem.name}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* SAVE / CANCEL BUTTONS */}
+              <div className="flex gap-2 justify-end pt-4 border-t border-border">
+                <Button 
+                  variant="secondary" 
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={savingCard}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  variant="primary" 
+                  onClick={handleSave}
+                  disabled={savingCard}
+                  style={{ backgroundColor: previewColor }}
+                >
+                  {savingCard ? 'Salvando...' : 'Confirmar e Salvar'}
+                </Button>
+              </div>
+
+            </div>
+          );
+        })()}
+      </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
