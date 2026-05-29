@@ -132,7 +132,7 @@ export default function HelpDocumentationModal({ isOpen, onClose }) {
             </div>
             <div>
               <h2 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>Documentação Técnica SOSA</h2>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Central de Ajuda Interna e Especificações do Sistema • v1.01</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Central de Ajuda Interna e Especificações do Sistema • v1.02</span>
             </div>
           </div>
           <button
@@ -515,7 +515,7 @@ Regras Críticas:
           color: 'var(--text-muted)'
         }}>
           <span>SOSA • Rede Adventista de Ensino</span>
-          <span style={{ fontWeight: 'bold' }}>Revisão Técnica v1.01</span>
+          <span style={{ fontWeight: 'bold' }}>Revisão Técnica v1.02</span>
         </footer>
       </div>
     </div>

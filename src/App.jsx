@@ -411,7 +411,7 @@ function Layout({ children, onLogout, session }) {
           <button onClick={onLogout} className="btn btn-secondary" style={{ flex: 1, justifyContent: 'flex-start', border: 'none', color: 'var(--error)', padding: '8px 12px', fontSize: '13px' }}>
             <LogOut size={16} /> Sair
           </button>
-          <span style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-tertiary)', backgroundColor: 'var(--background)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', letterSpacing: '0.5px' }}>v1.01</span>
+          <span style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-tertiary)', backgroundColor: 'var(--background)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', letterSpacing: '0.5px' }}>v1.02</span>
         </div>
       </aside>
 
@@ -1167,7 +1167,7 @@ function App() {
 
           <div className="login-footer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
             <span>Desenvolvido com tecnologia de ponta para gestão escolar.</span>
-            <span style={{ fontSize: '10px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.4)', marginTop: '2px' }}>v1.01</span>
+            <span style={{ fontSize: '10px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.4)', marginTop: '2px' }}>v1.02</span>
           </div>
         </div>
       </div>
