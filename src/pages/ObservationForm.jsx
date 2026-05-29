@@ -161,7 +161,7 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
   const [showKeyPlain, setShowKeyPlain] = useState(false);
   const [detailLevel, setDetailLevel] = useState(2);
   const [aiModel, setAiModel] = useState(() => localStorage.getItem('sosa_ai_model') || 'llama-3.3-70b-versatile');
-  const [autonomy, setAutonomy] = useState(() => localStorage.getItem('sosa_ai_autonomy') || 'ia');
+  const [autonomy, setAutonomy] = useState(() => localStorage.getItem('sosa_ai_autonomy') || 'coordination');
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [customInstructions, setCustomInstructions] = useState(() => localStorage.getItem('sosa_custom_ai_instructions') || '');
 
@@ -242,7 +242,7 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
   // Sync global autonomy mode across all AiTextarea instances
   useEffect(() => {
     const handleGlobalAutonomyChange = () => {
-      const mode = localStorage.getItem('sosa_ai_autonomy') || 'ia';
+      const mode = localStorage.getItem('sosa_ai_autonomy') || 'coordination';
       setAutonomy(mode);
     };
     window.addEventListener('sosa_ai_autonomy_change', handleGlobalAutonomyChange);
@@ -337,14 +337,14 @@ IMPORTANTE (AUTONOMIA DA COORDENAÇÃO):
 - EVITE CLICHÊS DE INTELIGÊNCIA ARTIFICIAL: NUNCA use transições robóticas e jargões mecânicos típicos de IA (como "Ademais", "Outrossim", "Em suma", "Sob essa ótica", "Urge salientar", "É imperioso destacar", "Impulsionar/Potencializar de forma contínua"). Escreva de forma fluida, natural, elegante e humana.
 ${isSegmentEnhancement 
   ? '- O resultado deve ser o aprimoramento direto e exclusivo do trecho fornecido, mantendo a extensão aproximada do trecho e integrando-se perfeitamente de volta ao contexto de onde foi extraído.'
-  : '- O resultado deve parecer um único parágrafo fluido, coeso e extremamente profissional de 3 a 6 linhas.'
+  : '- O resultado deve ser o aprimoramento do rascunho fornecido, mantendo a extensão aproximada do texto original.'
 }
 - NUNCA use saudações, vocativos ou cabeçalhos de carta (ex: NÃO comece com "Prezado(a) professor(a)", "Olá").
 
 ${isSegmentEnhancement ? 'Trecho selecionado para refinar:' : 'Rascunho original escrito pelo coordenador para refinar:'}
 "${draftToEnhance}"
 
-Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.${getVerbosityInstruction(detailLevel)}`;
+Retorne APENAS o texto aprimorado final, sem introduções, aspas extras, explicações ou comentários adicionais.`;
         } else {
           const teacher = aiContext?.teacherName || "o(a) professor(a)";
           const teacherGender = aiContext?.teacherGender || "F";
@@ -768,27 +768,6 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
           <span className="sosa-ai-label" style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Autonomia:</span>
           <button
             type="button"
-            onClick={() => handleAutonomyChange('ia')}
-            title="Autonomia da IA: Lê notas do item, série, disciplina, professor e regras da Rede para sugerir observações completas."
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              padding: '1px 6px',
-              fontSize: '9px',
-              fontWeight: autonomy === 'ia' ? '700' : '400',
-              border: autonomy === 'ia' ? '1px solid #6366f1' : '1px solid #e5e7eb',
-              borderRadius: '4px',
-              backgroundColor: autonomy === 'ia' ? '#eef2ff' : 'transparent',
-              color: autonomy === 'ia' ? '#4f46e5' : 'var(--text-muted)',
-              cursor: 'pointer',
-              lineHeight: '1.6',
-              transition: 'all 0.15s',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            IA
-          </button>
-          <button
-            type="button"
             onClick={() => handleAutonomyChange('coordination')}
             title="Autonomia da Coordenação: Respeita estritamente o seu texto original/trecho, apenas aprimorando gramática e vocabulário pedagógico sem ler notas ou dados extras."
             onMouseDown={(e) => e.stopPropagation()}
@@ -808,42 +787,67 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
           >
             Coord.
           </button>
+          <button
+            type="button"
+            onClick={() => handleAutonomyChange('ia')}
+            title="Autonomia da IA: Lê notas do item, série, disciplina, professor e regras da Rede para sugerir observações completas."
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              padding: '1px 6px',
+              fontSize: '9px',
+              fontWeight: autonomy === 'ia' ? '700' : '400',
+              border: autonomy === 'ia' ? '1px solid #6366f1' : '1px solid #e5e7eb',
+              borderRadius: '4px',
+              backgroundColor: autonomy === 'ia' ? '#eef2ff' : 'transparent',
+              color: autonomy === 'ia' ? '#4f46e5' : 'var(--text-muted)',
+              cursor: 'pointer',
+              lineHeight: '1.6',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            IA
+          </button>
         </div>
 
         {/* Separator */}
-        <div className="sosa-ai-separator" style={{ width: '1px', height: '10px', backgroundColor: 'var(--border)' }} />
+        {autonomy === 'ia' && (
+          <div className="sosa-ai-separator" style={{ width: '1px', height: '10px', backgroundColor: 'var(--border)' }} />
+        )}
 
         {/* Detail Level Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-          <span className="sosa-ai-label" style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Tamanho:</span>
-          {DETAIL_LEVELS.map(level => (
-            <button
-              key={level.id}
-              type="button"
-              title={level.title}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => setDetailLevel(level.id)}
-              style={{
-                padding: '1px 6px',
-                fontSize: '9px',
-                fontWeight: detailLevel === level.id ? '700' : '400',
-                border: detailLevel === level.id ? '1px solid #a855f7' : '1px solid #e5e7eb',
-                borderRadius: '4px',
-                backgroundColor: detailLevel === level.id ? '#faf5ff' : 'transparent',
-                color: detailLevel === level.id ? '#7c3aed' : 'var(--text-muted)',
-                cursor: 'pointer',
-                lineHeight: '1.6',
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <span className="sosa-ai-btn-full">{level.label}</span>
-              <span className="sosa-ai-btn-short" style={{ display: 'none' }}>
-                {level.id === 1 ? 'Dir.' : level.id === 2 ? 'Det.' : 'Prof.'}
-              </span>
-            </button>
-          ))}
-        </div>
+        {autonomy === 'ia' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <span className="sosa-ai-label" style={{ fontSize: '9px', color: 'var(--text-muted)', marginRight: '2px', userSelect: 'none', whiteSpace: 'nowrap' }}>Tamanho:</span>
+            {DETAIL_LEVELS.map(level => (
+              <button
+                key={level.id}
+                type="button"
+                title={level.title}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setDetailLevel(level.id)}
+                style={{
+                  padding: '1px 6px',
+                  fontSize: '9px',
+                  fontWeight: detailLevel === level.id ? '700' : '400',
+                  border: detailLevel === level.id ? '1px solid #a855f7' : '1px solid #e5e7eb',
+                  borderRadius: '4px',
+                  backgroundColor: detailLevel === level.id ? '#faf5ff' : 'transparent',
+                  color: detailLevel === level.id ? '#7c3aed' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  lineHeight: '1.6',
+                  transition: 'all 0.15s',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span className="sosa-ai-btn-full">{level.label}</span>
+                <span className="sosa-ai-btn-short" style={{ display: 'none' }}>
+                  {level.id === 1 ? 'Dir.' : level.id === 2 ? 'Det.' : 'Prof.'}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       
       {/* Action Container */}
