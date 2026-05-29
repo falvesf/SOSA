@@ -616,9 +616,28 @@ export default function Dashboard() {
       case 'bar_horizontal':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart layout="vertical" data={data} margin={{ top: 4, right: 16, left: isCompactMode ? 4 : 20, bottom: 4 }}>
+            <BarChart layout="vertical" data={data} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} width={isCompactMode ? 35 : 60} />
+              <YAxis 
+                type="category" 
+                dataKey="label" 
+                stroke="var(--text-muted)" 
+                fontSize={8} 
+                tickLine={false} 
+                axisLine={false} 
+                width={isMobile ? (isCompactMode ? 55 : 65) : (isCompactMode ? 85 : 100)}
+                tickFormatter={(val) => {
+                  if (!val) return '';
+                  if (isMobile) {
+                    if (val.toLowerCase() === 'atende plenamente') return 'Plenamente';
+                    if (val.toLowerCase() === 'atende parcialmente') return 'Parcialmente';
+                    if (val.toLowerCase() === 'não atende') return 'Não Atende';
+                    if (val.toLowerCase() === 'não observado') return 'Não Obs.';
+                    return val.length > 12 ? val.substring(0, 10) + '..' : val;
+                  }
+                  return val;
+                }}
+              />
               <Bar dataKey="value" fill={cardColor} radius={isCompactMode ? [0, 3, 3, 0] : [0, 4, 4, 0]}>
                 {card.showLabels && (
                   <LabelList dataKey="value" position="right" style={{ fill: 'var(--text-primary)', fontSize: isCompactMode ? '7px' : '9px', fontWeight: 'bold' }} />
@@ -949,18 +968,22 @@ export default function Dashboard() {
               </div>
 
               {isCompactMode ? (
-                <div className="metrics-compact-layout">
-                  <div className="metrics-compact-info">
-                    <div className="metrics-compact-header">
-                      <div className="metrics-compact-icon-wrapper" style={{ backgroundColor: cardColor + '15' }}>
-                        <CardIcon size={13} style={{ color: cardColor }} />
-                      </div>
-                      <span className="metrics-compact-value">{value}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+                  {/* Top Title Row (Full Width) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '4px' }}>
+                    <div style={{ backgroundColor: cardColor + '15', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <CardIcon size={12} style={{ color: cardColor }} />
                     </div>
-                    <div className="metrics-compact-meta">
-                      <p className="metrics-compact-label" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '100px' }}>
-                        {card.title}
-                      </p>
+                    <p style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0, letterSpacing: '0.03em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }} title={card.title}>
+                      {card.title}
+                    </p>
+                  </div>
+
+                  {/* Bottom Content Row */}
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 1, width: '100%', gap: '8px' }}>
+                    {/* Left side: Snug Value & Filter */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '75px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--text-primary)', lineHeight: '1.1' }}>{value}</span>
                       {card.dataType === 'total' && (
                         <select 
                           style={cardSelectStyle} 
@@ -997,9 +1020,11 @@ export default function Dashboard() {
                         </select>
                       )}
                     </div>
-                  </div>
-                  <div className="metrics-compact-chart-container">
-                    {renderCardChart(card, data, cardColor)}
+
+                    {/* Right side: Maximized Chart Container */}
+                    <div style={{ flex: 1, height: isMobile ? '38px' : '48px', display: 'flex', alignItems: 'flex-end', minWidth: 0 }}>
+                      {renderCardChart(card, data, cardColor)}
+                    </div>
                   </div>
                 </div>
               ) : (
