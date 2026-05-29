@@ -825,10 +825,16 @@ export default function Dashboard() {
   const cardSelectStyle = { border: 'none', background: 'transparent', fontSize: '11px', padding: 0, outline: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: '600' };
 
   return (
-    <div className="container animate-fade-in" style={{ padding: 'var(--space-4) 0' }}>
+    <div 
+      className="container animate-fade-in" 
+      style={{ 
+        paddingTop: isPinned ? '0' : 'var(--space-4)', 
+        paddingBottom: 'var(--space-8)' 
+      }}
+    >
       <div className={isPinned ? 'sticky-metrics-container' : ''}>
         {/* Title section (contains buttons on the right) */}
-        <div className="flex justify-between items-end mb-6 gap-4">
+        <div className="flex justify-between items-end dashboard-title-section gap-4">
         <div>
           <h1 className="h1" style={{ margin: 0 }}>Dashboard</h1>
           <p className="text-xs text-muted font-medium">{selectedBimestre}</p>
