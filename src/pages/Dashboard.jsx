@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, handleAuthError } from '../lib/supabase';
 import { Card, Button, Modal, ConfirmModal, Toast } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown, Plus, Settings, X, Palette, RotateCcw } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown, Plus, Settings, X, Palette, RotateCcw, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
 import ObservationDetails from './ObservationDetails';
 import { useSync } from '../contexts/SyncContext';
 import { removeQueueItem, cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
@@ -42,6 +42,13 @@ export default function Dashboard() {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [deleteIsOffline, setDeleteIsOffline] = useState(false);
   const [toast, setToast] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [subjects, setSubjects] = useState([]);
 
@@ -833,13 +840,20 @@ export default function Dashboard() {
               localStorage.setItem('dashboard_compact_mode', String(next));
               return next;
             })} 
-            style={{ padding: '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            style={{ padding: isMobile ? '6px' : '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+            title={isCompactMode ? 'Mudar para Modo Expandido' : 'Mudar para Modo Compacto'}
           >
-            {isCompactMode ? <BarChart3 size={14} /> : <Eye size={14} />}
-            {isCompactMode ? 'Modo Expandido' : 'Modo Compacto'}
+            {isCompactMode ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+            {!isMobile && (isCompactMode ? 'Modo Expandido' : 'Modo Compacto')}
           </Button>
-          <Button variant="secondary" onClick={fetchObservations} style={{ padding: '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }} >
-            <Calendar size={14} /> Atualizar
+          <Button 
+            variant="secondary" 
+            onClick={fetchObservations} 
+            style={{ padding: isMobile ? '6px' : '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} 
+            title="Atualizar Dados"
+          >
+            <RefreshCw size={14} />
+            {!isMobile && 'Atualizar'}
           </Button>
           <Button 
             variant={isPinned ? "primary" : "secondary"} 

@@ -307,14 +307,30 @@ export default function HelpDocumentationModal({ isOpen, onClose }) {
 
                 {/* Dashboard */}
                 <div style={{ backgroundColor: 'var(--surface)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                  <h4 style={{ fontSize: '13px', fontWeight: '700', color: '#4f46e5', margin: '0 0 6px 0' }}>1. Painel Principal (Dashboard)</h4>
+                  <h4 style={{ fontSize: '13px', fontWeight: '700', color: '#4f46e5', margin: '0 0 6px 0' }}>1. Painel Principal (Dashboard Premium)</h4>
                   <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                    Central de monitoramento de visitas da escola ativa selecionada.
+                    Central analítica dinâmica e 100% personalizável para monitoramento pedagógico.
                   </p>
                   <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                    <li><strong>Métricas Gerais:</strong> Total de Visitas, Total de Observações Cadastradas e Tendência de Desempenho Pedagógico da escola.</li>
-                    <li><strong>Modos de Exibição:</strong> Modo Compacto (sparklines otimizadas lado a lado para celulares) e Modo Expandido (Gráficos de Linha e Barra ocupando a largura total de 100% com legendas de eixos completas).</li>
-                    <li><strong>Rol de Observações Recentes:</strong> Listagem cronológica dos últimos formulários enviados, permitindo visualizar detalhes rápidos ou excluir registros caso o perfil do usuário seja Superadmin ou Administrador de Escola.</li>
+                    <li><strong>Métricas Customizáveis:</strong> O coordenador pode criar e fixar até 4 cards analíticos simultaneamente. As configurações são sincronizadas na nuvem por usuário no Supabase.</li>
+                    <li><strong>Grade Dinâmica Autoajustável:</strong> O grid adapta-se automaticamente à quantidade de cards ativos:
+                      <ul style={{ paddingLeft: '12px', margin: '2px 0' }}>
+                        <li><em>1 Card:</em> Ocupa 100% do espaço horizontal, permitindo eixos detalhados.</li>
+                        <li><em>2 ou 3 Cards:</em> Dividem a tela lado a lado em uma única linha.</li>
+                        <li><em>4 Cards:</em> Organizados em 2 linhas simétricas (2 cards por linha).</li>
+                      </ul>
+                    </li>
+                    <li><strong>Galeria de 8 Tipos de Gráficos:</strong> Escolha livre entre Barras Verticais, Barras Horizontais, Linhas, Área, Pizza (com rótulos internos de alto contraste), Rosca (com legendas), Radar e Dispersão (Scatter).</li>
+                    <li><strong>Filtros e Dimensões Avançadas:</strong> Capacidade de agrupar observações por Data, Professor, Série, Disciplina, Segmento Escolar, Bimestre, ou isolar individualmente o desempenho de qualquer uma das 5 Dimensões Pedagógicas (Planejamento, Metodologia, Avaliação, Gestão ou Identidade).</li>
+                    <li><strong>Ações de Navegação e Responsividade:</strong>
+                      <ul style={{ paddingLeft: '12px', margin: '2px 0' }}>
+                        <li><em>Adicionar & Redefinir:</em> Ícones discretos para adicionar novos gráficos ou redefinir instantaneamente as métricas iniciais sugeridas pelo sistema.</li>
+                        <li><em>Modo Compacto / Expandido:</em> Ajuste visual dinâmico com ícones adaptativos de redimensionamento (`Maximize` e `Minimize`).</li>
+                        <li><em>Fixação Dinâmica (Sticky):</em> Opção de manter as métricas sempre visíveis no topo da tela durante a rolagem dos registros.</li>
+                        <li><em>Mobile-Aware:</em> Em celulares, os textos dos botões de ação são ocultados de forma inteligente para que toda a barra caiba na tela sem exigir rolagem horizontal.</li>
+                      </ul>
+                    </li>
+                    <li><strong>Rol de Observações Recentes:</strong> Listagem cronológica dos últimos formulários com visualização de detalhes e controle de exclusão seguro.</li>
                   </ul>
                 </div>
 
