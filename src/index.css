@@ -604,11 +604,11 @@ input, select, textarea {
 }
 
 .dashboard-grid.grid-expanded {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--grid-cols, 3), minmax(0, 1fr));
 }
 
 .dashboard-grid.grid-compact {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--grid-cols, 3), minmax(0, 1fr));
 }
 
 .metrics-card {

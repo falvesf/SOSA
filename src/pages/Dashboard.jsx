@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, handleAuthError } from '../lib/supabase';
 import { Card, Button, Modal, ConfirmModal, Toast } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown, Plus, Settings, X, Palette } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown, Plus, Settings, X, Palette, RotateCcw } from 'lucide-react';
 import ObservationDetails from './ObservationDetails';
 import { useSync } from '../contexts/SyncContext';
 import { removeQueueItem, cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
@@ -27,7 +27,8 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
-  Legend
+  Legend,
+  LabelList
 } from 'recharts';
 
 export default function Dashboard() {
@@ -314,6 +315,34 @@ export default function Dashboard() {
           .map(([name, count]) => ({ label: name, value: count }))
           .sort((a, b) => b.value - a.value)
           .slice(0, 5);
+      } else if (card.dataFilter === 'disciplina') {
+        const counts = {};
+        observationsList.forEach(obs => {
+          const name = getObservationSubjectNames(obs);
+          counts[name] = (counts[name] || 0) + 1;
+        });
+        data = Object.entries(counts)
+          .map(([name, count]) => ({ label: name, value: count }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5);
+      } else if (card.dataFilter === 'segmento') {
+        const counts = {};
+        observationsList.forEach(obs => {
+          const name = obs.series?.segments?.name || 'N/A';
+          counts[name] = (counts[name] || 0) + 1;
+        });
+        data = Object.entries(counts)
+          .map(([name, count]) => ({ label: name, value: count }))
+          .sort((a, b) => b.value - a.value);
+      } else if (card.dataFilter === 'bimestre') {
+        const counts = {};
+        observationsList.forEach(obs => {
+          const name = obs.bimestre || 'N/A';
+          counts[name] = (counts[name] || 0) + 1;
+        });
+        data = Object.entries(counts)
+          .map(([name, count]) => ({ label: name, value: count }))
+          .sort((a, b) => a.label.localeCompare(b.label));
       }
       value = observationsList.length;
     } else if (card.dataType === 'period') {
@@ -372,6 +401,20 @@ export default function Dashboard() {
         const evals = [obs.planning_evaluation, obs.methodology_evaluation, obs.learning_evaluation, obs.management_evaluation, obs.identity_evaluation];
         return sum + evals.filter(e => e === card.dataFilter).length;
       }, 0);
+    } else if (card.dataType === 'dimension') {
+      const dimKey = card.dataFilter;
+      const statuses = ['Atende plenamente', 'Atende parcialmente', 'Não atende', 'Não observado'];
+      const statusLabels = {
+        'Atende plenamente': 'Plenamente',
+        'Atende parcialmente': 'Parcialmente',
+        'Não atende': 'Não Atende',
+        'Não observado': 'Não Obs.'
+      };
+      data = statuses.map(status => {
+        const count = observationsList.filter(obs => obs[dimKey] === status).length;
+        return { label: statusLabels[status], value: count };
+      });
+      value = observationsList.filter(obs => obs[dimKey] && obs[dimKey] !== 'Não observado').length;
     }
 
     return { data, value };
@@ -398,13 +441,19 @@ export default function Dashboard() {
       />
     );
 
+    const extraMargin = card.showLabels ? 14 : 4;
+
     switch (card.chartType) {
       case 'line':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
-              <Line type="monotone" dataKey="value" stroke={cardColor} strokeWidth={2} dot={{ r: isCompactMode ? 1 : 2 }} />
-              {!isCompactMode && card.showLabels && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
+            <LineChart data={data} margin={{ top: extraMargin, right: 8, left: 8, bottom: 2 }}>
+              <Line type="monotone" dataKey="value" stroke={cardColor} strokeWidth={2} dot={{ r: isCompactMode ? 1 : 2 }}>
+                {card.showLabels && (
+                  <LabelList dataKey="value" position="top" style={{ fill: 'var(--text-primary)', fontSize: isCompactMode ? '7px' : '9px', fontWeight: 'bold' }} />
+                )}
+              </Line>
+              {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
               {renderTooltip()}
             </LineChart>
           </ResponsiveContainer>
@@ -412,15 +461,19 @@ export default function Dashboard() {
       case 'area':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
+            <AreaChart data={data} margin={{ top: extraMargin, right: 8, left: 8, bottom: 2 }}>
               <defs>
                 <linearGradient id={`colorValue-${card.id}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={cardColor} stopOpacity={0.3}/>
                   <stop offset="95%" stopColor={cardColor} stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <Area type="monotone" dataKey="value" stroke={cardColor} fillOpacity={1} fill={`url(#colorValue-${card.id})`} strokeWidth={2} />
-              {!isCompactMode && card.showLabels && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
+              <Area type="monotone" dataKey="value" stroke={cardColor} fillOpacity={1} fill={`url(#colorValue-${card.id})`} strokeWidth={2}>
+                {card.showLabels && (
+                  <LabelList dataKey="value" position="top" style={{ fill: 'var(--text-primary)', fontSize: isCompactMode ? '7px' : '9px', fontWeight: 'bold' }} />
+                )}
+              </Area>
+              {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
               {renderTooltip()}
             </AreaChart>
           </ResponsiveContainer>
@@ -428,15 +481,26 @@ export default function Dashboard() {
       case 'pie':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
               <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius={isCompactMode ? 8 : 16}
-                outerRadius={isCompactMode ? 18 : 34}
-                paddingAngle={3}
+                innerRadius={isCompactMode ? 0 : 16}
+                outerRadius={isCompactMode ? 28 : 50}
+                paddingAngle={2}
                 dataKey="value"
+                label={card.showLabels ? ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+                  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+                  const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+                  const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+                  return (
+                    <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" style={{ fontSize: '9px', fontWeight: '800', textShadow: '0px 1px 2px rgba(0,0,0,0.6)' }}>
+                      {value}
+                    </text>
+                  );
+                } : false}
+                labelLine={false}
               >
                 {data.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={premiumColors[index % premiumColors.length].value} />
@@ -446,16 +510,75 @@ export default function Dashboard() {
                 formatter={(value) => [value, 'Quantidade']}
                 contentStyle={{ fontSize: '9px', borderRadius: '6px', border: 'none' }}
               />
+              {!isCompactMode && (
+                <Legend 
+                  iconSize={7} 
+                  iconType="circle" 
+                  layout="horizontal" 
+                  verticalAlign="bottom" 
+                  align="center"
+                  wrapperStyle={{ fontSize: '8px', color: 'var(--text-secondary)', marginTop: '4px' }}
+                />
+              )}
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      case 'donut':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={isCompactMode ? 18 : 34}
+                outerRadius={isCompactMode ? 28 : 50}
+                paddingAngle={3}
+                dataKey="value"
+                label={card.showLabels ? ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+                  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+                  const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+                  const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+                  return (
+                    <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" style={{ fontSize: '9px', fontWeight: '800', textShadow: '0px 1px 2px rgba(0,0,0,0.6)' }}>
+                      {value}
+                    </text>
+                  );
+                } : false}
+                labelLine={false}
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={premiumColors[index % premiumColors.length].value} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value) => [value, 'Quantidade']}
+                contentStyle={{ fontSize: '9px', borderRadius: '6px', border: 'none' }}
+              />
+              {!isCompactMode && (
+                <Legend 
+                  iconSize={7} 
+                  iconType="circle" 
+                  layout="horizontal" 
+                  verticalAlign="bottom" 
+                  align="center"
+                  wrapperStyle={{ fontSize: '8px', color: 'var(--text-secondary)', marginTop: '4px' }}
+                />
+              )}
             </PieChart>
           </ResponsiveContainer>
         );
       case 'radar':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius={isCompactMode ? 14 : 32} data={data}>
+            <RadarChart cx="50%" cy="50%" outerRadius={isCompactMode ? 30 : 54} data={data}>
               <PolarGrid stroke="var(--border)" />
               <PolarAngleAxis dataKey="label" fontSize={isCompactMode ? 6 : 8} tickLine={false} />
-              <Radar name="Valor" dataKey="value" stroke={cardColor} fill={cardColor} fillOpacity={0.4} />
+              <Radar name="Valor" dataKey="value" stroke={cardColor} fill={cardColor} fillOpacity={0.4}>
+                {card.showLabels && (
+                  <LabelList dataKey="value" stroke="none" style={{ fill: 'var(--text-primary)', fontSize: isCompactMode ? '7px' : '9px', fontWeight: 'bold' }} />
+                )}
+              </Radar>
               <Tooltip 
                 formatter={(value) => [value, 'Quantidade']}
                 contentStyle={{ fontSize: '9px', borderRadius: '6px', border: 'none' }}
@@ -463,13 +586,52 @@ export default function Dashboard() {
             </RadarChart>
           </ResponsiveContainer>
         );
+      case 'scatter':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: extraMargin, right: 12, left: 12, bottom: 2 }}>
+              <Line 
+                type="monotone" 
+                dataKey="value" 
+                stroke="transparent" 
+                dot={{ r: isCompactMode ? 3.5 : 5, fill: cardColor, stroke: '#ffffff', strokeWidth: 1.5 }}
+                activeDot={{ r: 7 }}
+              >
+                {card.showLabels && (
+                  <LabelList dataKey="value" position="top" style={{ fill: 'var(--text-primary)', fontSize: isCompactMode ? '7px' : '9px', fontWeight: 'bold' }} />
+                )}
+              </Line>
+              {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
+              {renderTooltip()}
+            </LineChart>
+          </ResponsiveContainer>
+        );
+      case 'bar_horizontal':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart layout="vertical" data={data} margin={{ top: 4, right: 16, left: isCompactMode ? 4 : 20, bottom: 4 }}>
+              <XAxis type="number" hide />
+              <YAxis type="category" dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} width={isCompactMode ? 35 : 60} />
+              <Bar dataKey="value" fill={cardColor} radius={isCompactMode ? [0, 3, 3, 0] : [0, 4, 4, 0]}>
+                {card.showLabels && (
+                  <LabelList dataKey="value" position="right" style={{ fill: 'var(--text-primary)', fontSize: isCompactMode ? '7px' : '9px', fontWeight: 'bold' }} />
+                )}
+              </Bar>
+              {renderTooltip()}
+            </BarChart>
+          </ResponsiveContainer>
+        );
       case 'bar':
       default:
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
-              <Bar dataKey="value" fill={cardColor} radius={isCompactMode ? [3, 3, 0, 0] : [4, 4, 0, 0]} />
-              {!isCompactMode && card.showLabels && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
+            <BarChart data={data} margin={{ top: extraMargin, right: 2, left: 2, bottom: 2 }}>
+              <Bar dataKey="value" fill={cardColor} radius={isCompactMode ? [3, 3, 0, 0] : [4, 4, 0, 0]}>
+                {card.showLabels && (
+                  <LabelList dataKey="value" position="top" style={{ fill: 'var(--text-primary)', fontSize: isCompactMode ? '7px' : '9px', fontWeight: 'bold' }} />
+                )}
+              </Bar>
+              {!isCompactMode && <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} />}
               {renderTooltip()}
             </BarChart>
           </ResponsiveContainer>
@@ -501,6 +663,13 @@ export default function Dashboard() {
     setCustomCards(updated);
     await saveCardsToCloud(updated);
     setToast({ message: 'Gráfico removido com sucesso!' });
+  };
+
+  const handleResetToDefaultCards = async () => {
+    const defaults = getDefaultCards();
+    setCustomCards(defaults);
+    await saveCardsToCloud(defaults);
+    setToast({ message: 'Métricas redefinidas para o padrão!' });
   };
 
   const handleCardFilterChange = async (cardId, newFilterValue) => {
@@ -638,6 +807,25 @@ export default function Dashboard() {
           <p className="text-xs text-muted font-medium">{selectedBimestre}</p>
         </div>
         <div className="flex gap-2 items-center">
+          {customCards.length < 4 && (
+            <Button 
+              variant="primary" 
+              onClick={handleAddNewCard} 
+              style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: '3px', borderRadius: '6px' }}
+              title="Adicionar Gráfico"
+            >
+              <Plus size={13} />
+              <BarChart3 size={13} />
+            </Button>
+          )}
+          <Button 
+            variant="secondary" 
+            onClick={handleResetToDefaultCards} 
+            style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}
+            title="Redefinir Métricas Padrão"
+          >
+            <RotateCcw size={14} />
+          </Button>
           <Button 
             variant="secondary" 
             onClick={() => setIsCompactMode(prev => {
@@ -669,7 +857,15 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards Grid */}
-      <div className={`dashboard-grid ${isCompactMode ? 'grid-compact' : 'grid-expanded'} ${isPinned ? 'sticky-metrics-container' : ''}`} style={{ marginBottom: isPinned ? 'var(--space-6)' : 0 }}>
+      <div 
+        className={`dashboard-grid ${isCompactMode ? 'grid-compact' : 'grid-expanded'} ${isPinned ? 'sticky-metrics-container' : ''}`} 
+        style={{ 
+          marginBottom: isPinned ? 'var(--space-6)' : 0,
+          '--grid-cols': customCards.length === 1 ? 1 : 
+                        customCards.length === 4 ? 2 : 
+                        customCards.length
+        }}
+      >
         {customCards.map((card) => {
           const { data, value } = getDynamicChartData(card);
           const cardColor = card.color || '#4f46e5';
@@ -846,29 +1042,6 @@ export default function Dashboard() {
             </Card>
           );
         })}
-
-        {/* Dynamic Add Card Slot */}
-        {customCards.length < 4 && (
-          <Card 
-            className={`card-compact metrics-card flex flex-col items-center justify-center cursor-pointer transition-all duration-200`}
-            onClick={handleAddNewCard}
-            style={{ 
-              border: '2px dashed var(--border)', 
-              minHeight: isCompactMode ? '68px' : '154px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              backgroundColor: '#fafafa',
-              borderRadius: 'var(--radius-lg)',
-              cursor: 'pointer'
-            }}
-          >
-            <div className="flex flex-col items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-              <Plus size={isCompactMode ? 16 : 24} />
-              {!isCompactMode && <span style={{ fontSize: '11px', fontWeight: '600' }}>Adicionar Gráfico</span>}
-            </div>
-          </Card>
-        )}
       </div>
 
       {/* Recent Observations */}
@@ -1029,9 +1202,21 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <span className="text-xs text-muted" style={{ fontWeight: '600' }}>
-                        {previewCard.dataType === 'total' && (previewCard.dataFilter === 'data' ? 'Por Data' : previewCard.dataFilter === 'nome' ? 'Por Professor' : 'Por Série')}
+                        {previewCard.dataType === 'total' && (
+                          previewCard.dataFilter === 'data' ? 'Por Data' : 
+                          previewCard.dataFilter === 'nome' ? 'Por Professor' : 
+                          previewCard.dataFilter === 'serie' ? 'Por Série' : 
+                          previewCard.dataFilter === 'disciplina' ? 'Por Disciplina' : 
+                          previewCard.dataFilter === 'segmento' ? 'Por Segmento' : 'Por Bimestre'
+                        )}
                         {previewCard.dataType === 'period' && `Neste ${previewCard.dataFilter === 'mes' ? 'Mês' : previewCard.dataFilter === 'semana' ? 'Semana' : previewCard.dataFilter === 'bimestre' ? 'Bimestre' : 'Ano'}`}
                         {previewCard.dataType === 'status' && previewCard.dataFilter}
+                        {previewCard.dataType === 'dimension' && (
+                          previewCard.dataFilter === 'planning_evaluation' ? 'Planejamento' :
+                          previewCard.dataFilter === 'methodology_evaluation' ? 'Metodologia' :
+                          previewCard.dataFilter === 'learning_evaluation' ? 'Aprendizagem' :
+                          previewCard.dataFilter === 'management_evaluation' ? 'Gestão de Sala' : 'Identidade'
+                        )}
                       </span>
                     </div>
                     <div className="metrics-expanded-chart-container" style={{ minHeight: '92px', marginTop: 'var(--space-2)' }}>
@@ -1065,6 +1250,7 @@ export default function Dashboard() {
                         let defaultFilter = 'data';
                         if (newType === 'period') defaultFilter = 'mes';
                         else if (newType === 'status') defaultFilter = 'Atende plenamente';
+                        else if (newType === 'dimension') defaultFilter = 'planning_evaluation';
                         setEditingCard({ ...editingCard, dataType: newType, dataFilter: defaultFilter });
                       }}
                       className="select text-xs font-medium"
@@ -1072,6 +1258,7 @@ export default function Dashboard() {
                       <option value="total">Total de Observações</option>
                       <option value="period">Tendência do Período</option>
                       <option value="status">Frequência do Status</option>
+                      <option value="dimension">Avaliação por Dimensão</option>
                     </select>
                   </div>
 
@@ -1086,6 +1273,9 @@ export default function Dashboard() {
                         <option value="data">Agrupado por Data</option>
                         <option value="nome">Por Professor (Top 5)</option>
                         <option value="serie">Por Série/Turma (Top 5)</option>
+                        <option value="disciplina">Por Disciplina (Top 5)</option>
+                        <option value="segmento">Por Segmento Escolar</option>
+                        <option value="bimestre">Por Bimestre</option>
                       </select>
                     )}
                     {editingCard.dataType === 'period' && (
@@ -1112,6 +1302,19 @@ export default function Dashboard() {
                         <option value="Não observado">Não Observado</option>
                       </select>
                     )}
+                    {editingCard.dataType === 'dimension' && (
+                      <select 
+                        value={editingCard.dataFilter}
+                        onChange={(e) => setEditingCard({ ...editingCard, dataFilter: e.target.value })}
+                        className="select text-xs font-medium"
+                      >
+                        <option value="planning_evaluation">1. Planejamento e Avaliação</option>
+                        <option value="methodology_evaluation">2. Metodologia e Prática</option>
+                        <option value="learning_evaluation">3. Engajamento e Aprendizagem</option>
+                        <option value="management_evaluation">4. Gestão de Sala e Liderança</option>
+                        <option value="identity_evaluation">5. Identidade Confessional</option>
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -1123,27 +1326,28 @@ export default function Dashboard() {
                       onChange={(e) => setEditingCard({ ...editingCard, chartType: e.target.value })}
                       className="select text-xs font-medium"
                     >
-                      <option value="bar">📊 Gráfico de Barras</option>
+                      <option value="bar">📊 Barras Verticais</option>
+                      <option value="bar_horizontal">🟰 Barras Horizontais</option>
                       <option value="line">📈 Gráfico de Linha</option>
                       <option value="area">📉 Gráfico de Área</option>
                       <option value="pie">🍕 Gráfico de Pizza</option>
+                      <option value="donut">🍩 Gráfico de Rosca</option>
                       <option value="radar">🕸️ Gráfico de Radar</option>
+                      <option value="scatter">📍 Gráfico de Pontos</option>
                     </select>
                   </div>
 
-                  {['bar', 'line', 'area'].includes(editingCard.chartType) && (
-                    <div className="flex flex-col justify-end gap-1.5 pb-2">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-muted">
-                        <input 
-                          type="checkbox" 
-                          checked={editingCard.showLabels} 
-                          onChange={(e) => setEditingCard({ ...editingCard, showLabels: e.target.checked })} 
-                          style={{ accentColor: previewColor }}
-                        />
-                        Exibir Rótulos no Gráfico
-                      </label>
-                    </div>
-                  )}
+                  <div className="flex flex-col justify-end gap-1.5 pb-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-muted">
+                      <input 
+                        type="checkbox" 
+                        checked={editingCard.showLabels} 
+                        onChange={(e) => setEditingCard({ ...editingCard, showLabels: e.target.checked })} 
+                        style={{ accentColor: previewColor }}
+                      />
+                      Exibir Rótulos no Gráfico
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-2.5">
