@@ -826,8 +826,9 @@ export default function Dashboard() {
 
   return (
     <div className="container animate-fade-in" style={{ padding: 'var(--space-4) 0' }}>
-      {/* Title section (contains buttons on the right) */}
-      <div className="flex justify-between items-end mb-6 gap-4">
+      <div className={isPinned ? 'sticky-metrics-container' : ''}>
+        {/* Title section (contains buttons on the right) */}
+        <div className="flex justify-between items-end mb-6 gap-4">
         <div>
           <h1 className="h1" style={{ margin: 0 }}>Dashboard</h1>
           <p className="text-xs text-muted font-medium">{selectedBimestre}</p>
@@ -891,9 +892,8 @@ export default function Dashboard() {
 
       {/* Stats Cards Grid */}
       <div 
-        className={`dashboard-grid ${isCompactMode ? 'grid-compact' : 'grid-expanded'} ${isPinned ? 'sticky-metrics-container' : ''}`} 
+        className={`dashboard-grid ${isCompactMode ? 'grid-compact' : 'grid-expanded'}`} 
         style={{ 
-          marginBottom: isPinned ? 'var(--space-6)' : 0,
           '--grid-cols': customCards.length === 1 ? 1 : 
                         customCards.length === 4 ? 2 : 
                         customCards.length
@@ -1082,6 +1082,7 @@ export default function Dashboard() {
           );
         })}
       </div>
+    </div>
 
       {/* Recent Observations */}
       <Card className="card-compact">

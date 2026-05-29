@@ -29,6 +29,7 @@ Todos os registros notáveis das mudanças, melhorias, correções e novas funci
   - **Modo Compacto/Expandido**: Substituído por **`Maximize2`** e **`Minimize2`** para controle tátil de zoom de layout ⤢/⤡.
 - **Cabeçalho de Título Único nos Cards (Compact Mode)**: Redesenho estrutural da grade compacta. Os títulos agora residem em uma linha horizontal de largura total no topo do card, eliminando truncamentos e liberando espaço imenso na base para o gráfico.
 - **Alocação Inteligente de Área do Gráfico (Desktop)**: Diminuição da largura da coluna de seletores de `42%` para `120px` fixos, maximizando a área de desenho do Recharts.
+- **Painel Sticky Unificado (Congelamento Completo)**: Refatoração estrutural da fixação (`isPinned`). Ao ativar o alfinete, agora **tanto os cards de métricas quanto o cabeçalho ("Dashboard", bimestre e todos os botões de ação de controle)** são congelados juntos no topo da tela, permitindo que a tabela de registros abaixo role livremente por baixo deles sem perder o acesso aos botões do painel superior.
 
 ### 🐛 Correções (Fixes) & Ajustes
 - **Ajuste de Clipping em Gráficos Circulares**: Correção de colisão e corte de rótulos em fatias e anéis de gráficos de Pizza e Rosca com sombras de alta visibilidade e eixos precisos.
