@@ -90,7 +90,23 @@ export default function Dashboard() {
   };
 
   // Card Selectors & Customization States
-  const [customCards, setCustomCards] = useState([]);
+  const [customCards, setCustomCards] = useState(() => {
+    const local = localStorage.getItem('sosa_custom_dashboard_cards');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [];
+  });
+  const [cardsLoaded, setCardsLoaded] = useState(() => {
+    const local = localStorage.getItem('sosa_custom_dashboard_cards');
+    return !!local;
+  });
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingCard, setSavingCard] = useState(false);
@@ -126,6 +142,29 @@ export default function Dashboard() {
       showLabels: true
     }
   ];
+
+  const isDefaultConfig = useMemo(() => {
+    if (!cardsLoaded) return true;
+    const defaults = getDefaultCards();
+    if (customCards.length !== defaults.length) return false;
+    for (let i = 0; i < defaults.length; i++) {
+      const def = defaults[i];
+      const cur = customCards[i];
+      if (!cur) return false;
+      if (
+        cur.id !== def.id ||
+        cur.title !== def.title ||
+        cur.dataType !== def.dataType ||
+        cur.dataFilter !== def.dataFilter ||
+        cur.chartType !== def.chartType ||
+        cur.color !== def.color ||
+        cur.showLabels !== def.showLabels
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }, [customCards, cardsLoaded]);
 
   const premiumColors = [
     { name: 'Indigo', value: '#4f46e5' },
@@ -183,6 +222,7 @@ export default function Dashboard() {
       cards = getDefaultCards();
     }
     setCustomCards(cards);
+    setCardsLoaded(true);
   };
 
   // Compact Mode State (persisted in localStorage)
@@ -853,7 +893,8 @@ export default function Dashboard() {
           )}
           <Button 
             variant="secondary" 
-            onClick={handleResetToDefaultCards} 
+            onClick={() => setIsResetConfirmOpen(true)} 
+            disabled={isDefaultConfig}
             style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}
             title="Redefinir Métricas Padrão"
           >
@@ -1178,6 +1219,17 @@ export default function Dashboard() {
         onClose={() => setDeleteConfirmId(null)}
         onConfirm={confirmDelete}
         message="Tem certeza que deseja excluir esta observação? Esta ação não pode ser desfeita."
+      />
+
+      <ConfirmModal 
+        isOpen={isResetConfirmOpen}
+        onClose={() => setIsResetConfirmOpen(false)}
+        onConfirm={handleResetToDefaultCards}
+        title="Redefinir Métricas Padrão"
+        message="Tem certeza que deseja redefinir os gráficos para a configuração padrão? Toda a personalização realizada (títulos, filtros, tipos de gráfico e cores) será perdida."
+        confirmText="Sim, Redefinir"
+        cancelText="Cancelar"
+        variant="primary"
       />
 
       <Modal 
