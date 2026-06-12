@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, handleAuthError } from '../lib/supabase';
 import { Card, Button, Input, Select, Modal, ConfirmModal, Toast } from '../components/ui';
-import { Trash2, Plus, Edit2, X, Book, CloudOff } from 'lucide-react';
+import { Trash2, Plus, Edit2, X, Book, CloudOff, Eye } from 'lucide-react';
 import { useSchool } from '../contexts/SchoolContext';
 import { useSync } from '../contexts/SyncContext';
 import { cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
@@ -1607,6 +1607,12 @@ function UsersCrud() {
   const { isOnline } = useSync();
   const { reloadSchools, userRole, userScopes, selectedSchoolId } = useSchool();
 
+  // Coordinator Visibility States
+  const [visibilityModal, setVisibilityModal] = useState({ isOpen: false, targetUser: null });
+  const [visibilityRules, setVisibilityRules] = useState([]);
+  const [loadingVisibility, setLoadingVisibility] = useState(false);
+  const [savingVisibility, setSavingVisibility] = useState(false);
+
   const triggerToggleScope = (userId, schoolId, isAssigned) => {
     const userObj = users.find(u => u.id === userId);
     const schoolObj = schools.find(s => s.id === schoolId);
@@ -1651,6 +1657,67 @@ function UsersCrud() {
       setToast({ message: 'Erro ao carregar dados de usuários.', type: 'error' });
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  // Coordinator Visibility Functions
+  const openVisibilityModal = async (targetUser) => {
+    setVisibilityModal({ isOpen: true, targetUser });
+    setLoadingVisibility(true);
+    try {
+      const { data, error } = await supabase
+        .from('coordinator_visibility')
+        .select('*')
+        .eq('school_id', selectedSchoolId)
+        .eq('coordinator_id', targetUser.id);
+      if (error) {
+        console.warn('coordinator_visibility table may not exist yet:', error.message);
+        setVisibilityRules([]);
+      } else {
+        setVisibilityRules(data || []);
+      }
+    } catch (err) {
+      console.error('Error loading visibility rules:', err);
+      setVisibilityRules([]);
+    } finally {
+      setLoadingVisibility(false);
+    }
+  };
+
+  const toggleVisibility = async (coordinatorId, canSeeUserId, isEnabled) => {
+    setSavingVisibility(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const grantedBy = session?.user?.id || null;
+
+      if (isEnabled) {
+        // Remove rule
+        const { error } = await supabase
+          .from('coordinator_visibility')
+          .delete()
+          .eq('school_id', selectedSchoolId)
+          .eq('coordinator_id', coordinatorId)
+          .eq('can_see_user_id', canSeeUserId);
+        if (error) throw error;
+        setVisibilityRules(prev => prev.filter(r => !(r.coordinator_id === coordinatorId && r.can_see_user_id === canSeeUserId)));
+        setToast({ message: 'Permissão de visualização removida.' });
+      } else {
+        // Add rule
+        const { data, error } = await supabase
+          .from('coordinator_visibility')
+          .insert([{ school_id: selectedSchoolId, coordinator_id: coordinatorId, can_see_user_id: canSeeUserId, granted_by: grantedBy }])
+          .select();
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setVisibilityRules(prev => [...prev, data[0]]);
+        }
+        setToast({ message: 'Permissão de visualização concedida!' });
+      }
+    } catch (err) {
+      console.error('Error toggling visibility:', err);
+      setToast({ message: 'Erro ao alterar permissão de visualização.', type: 'error' });
+    } finally {
+      setSavingVisibility(false);
     }
   };
 
@@ -1934,9 +2001,22 @@ function UsersCrud() {
                       )}
                     </td>
                     <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
-                      <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => triggerDeleteUser(u)} disabled={saving}>
-                        <Trash2 size={16} />
-                      </Button>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                        {u.role === 'coordinator' && selectedSchoolId && (
+                          <Button 
+                            variant="secondary" 
+                            style={{ padding: '4px 8px' }} 
+                            onClick={() => openVisibilityModal(u)} 
+                            disabled={saving}
+                            title="Gerenciar Visibilidade de Registros"
+                          >
+                            <Eye size={16} />
+                          </Button>
+                        )}
+                        <Button variant="danger" style={{ padding: '4px 8px' }} onClick={() => triggerDeleteUser(u)} disabled={saving}>
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1959,6 +2039,135 @@ function UsersCrud() {
       }}>
         <strong>Dica para cadastrar novos usuários:</strong> Oriente o novo coordenador ou administrador a realizar o **primeiro login** no sistema SOSA utilizando sua conta Google Workspace institucional. Ao fazer isso, o perfil dele será criado automaticamente no sistema como "Coordenador" e aparecerá nesta lista. A partir daí, você poderá elevá-lo a {userRole === 'superadmin' ? '"Administrador Local" ou "Superadmin"' : '"Administrador Local"'} e associá-lo às respectivas escolas dele.
       </div>
+
+      {/* Coordinator Visibility Modal */}
+      <Modal
+        isOpen={visibilityModal.isOpen}
+        onClose={() => setVisibilityModal({ isOpen: false, targetUser: null })}
+        title="Gerenciar Visibilidade de Registros"
+      >
+        {visibilityModal.targetUser && (
+          <div style={{ minWidth: '320px', maxWidth: '480px' }}>
+            <div style={{ 
+              padding: 'var(--space-3)', 
+              backgroundColor: '#eef2ff', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid #c7d2fe',
+              marginBottom: 'var(--space-4)'
+            }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#4338ca', fontWeight: '500' }}>
+                Configurando visibilidade para: <strong>{visibilityModal.targetUser.email}</strong>
+              </p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#6366f1' }}>
+                Por padrão, coordenadores só veem observações que eles mesmos criaram. Marque abaixo os coordenadores cujos registros este usuário também poderá visualizar.
+              </p>
+            </div>
+
+            {loadingVisibility ? (
+              <div style={{ textAlign: 'center', padding: 'var(--space-4)', color: 'var(--text-muted)', fontSize: '13px' }}>
+                Carregando permissões...
+              </div>
+            ) : (() => {
+              // Get other coordinators in the same school (excluding the target user)
+              const otherCoordinators = users.filter(u => {
+                if (u.id === visibilityModal.targetUser.id) return false;
+                if (u.role === 'superadmin') return false;
+                const userScopesList = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
+                return userScopesList.includes(selectedSchoolId);
+              });
+
+              if (otherCoordinators.length === 0) {
+                return (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: 'var(--space-6)', 
+                    color: 'var(--text-muted)', 
+                    fontSize: '13px',
+                    fontStyle: 'italic'
+                  }}>
+                    Não há outros usuários nesta unidade escolar para configurar visibilidade.
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {otherCoordinators.map(coord => {
+                    const isEnabled = visibilityRules.some(
+                      r => r.coordinator_id === visibilityModal.targetUser.id && r.can_see_user_id === coord.id
+                    );
+                    const roleBadge = coord.role === 'school_admin' ? 'Admin' : 'Coord.';
+                    const roleBadgeColor = coord.role === 'school_admin' ? '#15803d' : '#1e3a8a';
+
+                    return (
+                      <label
+                        key={coord.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 14px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid',
+                          borderColor: isEnabled ? '#c7d2fe' : 'var(--border)',
+                          backgroundColor: isEnabled ? '#eef2ff' : '#ffffff',
+                          cursor: savingVisibility ? 'wait' : 'pointer',
+                          transition: 'all 0.15s',
+                          userSelect: 'none'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={() => toggleVisibility(visibilityModal.targetUser.id, coord.id, isEnabled)}
+                          disabled={savingVisibility}
+                          style={{ margin: 0, accentColor: '#4f46e5' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                            {coord.email}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                            <span style={{
+                              fontSize: '9px',
+                              fontWeight: 'bold',
+                              color: 'white',
+                              backgroundColor: roleBadgeColor,
+                              padding: '1px 6px',
+                              borderRadius: 'var(--radius-full)'
+                            }}>
+                              {roleBadge}
+                            </span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              {isEnabled ? 'Registros visíveis' : 'Registros ocultos'}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: isEnabled ? '#22c55e' : '#d1d5db',
+                          transition: 'background-color 0.2s'
+                        }} />
+                      </label>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end" style={{ marginTop: 'var(--space-4)' }}>
+              <Button
+                variant="secondary"
+                onClick={() => setVisibilityModal({ isOpen: false, targetUser: null })}
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <ConfirmModal
         isOpen={confirmModal.isOpen}

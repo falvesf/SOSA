@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, handleAuthError } from '../lib/supabase';
 import { Card, Button, Modal, ConfirmModal, Toast } from '../components/ui';
 import { useSchool } from '../contexts/SchoolContext';
-import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown, Plus, Settings, X, Palette, RotateCcw, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
+import { Eye, Trash2, Calendar, User, BookOpen, GraduationCap, Edit, Filter, BarChart3, TrendingUp, ClipboardList, Pin, CloudOff, ArrowUpDown, Plus, Settings, X, Palette, RotateCcw, RefreshCw, Maximize2, Minimize2, ArrowRightLeft } from 'lucide-react';
 import ObservationDetails from './ObservationDetails';
 import { useSync } from '../contexts/SyncContext';
 import { removeQueueItem, cacheMetadata, getCachedMetadata, withTimeout } from '../lib/offlineStore';
@@ -33,7 +33,7 @@ import {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { selectedSchoolId, selectedBimestre } = useSchool();
+  const { selectedSchoolId, selectedBimestre, userRole, userProfile } = useSchool();
   const { offlineQueue, loadQueue } = useSync();
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +43,13 @@ export default function Dashboard() {
   const [deleteIsOffline, setDeleteIsOffline] = useState(false);
   const [toast, setToast] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Move Bimestre Modal States
+  const [moveBimestreModal, setMoveBimestreModal] = useState({ isOpen: false, observation: null, targetBimestre: '' });
+  const [movingBimestre, setMovingBimestre] = useState(false);
+
+  // Coordinator visibility (IDs this coordinator is allowed to see)
+  const [visibleUserIds, setVisibleUserIds] = useState(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -235,6 +242,36 @@ export default function Dashboard() {
     return localStorage.getItem('dashboard_pinned') === 'true';
   });
 
+  // Load coordinator visibility permissions
+  const loadVisibility = async () => {
+    if (!userProfile?.id || !selectedSchoolId) return;
+    if (userRole !== 'coordinator') {
+      setVisibleUserIds(null); // admins/superadmins see everything
+      return;
+    }
+    try {
+      if (!navigator.onLine) {
+        setVisibleUserIds([userProfile.id]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('coordinator_visibility')
+        .select('can_see_user_id')
+        .eq('school_id', selectedSchoolId)
+        .eq('coordinator_id', userProfile.id);
+      if (error) {
+        console.warn('coordinator_visibility table may not exist yet:', error.message);
+        setVisibleUserIds([userProfile.id]);
+        return;
+      }
+      const extraIds = (data || []).map(r => r.can_see_user_id);
+      setVisibleUserIds([userProfile.id, ...extraIds]);
+    } catch (err) {
+      console.error('Error loading coordinator visibility:', err);
+      setVisibleUserIds([userProfile.id]);
+    }
+  };
+
   const fetchObservations = async () => {
     if (!selectedSchoolId) return;
     setLoading(true);
@@ -256,6 +293,11 @@ export default function Dashboard() {
       
       if (selectedBimestre) {
         query = query.eq('bimestre', selectedBimestre);
+      }
+
+      // Apply coordinator visibility filter
+      if (visibleUserIds && visibleUserIds.length > 0) {
+        query = query.in('user_id', visibleUserIds);
       }
 
       const { data, error } = await withTimeout(query.order('visit_date', { ascending: false }), 2000);
@@ -288,6 +330,10 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    loadVisibility();
+  }, [userProfile?.id, userRole, selectedSchoolId]);
+
+  useEffect(() => {
     fetchObservations();
     loadCardsFromCloud();
 
@@ -297,7 +343,7 @@ export default function Dashboard() {
     };
     window.addEventListener('sosa_sync_completed', handleSyncCompleted);
     return () => window.removeEventListener('sosa_sync_completed', handleSyncCompleted);
-  }, [selectedSchoolId, selectedBimestre]);
+  }, [selectedSchoolId, selectedBimestre, visibleUserIds]);
 
   // Data Transformation for Charts
   const localOfflineObs = useMemo(() => {
@@ -820,6 +866,28 @@ export default function Dashboard() {
     setDeleteIsOffline(isOffline);
   };
 
+  // Move Bimestre Handler
+  const handleMoveBimestre = async () => {
+    if (!moveBimestreModal.observation || !moveBimestreModal.targetBimestre) return;
+    setMovingBimestre(true);
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({ bimestre: moveBimestreModal.targetBimestre })
+        .eq('id', moveBimestreModal.observation.id);
+      if (error) throw error;
+      setMoveBimestreModal({ isOpen: false, observation: null, targetBimestre: '' });
+      fetchObservations();
+      setToast({ message: `Observação movida para ${moveBimestreModal.targetBimestre} com sucesso!` });
+    } catch (error) {
+      if (handleAuthError(error)) return;
+      console.error('Error moving observation:', error);
+      setToast({ message: 'Erro ao mover observação de bimestre.', type: 'error' });
+    } finally {
+      setMovingBimestre(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteConfirmId) return;
     const idToDelete = deleteConfirmId;
@@ -1197,6 +1265,20 @@ export default function Dashboard() {
                         <Button variant="secondary" style={{ padding: '4px' }} onClick={() => navigate(`/observacao/editar/${obs.id}`)}>
                           <Edit size={14} />
                         </Button>
+                        {(userRole === 'superadmin' || userRole === 'school_admin') && !obs.isOffline && (
+                          <Button 
+                            variant="secondary" 
+                            style={{ padding: '4px' }} 
+                            title="Mover para outro Bimestre"
+                            onClick={() => setMoveBimestreModal({ 
+                              isOpen: true, 
+                              observation: obs, 
+                              targetBimestre: '' 
+                            })}
+                          >
+                            <ArrowRightLeft size={14} />
+                          </Button>
+                        )}
                         <Button variant="danger" style={{ padding: '4px' }} onClick={() => handleDelete(obs.id, obs.isOffline)}>
                           <Trash2 size={14} />
                         </Button>
@@ -1231,6 +1313,110 @@ export default function Dashboard() {
         cancelText="Cancelar"
         variant="primary"
       />
+
+      {/* Move Bimestre Modal */}
+      <Modal 
+        isOpen={moveBimestreModal.isOpen} 
+        onClose={() => setMoveBimestreModal({ isOpen: false, observation: null, targetBimestre: '' })} 
+        title="Mover Observação de Bimestre"
+      >
+        {moveBimestreModal.observation && (
+          <div style={{ minWidth: '320px', maxWidth: '440px' }}>
+            <div style={{ 
+              padding: 'var(--space-3)', 
+              backgroundColor: '#f8fafc', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid var(--border)',
+              marginBottom: 'var(--space-4)'
+            }}>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <User size={14} className="text-muted" />
+                  <span className="text-sm font-medium">{moveBimestreModal.observation.teachers?.name || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <GraduationCap size={14} className="text-muted" />
+                  <span className="text-sm">{moveBimestreModal.observation.series?.name || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar size={14} className="text-muted" />
+                  <span className="text-sm">
+                    {moveBimestreModal.observation.visit_date 
+                      ? moveBimestreModal.observation.visit_date.split('-').reverse().join('/') 
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div style={{ 
+                  marginTop: '4px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span className="text-xs font-bold text-muted">BIMESTRE ATUAL:</span>
+                  <span style={{ 
+                    fontSize: '12px', 
+                    fontWeight: '700', 
+                    color: '#4f46e5',
+                    backgroundColor: '#eef2ff',
+                    padding: '2px 10px',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid #c7d2fe'
+                  }}>
+                    {moveBimestreModal.observation.bimestre || selectedBimestre}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2" style={{ marginBottom: 'var(--space-4)' }}>
+              <label className="text-xs font-bold text-muted uppercase">Mover para:</label>
+              <select
+                className="select text-sm font-medium"
+                value={moveBimestreModal.targetBimestre}
+                onChange={(e) => setMoveBimestreModal(prev => ({ ...prev, targetBimestre: e.target.value }))}
+                style={{ padding: '8px 12px' }}
+              >
+                <option value="">Selecione o bimestre destino...</option>
+                {['1º Bimestre', '2º Bimestre', '3º Bimestre', '4º Bimestre']
+                  .filter(b => b !== (moveBimestreModal.observation.bimestre || selectedBimestre))
+                  .map(b => <option key={b} value={b}>{b}</option>)
+                }
+              </select>
+            </div>
+
+            {moveBimestreModal.observation.revisit_date_1 && (
+              <div style={{ 
+                padding: '8px 12px', 
+                backgroundColor: '#fffbeb', 
+                border: '1px solid #fde68a', 
+                borderRadius: 'var(--radius-md)',
+                fontSize: '12px',
+                color: '#92400e',
+                marginBottom: 'var(--space-4)'
+              }}>
+                <strong>Nota:</strong> Esta observação contém {moveBimestreModal.observation.revisit_date_2 ? '2ª e 3ª Visitas' : '2ª Visita'} registradas. Todas as visitas serão movidas junto com o registro principal.
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <Button 
+                variant="secondary" 
+                onClick={() => setMoveBimestreModal({ isOpen: false, observation: null, targetBimestre: '' })}
+                disabled={movingBimestre}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="primary" 
+                onClick={handleMoveBimestre}
+                disabled={movingBimestre || !moveBimestreModal.targetBimestre}
+              >
+                {movingBimestre ? 'Movendo...' : 'Confirmar Movimentação'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal 
         isOpen={isEditModalOpen} 
