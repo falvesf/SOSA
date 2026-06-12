@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [coordinators, setCoordinators] = useState([]);
   const [loadingCoordinators, setLoadingCoordinators] = useState(false);
   const [transferring, setTransferring] = useState(false);
+  const [currentOwnerProfile, setCurrentOwnerProfile] = useState(null);
 
   // Coordinator visibility (IDs this coordinator is allowed to see)
   const [visibleUserIds, setVisibleUserIds] = useState(null);
@@ -895,9 +896,22 @@ export default function Dashboard() {
   };
 
   // Fetch Coordinators for Transfer Handler
-  const fetchCoordinatorsForTransfer = async (schoolId) => {
+  const fetchCoordinatorsForTransfer = async (schoolId, currentUserId) => {
     setLoadingCoordinators(true);
+    setCurrentOwnerProfile(null);
     try {
+      // Fetch current owner profile details
+      if (currentUserId) {
+        const { data: ownerData } = await supabase
+          .from('user_profiles')
+          .select('email, role')
+          .eq('id', currentUserId)
+          .maybeSingle();
+        if (ownerData) {
+          setCurrentOwnerProfile(ownerData);
+        }
+      }
+
       const { data: scopesData, error: scopesError } = await supabase
         .from('user_school_scopes')
         .select('user_id')
@@ -1351,7 +1365,7 @@ export default function Dashboard() {
                                   observation: obs, 
                                   targetUserId: '' 
                                 });
-                                fetchCoordinatorsForTransfer(obs.school_id || selectedSchoolId);
+                                fetchCoordinatorsForTransfer(obs.school_id || selectedSchoolId, obs.user_id);
                               }}
                             >
                               <User size={14} />
@@ -1528,6 +1542,30 @@ export default function Dashboard() {
                       ? transferModal.observation.visit_date.split('-').reverse().join('/') 
                       : 'N/A'}
                   </span>
+                </div>
+                <div style={{ 
+                  marginTop: '4px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  flexWrap: 'wrap'
+                }}>
+                  <span className="text-xs font-bold text-muted">AUTOR ATUAL:</span>
+                  {currentOwnerProfile ? (
+                    <span style={{ 
+                      fontSize: '11px', 
+                      fontWeight: '700', 
+                      color: '#4f46e5',
+                      backgroundColor: '#eef2ff',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      border: '1px solid #c7d2fe'
+                    }}>
+                      {currentOwnerProfile.email} ({currentOwnerProfile.role === 'superadmin' ? 'Superadmin' : currentOwnerProfile.role === 'school_admin' ? 'Admin' : 'Coordenador'})
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted font-medium">Carregando...</span>
+                  )}
                 </div>
               </div>
             </div>
