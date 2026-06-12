@@ -48,6 +48,12 @@ export default function Dashboard() {
   const [moveBimestreModal, setMoveBimestreModal] = useState({ isOpen: false, observation: null, targetBimestre: '' });
   const [movingBimestre, setMovingBimestre] = useState(false);
 
+  // Transfer observation states
+  const [transferModal, setTransferModal] = useState({ isOpen: false, observation: null, targetUserId: '' });
+  const [coordinators, setCoordinators] = useState([]);
+  const [loadingCoordinators, setLoadingCoordinators] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+
   // Coordinator visibility (IDs this coordinator is allowed to see)
   const [visibleUserIds, setVisibleUserIds] = useState(null);
 
@@ -888,6 +894,62 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch Coordinators for Transfer Handler
+  const fetchCoordinatorsForTransfer = async (schoolId) => {
+    setLoadingCoordinators(true);
+    try {
+      const { data: scopesData, error: scopesError } = await supabase
+        .from('user_school_scopes')
+        .select('user_id')
+        .eq('school_id', schoolId);
+      
+      if (scopesError) throw scopesError;
+      
+      const userIds = (scopesData || []).map(s => s.user_id);
+      if (userIds.length === 0) {
+        setCoordinators([]);
+        return;
+      }
+      
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('id, email')
+        .in('id', userIds)
+        .eq('role', 'coordinator')
+        .order('email');
+        
+      if (profilesError) throw profilesError;
+      setCoordinators(profilesData || []);
+    } catch (err) {
+      console.error('Error fetching coordinators for transfer:', err);
+      setToast({ message: 'Erro ao carregar coordenadores.', type: 'error' });
+    } finally {
+      setLoadingCoordinators(false);
+    }
+  };
+
+  // Handle Transfer Registry
+  const handleTransfer = async () => {
+    if (!transferModal.observation || !transferModal.targetUserId) return;
+    setTransferring(true);
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({ user_id: transferModal.targetUserId })
+        .eq('id', transferModal.observation.id);
+      if (error) throw error;
+      setTransferModal({ isOpen: false, observation: null, targetUserId: '' });
+      fetchObservations();
+      setToast({ message: 'Responsável pela observação transferido com sucesso!' });
+    } catch (error) {
+      if (handleAuthError(error)) return;
+      console.error('Error transferring observation:', error);
+      setToast({ message: 'Erro ao transferir observação.', type: 'error' });
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteConfirmId) return;
     const idToDelete = deleteConfirmId;
@@ -1266,18 +1328,35 @@ export default function Dashboard() {
                           <Edit size={14} />
                         </Button>
                         {(userRole === 'superadmin' || userRole === 'school_admin') && !obs.isOffline && (
-                          <Button 
-                            variant="secondary" 
-                            style={{ padding: '4px' }} 
-                            title="Mover para outro Bimestre"
-                            onClick={() => setMoveBimestreModal({ 
-                              isOpen: true, 
-                              observation: obs, 
-                              targetBimestre: '' 
-                            })}
-                          >
-                            <ArrowRightLeft size={14} />
-                          </Button>
+                          <>
+                            <Button 
+                              variant="secondary" 
+                              style={{ padding: '4px' }} 
+                              title="Mover para outro Bimestre"
+                              onClick={() => setMoveBimestreModal({ 
+                                isOpen: true, 
+                                observation: obs, 
+                                targetBimestre: '' 
+                              })}
+                            >
+                              <ArrowRightLeft size={14} />
+                            </Button>
+                            <Button 
+                              variant="secondary" 
+                              style={{ padding: '4px' }} 
+                              title="Transferir Responsável"
+                              onClick={() => {
+                                setTransferModal({ 
+                                  isOpen: true, 
+                                  observation: obs, 
+                                  targetUserId: '' 
+                                });
+                                fetchCoordinatorsForTransfer(obs.school_id || selectedSchoolId);
+                              }}
+                            >
+                              <User size={14} />
+                            </Button>
+                          </>
                         )}
                         <Button variant="danger" style={{ padding: '4px' }} onClick={() => handleDelete(obs.id, obs.isOffline)}>
                           <Trash2 size={14} />
@@ -1412,6 +1491,83 @@ export default function Dashboard() {
                 disabled={movingBimestre || !moveBimestreModal.targetBimestre}
               >
                 {movingBimestre ? 'Movendo...' : 'Confirmar Movimentação'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Transfer Responsável Modal */}
+      <Modal 
+        isOpen={transferModal.isOpen} 
+        onClose={() => setTransferModal({ isOpen: false, observation: null, targetUserId: '' })} 
+        title="Transferir Responsável pela Observação"
+      >
+        {transferModal.observation && (
+          <div style={{ minWidth: '320px', maxWidth: '440px' }}>
+            <div style={{ 
+              padding: 'var(--space-3)', 
+              backgroundColor: '#f8fafc', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid var(--border)',
+              marginBottom: 'var(--space-4)'
+            }}>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <User size={14} className="text-muted" />
+                  <span className="text-sm font-medium">{transferModal.observation.teachers?.name || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <GraduationCap size={14} className="text-muted" />
+                  <span className="text-sm">{transferModal.observation.series?.name || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar size={14} className="text-muted" />
+                  <span className="text-sm">
+                    {transferModal.observation.visit_date 
+                      ? transferModal.observation.visit_date.split('-').reverse().join('/') 
+                      : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2" style={{ marginBottom: 'var(--space-4)' }}>
+              <label className="text-xs font-bold text-muted uppercase">Coordenador Destino:</label>
+              {loadingCoordinators ? (
+                <div className="text-sm text-muted">Carregando coordenadores...</div>
+              ) : coordinators.length === 0 ? (
+                <div className="text-sm text-muted italic">Nenhum coordenador cadastrado nesta escola.</div>
+              ) : (
+                <select
+                  className="select text-sm font-medium"
+                  value={transferModal.targetUserId}
+                  onChange={(e) => setTransferModal(prev => ({ ...prev, targetUserId: e.target.value }))}
+                  style={{ padding: '8px 12px' }}
+                >
+                  <option value="">Selecione o coordenador...</option>
+                  {coordinators
+                    .filter(c => c.id !== transferModal.observation.user_id)
+                    .map(c => <option key={c.id} value={c.id}>{c.email}</option>)
+                  }
+                </select>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button 
+                variant="secondary" 
+                onClick={() => setTransferModal({ isOpen: false, observation: null, targetUserId: '' })}
+                disabled={transferring}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="primary" 
+                onClick={handleTransfer}
+                disabled={transferring || !transferModal.targetUserId}
+              >
+                {transferring ? 'Transferindo...' : 'Confirmar Transferência'}
               </Button>
             </div>
           </div>

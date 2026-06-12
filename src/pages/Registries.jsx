@@ -2072,6 +2072,7 @@ function UsersCrud() {
               const otherCoordinators = users.filter(u => {
                 if (u.id === visibilityModal.targetUser.id) return false;
                 if (u.role === 'superadmin') return false;
+                if (u.role === 'school_admin') return false;
                 const userScopesList = scopes.filter(s => s.user_id === u.id).map(s => s.school_id);
                 return userScopesList.includes(selectedSchoolId);
               });
