@@ -621,35 +621,36 @@ export default function ObservationDetails({ observation }) {
       return values.includes(target) ? '(X)' : '( )';
     };
 
-    // NEW: Smart colored markers for rubric grid only
     const renderScoreMarkers = (field, score, currentPage) => {
       const v1 = observation[field];
       const v2 = observation.scores_v2?.[field];
       const v3 = observation.scores_v3?.[field];
 
-      const markers = [];
-      const colors = { 1: '#0ea5e9', 2: '#10b981', 3: '#f59e0b' };
+      let activeScore = v1;
+      let activeVisit = 1;
 
-      // Rule: Page 1 always shows original in Blue (or black if you prefer, but Blue is the 'Original' ID)
-      if (v1 === score) {
-        markers.push(<span key="1" style={{ color: colors[1] }}>X</span>);
+      if (currentPage >= 2 && v2 !== undefined && v2 !== null && v2 !== v1) {
+        activeScore = v2;
+        activeVisit = 2;
+      }
+      
+      if (currentPage === 3 && v3 !== undefined && v3 !== null && v3 !== activeScore) {
+        activeScore = v3;
+        activeVisit = 3;
       }
 
-      // Rule: Page 2 shows V2 if it changed from V1
-      if (currentPage >= 2 && v2 !== undefined && v2 !== null && v2 !== v1 && v2 === score) {
-        markers.push(<span key="2" style={{ color: colors[2] }}>X</span>);
+      if (activeScore === score) {
+        // Cores mais escuras para melhor contraste na impressão
+        // 1: Azul escuro, 2: Verde escuro, 3: Laranja/Ambar escuro
+        const colors = { 1: '#0369a1', 2: '#15803d', 3: '#b45309' };
+        return (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', fontWeight: 'bold' }}>
+            <span style={{ color: colors[activeVisit] }}>X</span>
+          </div>
+        );
       }
 
-      // Rule: Page 3 shows V3 if it changed from V2 (or V1)
-      if (currentPage === 3 && v3 !== undefined && v3 !== null && v3 !== v2 && v3 !== v1 && v3 === score) {
-        markers.push(<span key="3" style={{ color: colors[3] }}>X</span>);
-      }
-
-      return (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', fontWeight: 'bold' }}>
-          {markers}
-        </div>
-      );
+      return null;
     };
 
     for (let v = 1; v <= visitCount; v++) {

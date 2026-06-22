@@ -693,7 +693,7 @@ function Layout({ children, onLogout, session }) {
                 </div>
                 <div>
                   <span style={{ display: 'block', fontSize: '9px', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Versão</span>
-                  <span style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>1.01</span>
+                  <span style={{ display: 'block', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>1.02</span>
                 </div>
               </div>
 
