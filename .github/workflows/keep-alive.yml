@@ -1,0 +1,18 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    # Roda todo dia 1, 4, 7, 10, etc, à meia-noite (a cada 3 dias)
+    - cron: '0 0 */3 * *'
+  workflow_dispatch: # Permite rodar manualmente caso você queira testar
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database
+        run: |
+          curl -s "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/observations?select=id&limit=1" \
+            -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json"
