@@ -433,7 +433,7 @@ export default function HelpDocumentationModal({ isOpen, onClose }) {
                   <Cpu size={18} style={{ color: '#a855f7' }} /> Processamento Inteligente Pedagógico (IA)
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '16px' }}>
-                  O SOSA incorpora uma engine altamente refinada de processamento de linguagem natural compatível com APIs do <strong>Google Gemini (família gemini-2.0-flash e 1.5)</strong> e <strong>Groq (Llama 3.3 70b, Llama 3.1 8b)</strong> para aprimorar as redações pedagógicas de forma humana e formal.
+                  O SOSA incorpora uma engine altamente refinada de processamento de linguagem natural compatível com APIs do <strong>Google Gemini (família gemini-2.0-flash e 2.5-flash)</strong> e <strong>Groq (GPT-OSS 120B, GPT-OSS 20B, Qwen 3.6 27B)</strong> para aprimorar as redações pedagógicas de forma humana e formal.
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>

@@ -144,12 +144,12 @@ const getVerbosityInstruction = (level) => {
 
 const AI_MODELS = [
   // Groq models
-  { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B — Melhor qualidade', provider: 'groq' },
-  { value: 'llama-3.1-8b-instant',    label: 'Llama 3.1 8B — Mais rápido',      provider: 'groq' },
-  { value: 'gemma2-9b-it',            label: 'Gemma 2 9B — Google via Groq',    provider: 'groq' },
+  { value: 'openai/gpt-oss-120b',     label: 'GPT-OSS 120B — Melhor qualidade', provider: 'groq' },
+  { value: 'openai/gpt-oss-20b',      label: 'GPT-OSS 20B — Mais rápido',       provider: 'groq' },
+  { value: 'qwen/qwen3.6-27b',        label: 'Qwen 3.6 27B — Alternativa',      provider: 'groq' },
   // Gemini models
   { value: 'gemini-2.0-flash',        label: 'Gemini 2.0 Flash — Padrão',       provider: 'gemini' },
-  { value: 'gemini-1.5-flash',        label: 'Gemini 1.5 Flash — Estável',      provider: 'gemini' },
+  { value: 'gemini-2.5-flash',        label: 'Gemini 2.5 Flash — Mais recente', provider: 'gemini' },
 ];
 
 const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, activeThemeColor = "var(--primary)", onSaveKey, aiContext }) => {
@@ -160,7 +160,7 @@ const AiTextarea = ({ value, onChange, placeholder = "", rows = "3", fieldName, 
   const [errorMsg, setErrorMsg] = useState('');
   const [showKeyPlain, setShowKeyPlain] = useState(false);
   const [detailLevel, setDetailLevel] = useState(2);
-  const [aiModel, setAiModel] = useState(() => localStorage.getItem('sosa_ai_model') || 'llama-3.3-70b-versatile');
+  const [aiModel, setAiModel] = useState(() => localStorage.getItem('sosa_ai_model') || 'openai/gpt-oss-120b');
   const [autonomy, setAutonomy] = useState(() => localStorage.getItem('sosa_ai_autonomy') || 'coordination');
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [customInstructions, setCustomInstructions] = useState(() => localStorage.getItem('sosa_custom_ai_instructions') || '');
@@ -550,7 +550,7 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
 
           if (isGroqKey) {
             // ── GROQ API ──────────────────────────────────────────────────
-            const groqModel = AI_MODELS.find(m => m.value === aiModel && m.provider === 'groq')?.value || 'llama-3.3-70b-versatile';
+            const groqModel = AI_MODELS.find(m => m.value === aiModel && m.provider === 'groq')?.value || 'openai/gpt-oss-120b';
             response = await fetch(
               'https://api.groq.com/openai/v1/chat/completions',
               {
