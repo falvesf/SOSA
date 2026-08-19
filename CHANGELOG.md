@@ -4,6 +4,18 @@ Todos os registros notáveis das mudanças, melhorias, correções e novas funci
 
 ---
 
+## [1.0.3] - 2026-08-19
+
+### 🚀 Atualizado (Updates)
+- **Atualização dos Modelos de IA**: Substituição dos modelos descontinuados do Groq (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `gemma2-9b-it`) pelos novos modelos disponíveis:
+  - `openai/gpt-oss-120b` — Melhor qualidade
+  - `openai/gpt-oss-20b` — Mais rápido
+  - `qwen/qwen3.6-27b` — Alternativa
+- **Modelos Gemini Atualizados**: Adicionado `gemini-2.5-flash` como opção mais recente, removido `gemini-1.5-flash` descontinuado.
+- **Documentação Atualizada**: Central de Ajuda interna refletindo os novos modelos disponíveis.
+
+---
+
 ## [1.0.2] - 2026-05-29
 
 ### 🚀 Adicionado (Features)

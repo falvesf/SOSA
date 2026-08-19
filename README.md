@@ -6,7 +6,7 @@ O **SOSA** é uma plataforma moderna e premium desenvolvida para a gestão, acom
 
 ## ✨ Funcionalidades Principais
 
-### 📊 Dashboard Interativo & Métricas Customizáveis (v1.0.2)
+### 📊 Dashboard Interativo & Métricas Customizáveis (v1.0.3)
 - **Painel Altamente Personalizável**: Os usuários podem configurar até 4 cards de gráficos ativos simultaneamente no dashboard.
 - **Layout Inteligente e Responsivo**: Grade autoajustável com base na quantidade de gráficos ativos:
   - **1 gráfico**: Ocupa 100% da largura horizontal da tela.
@@ -71,11 +71,11 @@ O **SOSA** é uma plataforma moderna e premium desenvolvida para a gestão, acom
 
 ## 📜 Histórico de Versões (Changelog)
 
-### [1.0.2] - 2026-05-29 (Versão Atual)
-- **Adicionado**: Botão discreto de redefinição rápida no cabeçalho do Dashboard para voltar ao layout inicial recomendado.
-- **Adicionado**: Design minimalista e elegante para o botão de adicionar gráfico com ícones duplos (`+` e `📊`), melhorando a navegação mobile.
-- **Melhorado**: Rótulos e valores de Pizza e Rosca agora são renderizados internamente nas fatias/anéis com sombra de alto contraste, eliminando colisões ou invisibilidade de textos externos.
-- **Melhorado**: Remoção do slot pontilhado "+" do grid, permitindo que layouts de 1 único card expandam para 100% de largura horizontal.
+### [1.0.3] - 2026-08-19 (Versão Atual)
+- **Atualização dos Modelos de IA**: Substituição dos modelos descontinuados do Groq e Gemini pelos novos modelos disponíveis (GPT-OSS 120B, GPT-OSS 20B, Qwen 3.6 27B, Gemini 2.5 Flash).
+- **Documentação Atualizada**: Central de Ajuda interna refletindo os novos modelos disponíveis.
+
+### [1.0.2] - 2026-05-29
 
 ### [1.0.1] - 2026-05-28
 - **Adicionado**: Suporte offline e sincronização em background.
