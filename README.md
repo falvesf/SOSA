@@ -71,7 +71,13 @@ O **SOSA** é uma plataforma moderna e premium desenvolvida para a gestão, acom
 
 ## 📜 Histórico de Versões (Changelog)
 
-### [1.0.3] - 2026-08-19 (Versão Atual)
+### [1.0.4] - 2026-08-19 (Versão Atual)
+- **Corrigido**: Autoria offline — o `user_id` do coordenador logado agora é atribuído corretamente mesmo quando o registro é salvo sem conexão, usando fallback do `userProfile` (SchoolContext) e cache localStorage.
+- **Adicionado**: Camada de backup síncrono no `localStorage` para a fila offline, garantindo que dados não sejam perdidos caso o navegador seja fechado antes da escrita no IndexedDB completar.
+- **Adicionado**: Reconciliação automática da fila offline no startup — itens do backup localStorage são restaurados para o IndexedDB se não existirem.
+- **Adicionado**: Proteção `beforeunload` que avisa o coordenador antes de fechar a aba se houver registros pendentes de sincronização.
+
+### [1.0.3] - 2026-08-19
 - **Atualização dos Modelos de IA**: Substituição dos modelos descontinuados do Groq e Gemini pelos novos modelos disponíveis (GPT-OSS 120B, GPT-OSS 20B, Qwen 3.6 27B, Gemini 2.5 Flash).
 - **Documentação Atualizada**: Central de Ajuda interna refletindo os novos modelos disponíveis.
 

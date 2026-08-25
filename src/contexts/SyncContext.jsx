@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { getQueue, saveQueueItem, removeQueueItem } from '../lib/offlineStore';
+import { getQueue, saveQueueItem, removeQueueItem, restoreQueueFromBackup, syncQueueBackup, clearQueueBackup } from '../lib/offlineStore';
 
 const SyncContext = createContext();
 
@@ -8,9 +8,11 @@ export function SyncProvider({ children }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineQueue, setOfflineQueue] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [pendingWrites, setPendingWrites] = useState(0);
 
-  // Load offline queue on mount
+  // Load offline queue on mount (with backup reconciliation)
   const loadQueue = useCallback(async () => {
+    await restoreQueueFromBackup();
     const queue = await getQueue();
     setOfflineQueue(queue);
   }, []);
@@ -18,6 +20,18 @@ export function SyncProvider({ children }) {
   useEffect(() => {
     loadQueue();
   }, [loadQueue]);
+
+  // Warn user before closing if there are pending offline writes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (pendingWrites > 0 || offlineQueue.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [pendingWrites, offlineQueue.length]);
 
   // Synchronize a single queue item to Supabase
   const syncItem = async (item) => {
@@ -107,7 +121,10 @@ export function SyncProvider({ children }) {
 
     try {
       const queue = await getQueue();
-      if (queue.length === 0) return;
+      if (queue.length === 0) {
+        clearQueueBackup();
+        return;
+      }
 
       console.log(`Starting synchronization of ${queue.length} offline observation(s)...`);
 
@@ -134,6 +151,12 @@ export function SyncProvider({ children }) {
         
         // Dispatch custom event to let pages (like Dashboard) know they should refresh
         window.dispatchEvent(new CustomEvent('sosa_sync_completed'));
+      }
+
+      // If all items synced, clear the backup
+      const remaining = await getQueue();
+      if (remaining.length === 0) {
+        clearQueueBackup();
       }
     } finally {
       syncLock.current = false;
@@ -168,23 +191,39 @@ export function SyncProvider({ children }) {
 
   // Add observation to the offline queue
   const addToOfflineQueue = async (payload, meta = {}) => {
-    // Generate temporary ID if not existing
-    const tempId = payload.id || `offline_${Date.now()}`;
-    const queueItem = {
-      id: tempId,
-      payload: { ...payload, id: tempId },
-      meta: {
-        teacherName: meta.teacherName || 'N/A',
-        subjectName: meta.subjectName || 'N/A',
-        seriesName: meta.seriesName || 'N/A',
-        schoolName: meta.schoolName || 'N/A'
-      },
-      timestamp: new Date().toISOString()
-    };
+    setPendingWrites(prev => prev + 1);
+    try {
+      // Generate temporary ID if not existing
+      const tempId = payload.id || `offline_${Date.now()}`;
+      const queueItem = {
+        id: tempId,
+        payload: { ...payload, id: tempId },
+        meta: {
+          teacherName: meta.teacherName || 'N/A',
+          subjectName: meta.subjectName || 'N/A',
+          seriesName: meta.seriesName || 'N/A',
+          schoolName: meta.schoolName || 'N/A'
+        },
+        timestamp: new Date().toISOString()
+      };
 
-    await saveQueueItem(queueItem);
-    await loadQueue();
-    return tempId;
+      // Save to localStorage FIRST (synchronous, guaranteed to complete)
+      try {
+        const raw = localStorage.getItem('sosa_offline_queue_backup');
+        const backup = raw ? JSON.parse(raw) : [];
+        backup.push(queueItem);
+        localStorage.setItem('sosa_offline_queue_backup', JSON.stringify(backup));
+      } catch (backupErr) {
+        console.warn('Failed to write immediate localStorage backup:', backupErr);
+      }
+
+      // Then save to IndexedDB
+      await saveQueueItem(queueItem);
+      await loadQueue();
+      return tempId;
+    } finally {
+      setPendingWrites(prev => Math.max(0, prev - 1));
+    }
   };
 
   return (
@@ -192,6 +231,7 @@ export function SyncProvider({ children }) {
       isOnline,
       offlineQueue,
       isSyncing,
+      pendingWrites,
       addToOfflineQueue,
       syncOfflineData,
       loadQueue

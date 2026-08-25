@@ -2,7 +2,7 @@
 
 Este documento serve para orientar o agente de IA sobre o estado atual do projeto SOSA (Sistema de Observação em Sala de Aula).
 
-## 🚀 Estado Atual (v1.0.3)
+## 🚀 Estado Atual (v1.0.4)
 O projeto está 100% estabilizado, com autenticação Google Workspace ativa, sincronização offline resiliente via IndexedDB, e um **Dashboard de Métricas Premium Interativo e Altamente Personalizável**.
 
 ### 🛠 Stack Tecnológica
@@ -13,7 +13,7 @@ O projeto está 100% estabilizado, com autenticação Google Workspace ativa, si
 - **Icons**: Lucide React
 - **Armazenamento Local/Offline**: IndexedDB + localStorage
 
-### 📊 Sistema de Métricas Customizáveis (v1.0.3)
+### 📊 Sistema de Métricas Customizáveis (v1.0.4)
 - **Persistência de Configuração**: As configurações de cards de gráficos customizados de cada usuário são salvas automaticamente no `localStorage` sob a chave `sosa_custom_dashboard_cards` e sincronizadas na nuvem no Supabase (`session.user.user_metadata.dashboard_config`).
 - **Layout de Grade Dinâmica**: Controlado dinamicamente no JSX do Dashboard via propriedade `--grid-cols` aplicada inline, correspondente ao número total de cards ativos.
 - **Gráficos Circulares Otimizados**: Os gráficos de Pizza (`pie`) e Rosca (`donut`) utilizam renderização de rótulo personalizada dentro das fatias/anéis para garantir contraste absoluto e impedir clipping de eixos SVG.

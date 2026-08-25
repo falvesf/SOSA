@@ -4,6 +4,18 @@ Todos os registros notáveis das mudanças, melhorias, correções e novas funci
 
 ---
 
+## [1.0.4] - 2026-08-19
+
+### 🐛 Correções Críticas (Fixes)
+- **Autoria Offline**: Corrigido bug crítico onde o `user_id` do coordenador não era atribuído a observações salvas offline. O sistema agora usa o `userProfile` do SchoolContext e cache `localStorage` como fallback, garantindo que a autoria seja sempre preservada.
+
+### 🚀 Adicionado (Features)
+- **Backup Síncrono da Fila Offline**: Toda observação salva offline agora é gravada simultaneamente no `localStorage` (síncrono) e no `IndexedDB` (assíncrono), eliminando perda de dados caso o navegador seja fechado antes da escrita completar.
+- **Reconciliação Automática no Startup**: Ao abrir o sistema, itens do backup `localStorage` são verificados e restaurados automaticamente para o `IndexedDB` se não existirem.
+- **Proteção `beforeunload`**: Alerta nativo do navegador ao tentar fechar a aba com registros offline pendentes de sincronização.
+
+---
+
 ## [1.0.3] - 2026-08-19
 
 ### 🚀 Atualizado (Updates)

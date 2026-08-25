@@ -1422,7 +1422,7 @@ REGRAS CRÍTICAS DE REDAÇÃO PEDAGÓGICA:
 };
 
 export default function ObservationForm() {
-  const { selectedSchoolId, selectedBimestre } = useSchool();
+  const { selectedSchoolId, selectedBimestre, userProfile } = useSchool();
   const { isOnline, addToOfflineQueue } = useSync();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -2228,7 +2228,18 @@ export default function ObservationForm() {
         const { data: { session } } = await supabase.auth.getSession();
         userId = session?.user?.id;
       } catch (authErr) {
-        console.warn('Failed to get session during offline submit:', authErr);
+        console.warn('Failed to get session during submit:', authErr);
+      }
+      // Fallback: use cached userProfile from SchoolContext (works offline)
+      if (!userId && userProfile?.id) {
+        userId = userProfile.id;
+      }
+      // Fallback: use localStorage cache
+      if (!userId) {
+        try {
+          const cached = JSON.parse(localStorage.getItem('sosa_user_profile') || 'null');
+          if (cached?.id) userId = cached.id;
+        } catch (e) { /* ignore */ }
       }
 
       const selectedSeriesObj = seriesList.find(s => s.id === formData.series_id);
