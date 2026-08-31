@@ -2221,6 +2221,42 @@ export default function ObservationForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // ── Client-side validation ────────────────────────────────────────
+    const validationErrors = [];
+    if (!formData.teacher_id) validationErrors.push({ field: 'teacher', label: 'Professor(a)' });
+    if (!formData.series_id) validationErrors.push({ field: 'series', label: 'Ano/Série' });
+    if (!formData.subject_ids || formData.subject_ids.length === 0) validationErrors.push({ field: 'subject', label: 'Disciplina(s)' });
+
+    if (validationErrors.length > 0) {
+      const names = validationErrors.map(v => v.label).join(', ');
+      setToast({ message: `Preencha os campos obrigatórios: ${names}`, type: 'error' });
+
+      // Scroll to and highlight the first missing field
+      const firstField = validationErrors[0].field;
+      const fieldMap = { teacher: 'select', series: 'select', subject: 'div' };
+      const formEl = document.querySelector(`form`);
+      if (formEl) {
+        const selects = formEl.querySelectorAll('select');
+        // teacher is the first select, series is the third select
+        let targetEl = null;
+        if (firstField === 'teacher') targetEl = selects[0];
+        else if (firstField === 'series') targetEl = selects[1];
+        else if (firstField === 'subject') targetEl = subjectDropdownRef.current;
+
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetEl.style.outline = '2px solid #ef4444';
+          targetEl.style.outlineOffset = '2px';
+          setTimeout(() => {
+            targetEl.style.outline = '';
+            targetEl.style.outlineOffset = '';
+          }, 3000);
+        }
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       let userId = null;
